@@ -10,6 +10,7 @@ from typing import Any, Mapping
 from .deployment_profile import DeploymentProfileValidator
 from .m04_multiwan import MultiWanPlanner, WanLink
 from .m06_security import FindingSeverity, SecurityBaseline, SecurityPolicyValidator
+from .wireguard_intent import normalize_wireguard_intent
 
 
 class IntentRisk(IntEnum):
@@ -333,18 +334,16 @@ class SafeSubsetCompiler:
         wireguard = vpn.get("wireguard")
         if not isinstance(wireguard, Mapping) or not bool(wireguard.get("enabled", False)):
             return []
-        secret_ref = str(wireguard.get("secret_ref") or "").strip()
-        if not secret_ref.startswith(("env://", "vault://", "keyring://")):
-            raise ValueError("WireGuard intent requires an unresolved secret reference")
+        normalized = normalize_wireguard_intent(wireguard)
         return [
             IntentOperation(
                 operation_id="vpn.wireguard",
                 feature="vpn",
                 resource="wireguard_policy",
-                attributes={"enabled": True},
+                attributes=normalized.attributes,
                 risk=IntentRisk.HIGH,
                 requires=("wireguard", "firewall", "management_path"),
-                secret_references=(secret_ref,),
+                secret_references=(normalized.secret_ref,),
             )
         ]
 
