@@ -107,6 +107,14 @@ jobs:
             --ca-output evidence/chr-lab-ca.crt \
             --credentials-output /tmp/chr-reader-credentials.json \
             | tee evidence/chr-secure-bootstrap-summary.json
+      - name: Verify dedicated reader cannot write
+        run: |
+          set -eu
+          python lab/chr/verify_reader_write_denied.py \
+            --url https://127.0.0.1:9443 \
+            --ca-file evidence/chr-lab-ca.crt \
+            --credentials-file /tmp/chr-reader-credentials.json \
+            --output evidence/chr-reader-boundary.json
       - name: Populate disposable high-value RouterOS surfaces
         run: |
           set -eu
@@ -159,6 +167,7 @@ jobs:
             evidence/chr-ci-secure-populated.json
             evidence/chr-lab-ca.crt
             evidence/chr-secure-bootstrap-summary.json
+            evidence/chr-reader-boundary.json
             evidence/chr-population-summary.json
             evidence/chr-populated-verification.json
             evidence/chr-ci-machine-provenance.json
