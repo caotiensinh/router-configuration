@@ -1,3 +1,4 @@
-RouterOS CHR 7.24.1 secure populated Phase A v3
-Purpose: re-run exact live acceptance after documented password charset and safe HTTP diagnostics fix.
-This file contains no credentials, image data, or production configuration.
+RouterOS CHR 7.24.1 clean read-only admission trigger
+Purpose: run the isolated CHR Clean Admission workflow only after the full regression matrix is green.
+Acceptance target: dedicated read,rest-api identity; HTTPS with CA verification; GET-only discovery from a fresh snapshot; machine provenance and clean execution manifest.
+This file contains no credentials, image data, production configuration, or write authorization.
