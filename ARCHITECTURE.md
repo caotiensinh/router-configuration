@@ -2,186 +2,271 @@
 
 ## Product definition
 
-Router Configuration is a vendor-neutral network configuration control system. The core expresses intent, calculates a safe change plan, and verifies outcomes. Vendor adapters translate the approved plan into vendor-specific operations.
+Router Configuration is a vendor-neutral network configuration control system. The core expresses intent, calculates a safe change plan, and verifies outcomes. Vendor adapters translate approved operations into vendor-specific actions.
 
 The core must never require vendor command syntax to make a policy decision.
 
+## Architectural objective
+
+A user who understands basic router/network concepts should be able to produce an expert-grade deployment because safety and workflow knowledge are encoded in the system rather than left to operator memory.
+
+## Top-level architecture
+
+```text
+                     Operator / Future UI
+                            |
+                            v
+                 Guided Deployment Harness
+                            |
+             +--------------+---------------+
+             |                              |
+             v                              v
+       Intent / State                  Evidence Bus
+             |                              |
+             v                              +------> Observability Gateway
+       Plan / Validate                                |
+             |                                        +--> future internal AI
+             v                                             advisory only
+        Safety Gate
+             |
+             v
+     Adapter-neutral operations
+             |
+       +-----+------+----------------+
+       |            |                |
+       v            v                v
+   MikroTik       Yamaha           Omada
+   Adapter         Adapter          Adapter
+       |            |                |
+       +------------+----------------+
+                    |
+                 Routers
+```
+
+The future AI/observability path is parallel to the execution path. It cannot call a device writer directly.
+
 ## Design principles
 
-1. **Intent before commands** — users describe desired network behavior rather than a sequence of CLI commands.
-2. **Read before write** — collect facts and current state before producing a plan.
-3. **Plan before apply** — every mutation is represented as an immutable change plan.
-4. **Safety before convenience** — management reachability, backup, validation, and rollback are part of the execution contract.
-5. **Idempotent reconciliation** — applying an already-satisfied intent must produce no change.
-6. **Vendor isolation** — vendor-specific syntax stays behind an adapter boundary.
-7. **Observable execution** — every operation produces machine-readable evidence.
-8. **Secrets by reference** — secret values do not belong in Git-backed intent files.
-9. **Official interfaces first** — supported APIs/CLIs are preferred; undocumented interfaces are research-only and disabled by default.
-10. **No hidden remediation** — the system may not perform unplanned changes outside the approved plan.
+1. **Intent before commands** — users describe desired behavior, not vendor syntax.
+2. **Read before write** — current facts/state are mandatory before planning.
+3. **Harness-owned ordering** — adapters execute; they do not decide safety order.
+4. **Plan before apply** — every mutation belongs to an immutable plan.
+5. **Safety before convenience** — backup, management reachability, validation and rollback are execution requirements.
+6. **Idempotent reconciliation** — already-satisfied intent produces no mutation.
+7. **Vendor isolation** — vendor syntax stays behind adapter boundaries.
+8. **Observable execution** — every gate and operation produces machine-readable evidence.
+9. **Secrets by reference** — secret values do not belong in Git-backed intent.
+10. **Official interfaces first** — undocumented interfaces are research-only and disabled by default.
+11. **No hidden remediation** — no unplanned configuration changes.
+12. **AI advisory boundary** — AI recommendations must re-enter the normal planning and safety flow.
+
+## Layer model
+
+### Experience layer
+
+Responsibilities:
+- guided questionnaire;
+- deployment profile;
+- human-readable explanation;
+- review/approval surface.
+
+### Deployment harness
+
+Responsibilities:
+- deterministic stage machine;
+- evidence requirements;
+- guided success/failure criteria;
+- write-disabled-by-default policy;
+- rollback routing.
+
+Implementation foundation: `src/router_configuration/harness.py`.
+
+### Control plane
+
+- M01 Intent & Device Engine
+- M02 State / Diff / Drift Engine
+- M03 Configuration Compiler & Secrets
+- M09 Safe Automation Gate
+
+### Network intelligence
+
+- M04 Multi-WAN & Load Balancing
+- M05 Resilience & WAN Health
+- M06 Security Operations
+- M07 Segmentation / PBR / VPN / QoS
+
+### Device adapters
+
+- MikroTik adapter — reference implementation target;
+- M08 Yamaha adapter;
+- M10 Omada adapter;
+- QNAP adapter — future/capability-limited.
+
+### Evidence and observability
+
+All stages should emit normalized evidence. Future collectors may add counters, state changes and redacted logs.
+
+### Future AI gateway
+
+`src/router_configuration/ai_gateway.py` defines an advisory-only boundary. It accepts redacted normalized telemetry and recommendations but exposes no device apply method.
 
 ## Ten capability modules
 
 ### M01 — Intent & Device Engine
-
-Responsibilities:
 - device inventory and normalized facts;
 - capability discovery;
-- normalized interface and platform model;
-- transport-independent device identity.
-
-Input: inventory + discovered facts.
-Output: `NormalizedDevice` and `DeviceCapabilities`.
+- normalized interface/platform model;
+- transport-independent identity.
 
 ### M02 — State / Diff / Drift Engine
-
-Responsibilities:
 - normalize desired and actual state;
-- calculate semantic diff;
-- identify drift;
-- create an ordered immutable plan.
-
-Input: desired state + actual state.
-Output: `ChangePlan`.
+- semantic diff;
+- drift detection;
+- ordered immutable plan.
 
 ### M03 — Configuration Compiler & Secrets
-
-Responsibilities:
 - validate intent schemas;
-- resolve secret references at execution time;
-- compile normalized intent into adapter-neutral operations;
-- reject embedded plaintext secrets where policy forbids them.
+- resolve secret references only at execution time;
+- compile intent into adapter-neutral operations;
+- reject forbidden plaintext secrets.
 
 ### M04 — Multi-WAN & Load Balancing
+- model WAN capacity/preference;
+- derive weighted flow policy;
+- pin traffic/policy routes;
+- never treat aggregate capacity as single-flow throughput.
 
-Responsibilities:
-- model WAN capacity and preference;
-- derive weighted flow-distribution policy;
-- support pinning and policy routing;
-- avoid assuming that aggregate WAN capacity equals single-flow throughput.
-
-Reference case: WAN1 10 Gbps + WAN2 1 Gbps.
+Reference: WAN1 10 Gbps + WAN2 1 Gbps.
 
 ### M05 — Resilience & WAN Health
-
-Responsibilities:
-- multi-signal health probes;
+- multi-signal probes;
 - health scoring;
-- failure/recovery hysteresis;
-- failover and failback decisions;
-- distinguish physical link state from end-to-end Internet health.
+- hysteresis;
+- failover/failback decisions;
+- distinguish physical link from end-to-end health.
 
 ### M06 — Security Operations
-
-Responsibilities:
-- baseline deny/allow policy;
+- baseline deny/allow;
 - management-plane restrictions;
-- anti-spoofing and bogon policy;
+- anti-spoofing/bogon policy;
 - threat-list lifecycle model;
-- audit/logging requirements;
+- logging/audit requirements;
 - backup/update security policy.
 
-This module is not an antivirus/EDR/NGFW signature engine.
+This is not an antivirus/EDR/NGFW signature engine.
 
 ### M07 — Segmentation / PBR / VPN / QoS
-
-Responsibilities:
-- zone/VLAN intent;
-- inter-zone access policy;
-- policy-based routing intent;
+- VLAN/zone intent;
+- inter-zone policy;
+- policy-based routing;
 - VPN path intent;
-- traffic classes and QoS policy.
+- traffic classes/QoS.
 
 ### M08 — Yamaha Adapter
-
-Responsibilities:
-- map normalized operations to supported Yamaha RTX interfaces;
-- retrieve running configuration;
-- render/apply supported changes;
-- verify and save only after successful validation;
-- preserve rollback capability.
+- map normalized operations to supported RTX interfaces;
+- read running state;
+- render/apply bounded supported changes;
+- verify and save only after validation;
+- preserve rollback.
 
 ### M09 — Safe Automation Gate
-
-Responsibilities:
 - risk classification;
-- read-only / plan-only / change permissions;
+- read/plan/change permissions;
 - dry-run;
 - impact analysis;
 - approval requirements;
-- preflight checks;
-- post-change verification and rollback decision.
+- preflight;
+- verification/rollback decision.
 
 Risk levels:
-- L0: read only;
-- L1: plan only;
-- L2: low-risk bounded change;
-- L3: network-path/security change;
-- L4: critical management/default-route/destructive change.
+- L0 read only;
+- L1 plan only;
+- L2 bounded change;
+- L3 network-path/security change;
+- L4 critical management/default-route/destructive change.
 
 ### M10 — Omada Adapter & API Compatibility
-
-Responsibilities:
 - official Open API integration;
 - controller-version capability map;
-- explicit separation of official and experimental surfaces;
-- compatibility testing.
+- explicit official/experimental separation;
+- compatibility tests.
 
-Undocumented APIs are never enabled in production mode by default.
-
-## Layer model
-
-```text
-CONTROL PLANE
-  M01 Intent & Device
-  M02 State / Diff / Drift
-  M03 Compiler & Secrets
-  M09 Safety Gate
-
-NETWORK INTELLIGENCE
-  M04 Multi-WAN
-  M05 Resilience
-  M06 Security
-  M07 Traffic Policy
-
-DEVICE ADAPTERS
-  MikroTik adapter (reference implementation)
-  M08 Yamaha adapter
-  M10 Omada adapter
-  QNAP adapter (future, capability-limited)
-```
+Undocumented APIs are never enabled in production by default.
 
 ## Execution state machine
 
 ```text
-DISCOVER
+CREATED
+  -> DISCOVER
   -> INSPECT
   -> PLAN
   -> VALIDATE
   -> BACKUP
   -> PREFLIGHT
+  -> APPROVAL
   -> APPLY
   -> VERIFY
   -> SAVE
+  -> COMPLETE
 ```
 
-Any failure after `APPLY` transitions to `ROLLBACK_REQUIRED` unless the adapter can prove that no mutation occurred.
+Any failed verification after a possible mutation routes to `ROLLBACK` until recovery evidence succeeds.
+
+See `HARNESS.md` and `WORKFLOW.md` for the detailed operating contract.
+
+## Data/control separation
+
+```text
+Intent data        Secret references       Runtime facts
+     \                   |                     /
+      +------------------+--------------------+
+                         |
+                     Compiler
+                         |
+                normalized operations
+                         |
+                    Safety/Harness
+                         |
+                       Adapter
+```
+
+The intent repository never needs device passwords/private keys.
+
+## Future AI data flow
+
+```text
+Read-only state/counters/logs
+             |
+       normalize/redact
+             |
+       AI Gateway contract
+             |
+     internal AI analysis
+             |
+ recommendation/proposed intent
+             |
+       normal PLAN workflow
+```
+
+No AI component is a configuration actuator.
 
 ## Reference acceptance target: v0.1
 
-Target platform: MikroTik CCR2116-12G-4S+.
+Target: MikroTik CCR2116-12G-4S+.
 
-Required capabilities:
+Required:
 - WAN1 10 Gbps;
 - WAN2 1 Gbps;
 - 10 Gbps core uplink;
-- weighted Dual-WAN policy;
+- weighted Dual-WAN;
 - automatic failover/failback;
-- static and policy routing;
+- static/PBR routing;
 - VLAN segmentation;
 - firewall baseline;
 - WireGuard intent;
 - QoS intent;
 - management isolation;
-- backup, dry-run, diff, verify, rollback.
+- backup, dry-run, diff, verify, rollback;
+- harness evidence for every gate.
 
-No module is production-ready until unit tests, adapter tests, and a target-firmware integration test are recorded.
+No module is production-ready until unit tests, adapter tests and target-firmware integration evidence are recorded.
