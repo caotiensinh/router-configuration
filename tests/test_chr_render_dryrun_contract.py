@@ -1,6 +1,7 @@
 import importlib.util
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,6 +63,25 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
             with self.assertRaises(module.CHRRenderDryRunError):
                 module._parse_verdict_contents(contents)
 
+    def test_async_verdict_poll_waits_until_routeros_job_finishes(self):
+        module = load(VERIFY, "verify_render_dry_run_poll")
+        admin = object()
+        with patch.object(
+            module,
+            "_read_file_contents",
+            side_effect=["PENDING", "PENDING", "OK"],
+        ) as read_contents:
+            with patch.object(module.time, "sleep", return_value=None) as sleep:
+                result = module._wait_for_verdict(
+                    admin,
+                    "routercfg-render-verdict.txt",
+                    timeout_seconds=1.0,
+                    poll_interval_seconds=0.001,
+                )
+        self.assertEqual(result, "OK")
+        self.assertEqual(read_contents.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
     def test_validator_uses_temporary_file_verdict_and_documented_negative_control(self):
         source = VERIFY.read_text(encoding="utf-8")
         cli_source = CLI.read_text(encoding="utf-8")
@@ -72,6 +92,8 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
         self.assertIn('contents=("ERROR|" . [:tostr $e])', source)
         self.assertIn('contents="OK"', source)
         self.assertIn("_parse_verdict_contents", source)
+        self.assertIn("_wait_for_verdict", source)
+        self.assertIn("time.monotonic", source)
         self.assertNotIn("_extract_execute_verdict", source)
         self.assertIn('_create_text_file(admin, invalid_name, "this\\n")', source)
         self.assertIn("temporary_routeros_file", source)

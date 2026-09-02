@@ -4,6 +4,7 @@ import argparse
 import base64
 import hashlib
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -189,6 +190,27 @@ def _read_file_contents(admin: LoopbackCHRAdmin, name: str) -> str:
     return str(record.get("contents") or "")
 
 
+def _wait_for_verdict(
+    admin: LoopbackCHRAdmin,
+    name: str,
+    *,
+    timeout_seconds: float = 10.0,
+    poll_interval_seconds: float = 0.1,
+) -> str:
+    """Poll an async /rest/execute verdict file until it leaves PENDING."""
+
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        contents = _read_file_contents(admin, name)
+        if contents.strip() != "PENDING":
+            return contents
+        if time.monotonic() >= deadline:
+            raise CHRRenderDryRunError(
+                f"RouterOS dry-run verdict remained PENDING for {timeout_seconds:.1f}s"
+            )
+        time.sleep(poll_interval_seconds)
+
+
 def _assert_files_absent(admin: LoopbackCHRAdmin, names: tuple[str, ...]) -> None:
     remaining = [name for name in names if _file_record(admin, name) is not None]
     if remaining:
@@ -202,10 +224,9 @@ def _execute_import_dry_run(
     verdict_name: str,
     expect_success: bool,
 ) -> dict[str, Any]:
-    # /rest/execute may return an opaque internal value (for example *12) even
-    # when a script uses :return. Use a temporary RouterOS file as the explicit
-    # verdict side channel instead. The file lives only inside a disposable CHR
-    # snapshot and is deleted before the gate can pass.
+    # /rest/execute returns an async job handle such as *12 for this workflow.
+    # The RouterOS script itself writes a temporary verdict file; the host then
+    # polls that file with a finite timeout. No opaque ret value can cause PASS.
     verdict_q = verdict_name.replace('"', '\\"')
     script = (
         f':onerror e in={{ import {file_name} verbose=yes dry-run }} do={{'
@@ -219,13 +240,13 @@ def _execute_import_dry_run(
         {"script": script},
         allow_http_error=True,
     )
-    contents = _read_file_contents(admin, verdict_name)
-    captured_error, detail = _parse_verdict_contents(contents)
-
     if status >= 400:
         raise CHRRenderDryRunError(
-            f"RouterOS dry-run wrapper returned HTTP {status} despite verdict {contents[:200]}"
+            f"RouterOS dry-run wrapper failed to start with HTTP {status}: {str(response)[:400]}"
         )
+
+    contents = _wait_for_verdict(admin, verdict_name)
+    captured_error, detail = _parse_verdict_contents(contents)
     if expect_success and captured_error:
         raise CHRRenderDryRunError(
             f"generated RouterOS script dry-run reported an error: {detail[:400]}"
