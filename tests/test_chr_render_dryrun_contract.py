@@ -146,7 +146,7 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
         self.assertIn("ci(chr-render):", source)
         self.assertIn("-snapshot", source)
         self.assertIn("build_renderer_syntax_fixture.py", source)
-        self.assertIn("verify_render_dry_run.py", source)
+        self.assertIn("verify_render_dry_run_chunked.py", source)
         self.assertIn("ether1", source)
         self.assertIn("ether2", source)
         self.assertIn("ether3", source)
