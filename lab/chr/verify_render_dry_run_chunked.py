@@ -159,21 +159,67 @@ def _create_text_file_chunk_verified(
         )
 
 
+def _configuration_snapshot_with_pcc(admin: base.LoopbackCHRAdmin) -> dict[str, Any]:
+    """Extend the proven failover snapshot with PCC's mangle mutation surface."""
+
+    snapshot = base._configuration_snapshot(admin)
+    _, payload = admin.request("GET", "ip/firewall/mangle")
+    fields = (
+        "chain",
+        "action",
+        "connection-state",
+        "connection-mark",
+        "dst-address-type",
+        "in-interface-list",
+        "new-connection-mark",
+        "per-connection-classifier",
+        "new-routing-mark",
+        "passthrough",
+        "comment",
+        "disabled",
+    )
+    normalized: list[dict[str, Any]] = []
+    for row in base._rows(payload):
+        if base._is_true(row.get("dynamic")):
+            continue
+        normalized.append(
+            {
+                field: row[field]
+                for field in fields
+                if field in row
+            }
+        )
+    normalized.sort(key=lambda item: json.dumps(item, sort_keys=True, ensure_ascii=False))
+    snapshot["firewall_mangle"] = normalized
+    return snapshot
+
+
 def verify_render_dry_run(*, admin_url: str, script_path: Path) -> dict[str, Any]:
-    # Keep the already-proven verdict/digest logic in the base verifier and
-    # replace only its file creation verification primitive. This adapter is
-    # lab-only and cannot create a product transport or production writer.
-    original = base._create_text_file
+    # Keep the already-proven verdict/digest logic in the base verifier. Replace
+    # only the file round-trip primitive and extend the mutation snapshot with
+    # PCC mangle state. This adapter remains lab-only and exposes no writer.
+    original_create = base._create_text_file
+    original_snapshot = base._configuration_snapshot
     base._create_text_file = _create_text_file_chunk_verified
+    base._configuration_snapshot = _configuration_snapshot_with_pcc
     try:
         result = base.verify_render_dry_run(admin_url=admin_url, script_path=script_path)
     finally:
-        base._create_text_file = original
+        base._create_text_file = original_create
+        base._configuration_snapshot = original_snapshot
     result["file_roundtrip_verification"] = {
         "method": "routeros_file_read_chunked",
         "chunk_bytes": READ_CHUNK_BYTES,
         "sha256_verified": True,
     }
+    result["mutation_surfaces"] = [
+        "interface/list",
+        "interface/list/member",
+        "ip/address",
+        "routing/table",
+        "ip/route",
+        "ip/firewall/mangle",
+    ]
     return result
 
 
