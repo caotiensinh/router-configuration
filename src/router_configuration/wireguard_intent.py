@@ -14,6 +14,7 @@ class WireGuardIntentError(ValueError):
 
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,30}$")
 _HOST = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{0,252}[A-Za-z0-9]$|^[A-Za-z0-9]$")
+_EXPLICIT_FACTS = ("name", "addresses", "listen_port", "mtu", "peers")
 
 
 def _name(value: Any, label: str) -> str:
@@ -92,6 +93,15 @@ def normalize_wireguard_intent(wireguard: Mapping[str, Any]) -> NormalizedWireGu
     secret_ref = str(wireguard.get("secret_ref") or "").strip()
     if not secret_ref.startswith(("env://", "vault://", "keyring://")):
         raise WireGuardIntentError("WireGuard intent requires an unresolved secret reference")
+
+    explicit = [field for field in _EXPLICIT_FACTS if field in wireguard]
+    if not explicit:
+        return NormalizedWireGuardIntent(attributes={"enabled": True}, secret_ref=secret_ref)
+    missing = [field for field in _EXPLICIT_FACTS if field not in wireguard]
+    if missing:
+        raise WireGuardIntentError(
+            "explicit WireGuard configuration is incomplete; missing: " + ", ".join(missing)
+        )
 
     name = _name(wireguard.get("name"), "wireguard.name")
     listen_port = _port(wireguard.get("listen_port"), "wireguard.listen_port")
