@@ -313,7 +313,6 @@ class RouterOSSafeSubsetRenderer:
                 command_id=f"route.00.table.{wan_name}",
                 operation_id=operation_id,
                 table=table,
-                comment=f"routercfg:managed:routing-table:{wan_name}",
                 risk=risk,
             ))
             for probe_index, probe in enumerate(probes, start=1):
@@ -384,12 +383,11 @@ class RouterOSSafeSubsetRenderer:
         )
         return RouterOSRenderCommand(command_id, operation_id, "ip_address", command, risk)
 
-    def _ensure_routing_table_command(self, *, command_id: str, operation_id: str, table: str, comment: str, risk: int) -> RouterOSRenderCommand:
+    def _ensure_routing_table_command(self, *, command_id: str, operation_id: str, table: str, risk: int) -> RouterOSRenderCommand:
         table_q = _quote(table)
         command = (
-            f":local rid [/routing/table/find where name={table_q}]; "
-            f":if ([:len $rid] = 0) do={{/routing/table/add name={table_q} fib}} "
-            f"else={{/routing/table/set $rid fib=yes}}"
+            f":if ([:len [/routing/table/find where name={table_q}]] = 0) do={{"
+            f"/routing/table/add name={table_q} fib" "}"
         )
         return RouterOSRenderCommand(command_id, operation_id, "routing_table", command, risk)
 
