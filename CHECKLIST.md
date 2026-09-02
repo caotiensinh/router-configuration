@@ -11,9 +11,9 @@
 
 ## Current measured status
 
-**41% complete / 59% remaining.**
+**45% complete / 55% remaining.**
 
-Change from previous checkpoint: **+5 points** from the first RouterOS read-only discovery and normalization foundation.
+Change from previous checkpoint: **+4 points** from live-safe RouterOS discovery CLI, capability/version assessment, sanitized evidence generation and stronger normalization coverage. No points were granted for CHR or physical CCR2116 acceptance because no live target evidence exists yet.
 
 | ID | Workstream | Weight | Earned | Status | Next acceptance gate |
 | --- | --- | ---: | ---: | --- | --- |
@@ -23,8 +23,8 @@ Change from previous checkpoint: **+5 points** from the first RouterOS read-only
 | P04 | Operator workflow CLI | 2 | 2 | DONE | — |
 | P05 | Intent/state/diff/drift core | 8 | 7 | PARTIAL | normalized-state schema versioning |
 | P06 | Compiler / secret boundary | 4 | 2 | PARTIAL | compile full RouterOS safe subset |
-| P07 | RouterOS read-only discovery | 12 | 3 | PARTIAL | live read-only evidence on tested RouterOS v7/CHR |
-| P08 | RouterOS normalization | 6 | 2 | PARTIAL | live-target schema/capability coverage |
+| P07 | RouterOS read-only discovery | 12 | 6 | PARTIAL | live read-only evidence on tested RouterOS v7 CHR |
+| P08 | RouterOS normalization | 6 | 3 | PARTIAL | live CHR schema/capability coverage |
 | P09 | RouterOS renderer | 13 | 0 | NOT STARTED | deterministic safe-subset rendering |
 | P10 | Backup/preflight/apply/verify/rollback | 15 | 4 | PARTIAL | real adapter transaction lifecycle |
 | P11 | Dual-WAN / failover | 5 | 2 | PARTIAL | RouterOS compile + lab failover evidence |
@@ -39,9 +39,13 @@ Change from previous checkpoint: **+5 points** from the first RouterOS read-only
 - [x] Product spec, architecture and harness execution contract exist.
 - [x] Weighted progress ledger totals exactly 100 points and is machine-readable.
 - [x] RouterOS discovery transport has an explicit read-only endpoint allowlist.
+- [x] RouterOS live-safe discovery CLI exists without a plaintext password CLI argument.
+- [x] Production discovery defaults to HTTPS with TLS verification; insecure modes require explicit lab mode.
 - [x] Discovery normalized state redacts private-key/PSK/password/token-like fields.
-- [ ] RouterOS target firmware/version matrix is explicitly recorded from tested targets.
-- [ ] Live read-only discovery covers interfaces, addresses, routes, routing tables, firewall/NAT, WireGuard and QoS state.
+- [x] Discovery evidence has a second secret boundary, stable state digest and sanitized error codes.
+- [x] Synthetic CI, CHR live and physical CCR2116 evidence classes are explicitly separated.
+- [ ] RouterOS live target firmware/version evidence is recorded from CHR.
+- [ ] Live read-only discovery covers interfaces, addresses, routes, routing tables, firewall/NAT, WireGuard and QoS state on CHR.
 - [ ] Desired-state diff is deterministic and idempotent against live normalized state.
 - [ ] RouterOS renderer has golden tests for every supported operation.
 - [ ] Production apply requires real backup evidence.
