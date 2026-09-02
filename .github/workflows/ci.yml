@@ -26,3 +26,84 @@ jobs:
         run: sh -n lab/chr/run_readonly_acceptance.sh
       - name: Unit and synthetic integration tests
         run: python -m unittest discover -s tests -v
+
+  chr-live-smoke:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project and QEMU
+        run: |
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 unzip
+      - name: Download official MikroTik CHR image
+        run: |
+          set -eu
+          curl -fL --retry 3 \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o /tmp/chr.img.zip
+          unzip -p /tmp/chr.img.zip > /tmp/chr.img
+          test -s /tmp/chr.img
+      - name: Boot isolated CHR in QEMU snapshot mode
+        run: |
+          set -eu
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9180-:80 \
+            -device virtio-net-pci,netdev=net0 \
+            -display none \
+            -serial file:/tmp/chr-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr.pid
+      - name: Wait for live RouterOS REST
+        run: |
+          set -eu
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9180/rest/system/resource \
+              > /tmp/chr-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo 'CHR REST did not become reachable' >&2
+            cat /tmp/chr-serial.log >&2 || true
+            exit 1
+          fi
+          cat /tmp/chr-resource.json
+      - name: Run project live read-only discovery
+        run: |
+          mkdir -p evidence
+          python lab/chr/run_ci_live_smoke.py \
+            --url http://127.0.0.1:9180 \
+            --output evidence/chr-ci-live.json
+      - name: Preserve sanitized live evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-live-readonly-evidence-${{ github.sha }}
+          path: |
+            evidence/chr-ci-live.json
+            /tmp/chr-resource.json
+            /tmp/chr-serial.log
+          if-no-files-found: error
+          retention-days: 14
+      - name: Stop CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr.pid ]; then
+            kill "$(cat /tmp/chr.pid)" 2>/dev/null || true
+          fi
