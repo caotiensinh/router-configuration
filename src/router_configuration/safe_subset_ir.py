@@ -100,17 +100,21 @@ class SafeSubsetCompiler:
                     continue
                 name = str(wan.get("name") or "").strip()
                 interface = str(wan.get("interface") or "").strip()
+                attributes: dict[str, Any] = {
+                    "name": name,
+                    "interface": interface,
+                    "capacity_mbps": int(wan.get("capacity_mbps", 0)),
+                    "addressing": str(wan.get("addressing") or "isp_defined"),
+                }
+                address = str(wan.get("address") or "").strip()
+                if address:
+                    attributes["address"] = address
                 operations.append(
                     IntentOperation(
                         operation_id=f"topology.wan.{name}",
                         feature="topology",
                         resource="wan_role",
-                        attributes={
-                            "name": name,
-                            "interface": interface,
-                            "capacity_mbps": int(wan.get("capacity_mbps", 0)),
-                            "addressing": str(wan.get("addressing") or "isp_defined"),
-                        },
+                        attributes=attributes,
                         risk=IntentRisk.MEDIUM,
                         requires=("interfaces",),
                     )
@@ -145,27 +149,49 @@ class SafeSubsetCompiler:
             raise ValueError("safe subset v0.1 supports only capacity_weighted multi-WAN")
 
         links: list[WanLink] = []
+        paths: dict[str, dict[str, Any]] = {}
         for wan in topology.get("wans", []):
             if not isinstance(wan, Mapping) or not bool(wan.get("enabled", True)):
                 continue
+            name = str(wan.get("name") or "").strip()
             links.append(
                 WanLink(
-                    name=str(wan.get("name") or "").strip(),
+                    name=name,
                     capacity_mbps=int(wan.get("capacity_mbps", 0)),
                 )
             )
+            routing = wan.get("routing")
+            if isinstance(routing, Mapping):
+                path: dict[str, Any] = {
+                    "interface": str(wan.get("interface") or "").strip(),
+                    "addressing": str(wan.get("addressing") or "isp_defined").strip(),
+                    "gateway": str(routing.get("gateway") or "").strip(),
+                    "table": str(routing.get("table") or "").strip(),
+                    "health_probe_targets": [
+                        str(value).strip()
+                        for value in routing.get("health_probe_targets", [])
+                    ],
+                }
+                address = str(wan.get("address") or "").strip()
+                if address:
+                    path["address"] = address
+                paths[name] = path
+
         policy = MultiWanPlanner().derive_capacity_weights(links)
+        attributes: dict[str, Any] = {
+            "mode": "capacity_weighted",
+            "weights": dict(policy.weights),
+            "failover": bool(multiwan.get("failover", False)),
+            "failback": str(multiwan.get("failback") or "manual"),
+        }
+        if paths:
+            attributes["paths"] = paths
         return [
             IntentOperation(
                 operation_id="routing.multiwan.capacity_weighted",
                 feature="multiwan",
                 resource="path_distribution_policy",
-                attributes={
-                    "mode": "capacity_weighted",
-                    "weights": dict(policy.weights),
-                    "failover": bool(multiwan.get("failover", False)),
-                    "failback": str(multiwan.get("failback") or "manual"),
-                },
+                attributes=attributes,
                 risk=IntentRisk.HIGH,
                 requires=("interfaces", "routing"),
             )

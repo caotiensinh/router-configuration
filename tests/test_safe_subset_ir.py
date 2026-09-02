@@ -14,6 +14,39 @@ def load_profile():
     return json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
 
 
+def with_explicit_static_routing():
+    profile = load_profile()
+    profile["topology"]["wans"] = [
+        {
+            "name": "wan10g",
+            "interface": "sfp-sfpplus1",
+            "capacity_mbps": 10000,
+            "addressing": "static",
+            "address": "192.0.2.2/30",
+            "enabled": True,
+            "routing": {
+                "gateway": "192.0.2.1",
+                "table": "to-wan10g",
+                "health_probe_targets": ["1.1.1.1", "8.8.8.8"],
+            },
+        },
+        {
+            "name": "wan1g",
+            "interface": "ether1",
+            "capacity_mbps": 1000,
+            "addressing": "static",
+            "address": "198.51.100.2/30",
+            "enabled": True,
+            "routing": {
+                "gateway": "198.51.100.1",
+                "table": "to-wan1g",
+                "health_probe_targets": ["9.9.9.9", "208.67.222.222"],
+            },
+        },
+    ]
+    return profile
+
+
 class SafeSubsetIRTests(unittest.TestCase):
     def test_reference_profile_compiles_without_vendor_commands_or_write_transport(self):
         payload = SafeSubsetCompiler().compile(load_profile()).as_dict()
@@ -35,6 +68,33 @@ class SafeSubsetIRTests(unittest.TestCase):
             if item["operation_id"] == "routing.multiwan.capacity_weighted"
         )
         self.assertEqual(operation["attributes"]["weights"], {"wan10g": 10, "wan1g": 1})
+
+    def test_explicit_routing_facts_are_preserved_vendor_neutrally(self):
+        payload = SafeSubsetCompiler().compile(with_explicit_static_routing()).as_dict()
+        operation = next(
+            item
+            for item in payload["operations"]
+            if item["operation_id"] == "routing.multiwan.capacity_weighted"
+        )
+        paths = operation["attributes"]["paths"]
+        self.assertEqual(paths["wan10g"]["gateway"], "192.0.2.1")
+        self.assertEqual(paths["wan10g"]["table"], "to-wan10g")
+        self.assertEqual(paths["wan10g"]["address"], "192.0.2.2/30")
+        self.assertEqual(paths["wan10g"]["health_probe_targets"], ["1.1.1.1", "8.8.8.8"])
+        self.assertEqual(paths["wan1g"]["gateway"], "198.51.100.1")
+        self.assertEqual(operation["attributes"]["weights"], {"wan10g": 10, "wan1g": 1})
+        rendered = json.dumps(operation, sort_keys=True)
+        self.assertNotIn("/ip/route", rendered)
+        self.assertNotIn("/routing/table", rendered)
+
+    def test_reference_profile_without_operator_routing_facts_does_not_invent_paths(self):
+        payload = SafeSubsetCompiler().compile(load_profile()).as_dict()
+        operation = next(
+            item
+            for item in payload["operations"]
+            if item["operation_id"] == "routing.multiwan.capacity_weighted"
+        )
+        self.assertNotIn("paths", operation["attributes"])
 
     def test_digest_and_operation_order_are_deterministic(self):
         compiler = SafeSubsetCompiler()
