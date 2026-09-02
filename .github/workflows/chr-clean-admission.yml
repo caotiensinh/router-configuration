@@ -1,0 +1,229 @@
+name: CHR Clean Admission
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-clean-admission:
+    concurrency:
+      group: router-config-chr-clean-main
+      cancel-in-progress: false
+    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'ci(chr-clean):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and headless QEMU
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+
+      - name: Download official MikroTik CHR image
+        run: |
+          set -euo pipefail
+          curl -4 --http1.1 -fL \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --retry 1 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o /tmp/chr.img.zip
+          unzip -p /tmp/chr.img.zip > /tmp/chr.img
+          test -s /tmp/chr.img
+          sha256sum /tmp/chr.img.zip > /tmp/chr-download.sha256
+
+      - name: Create disposable prepared overlay
+        run: |
+          set -euo pipefail
+          qemu-img create -f qcow2 -F raw -b /tmp/chr.img /tmp/chr-prepared.qcow2
+          qemu-img info /tmp/chr-prepared.qcow2
+
+      - name: Boot preparation VM with writable overlay
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -drive file=/tmp/chr-prepared.qcow2,format=qcow2,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9180-:80,hostfwd=tcp:127.0.0.1:9443-:443 \
+            -device virtio-net-pci,netdev=net0 \
+            -display none \
+            -serial file:/tmp/chr-prep-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-prep.pid
+
+      - name: Wait for preparation REST
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9180/rest/system/resource \
+              > /tmp/chr-prep-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chr-prep-serial.log >&2 || true
+            exit 1
+          fi
+
+      - name: Prepare dedicated reader and trusted HTTPS before admission phase
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python lab/chr/bootstrap_secure_acceptance.py \
+            --admin-url http://127.0.0.1:9180 \
+            --https-url https://127.0.0.1:9443 \
+            --ca-output evidence/chr-clean-ca.crt \
+            --credentials-output /tmp/chr-clean-reader-credentials.json \
+            | tee evidence/chr-clean-preparation-summary.json
+
+      - name: Stop preparation VM and validate overlay
+        run: |
+          set -euo pipefail
+          test -s /tmp/chr-prep.pid
+          prep_pid="$(cat /tmp/chr-prep.pid)"
+          kill "$prep_pid"
+          stopped=0
+          for attempt in $(seq 1 30); do
+            if ! kill -0 "$prep_pid" 2>/dev/null; then
+              stopped=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$stopped" -ne 1 ]; then
+            echo 'Preparation QEMU did not stop cleanly' >&2
+            exit 1
+          fi
+          qemu-img check /tmp/chr-prepared.qcow2
+
+      - name: Boot fresh clean admission VM in snapshot mode
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr-prepared.qcow2,format=qcow2,if=virtio \
+            -netdev user,id=net1,hostfwd=tcp:127.0.0.1:9443-:443 \
+            -device virtio-net-pci,netdev=net1 \
+            -display none \
+            -serial file:/tmp/chr-clean-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-clean.pid
+
+      - name: Wait for clean HTTPS using GET only
+        run: |
+          set -euo pipefail
+          ROUTEROS_PASSWORD="$(python -c 'import json; print(json.load(open("/tmp/chr-clean-reader-credentials.json"))["password"])')"
+          export ROUTEROS_PASSWORD
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 \
+              --cacert evidence/chr-clean-ca.crt \
+              --user "routercfg-reader:${ROUTEROS_PASSWORD}" \
+              https://127.0.0.1:9443/rest/system/resource \
+              > /tmp/chr-clean-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chr-clean-serial.log >&2 || true
+            exit 1
+          fi
+
+      - name: Collect clean admission evidence with dedicated reader
+        run: |
+          set -euo pipefail
+          ROUTEROS_PASSWORD="$(python -c 'import json; print(json.load(open("/tmp/chr-clean-reader-credentials.json"))["password"])')"
+          export ROUTEROS_PASSWORD
+          export SSL_CERT_FILE="$GITHUB_WORKSPACE/evidence/chr-clean-ca.crt"
+          routerctl routeros-discover \
+            --url https://127.0.0.1:9443 \
+            --username routercfg-reader \
+            --output evidence/chr-clean-evidence.json
+          routerctl routeros-evidence-check \
+            --evidence evidence/chr-clean-evidence.json
+
+      - name: Build machine-only clean provenance
+        run: |
+          set -euo pipefail
+          python lab/chr/build_ci_provenance_record.py \
+            --evidence evidence/chr-clean-evidence.json \
+            --workflow-sha "$GITHUB_SHA" \
+            --image-url "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            --image-sha256-file /tmp/chr-download.sha256 \
+            --output evidence/chr-clean-machine-provenance.json
+
+      - name: Build fixed clean execution manifest
+        run: |
+          set -euo pipefail
+          python lab/chr/build_clean_execution_manifest.py \
+            --workflow-sha "$GITHUB_SHA" \
+            --output evidence/chr-clean-execution-manifest.json
+
+      - name: Evaluate clean read-only technical admission
+        run: |
+          set -euo pipefail
+          python lab/chr/evaluate_clean_admission.py \
+            --evidence evidence/chr-clean-evidence.json \
+            --bootstrap evidence/chr-clean-preparation-summary.json \
+            --machine-provenance evidence/chr-clean-machine-provenance.json \
+            --execution-manifest evidence/chr-clean-execution-manifest.json \
+            --output evidence/chr-clean-admission.json
+
+      - name: Preserve clean admission evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-clean-admission-evidence-${{ github.sha }}
+          path: |
+            evidence/chr-clean-ca.crt
+            evidence/chr-clean-preparation-summary.json
+            evidence/chr-clean-evidence.json
+            evidence/chr-clean-machine-provenance.json
+            evidence/chr-clean-execution-manifest.json
+            evidence/chr-clean-admission.json
+            /tmp/chr-prep-resource.json
+            /tmp/chr-clean-resource.json
+            /tmp/chr-prep-serial.log
+            /tmp/chr-clean-serial.log
+            /tmp/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Delete ephemeral credentials
+        if: always()
+        run: rm -f /tmp/chr-clean-reader-credentials.json
+
+      - name: Stop any remaining QEMU process
+        if: always()
+        run: |
+          for pidfile in /tmp/chr-clean.pid /tmp/chr-prep.pid; do
+            if [ -f "$pidfile" ]; then
+              pid="$(cat "$pidfile")"
+              if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+              fi
+            fi
+          done
