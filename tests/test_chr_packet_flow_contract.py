@@ -62,7 +62,7 @@ class CHRPacketFlowContractTests(unittest.TestCase):
         self.assertIn("diagnose_pcc_runtime.py", source)
         self.assertIn("pcc-runtime-diagnostic.json", source)
         self.assertIn("managed_invalid_count", source)
-        self.assertIn("exit 19", source)
+        self.assertIn("raise SystemExit(19)", source)
 
     def test_harness_measures_normal_failure_and_recovery_without_live_credentials(self):
         source = HARNESS.read_text(encoding="utf-8")
