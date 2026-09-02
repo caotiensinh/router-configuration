@@ -49,7 +49,7 @@ class CHRTechnicalAcceptanceTests(unittest.TestCase):
             "normalized_state_sha256": evidence["state_sha256"],
         }
 
-    def test_valid_inputs_are_ready_only_for_operator_attestation(self):
+    def test_valid_populated_phase_only_authorizes_clean_read_only_run(self):
         evidence = self._evidence()
         result = module.evaluate(
             evidence=evidence,
@@ -57,7 +57,11 @@ class CHRTechnicalAcceptanceTests(unittest.TestCase):
             machine_provenance=self._machine(evidence),
         )
         self.assertTrue(result["ok"])
-        self.assertEqual(result["claim"], "ready_for_operator_attestation")
+        self.assertEqual(result["phase"], "populated_validation")
+        self.assertEqual(result["claim"], "ready_for_clean_read_only_admission_run")
+        self.assertTrue(result["fixture_setup_writes_performed"])
+        self.assertFalse(result["acceptance_collection_write_operations"])
+        self.assertFalse(result["eligible_for_operator_attestation"])
         self.assertFalse(result["renderer_enabled"])
         self.assertFalse(result["write_authorized"])
         self.assertFalse(result["automatic_target_matrix_admission"])
@@ -72,6 +76,7 @@ class CHRTechnicalAcceptanceTests(unittest.TestCase):
             machine_provenance=self._machine(evidence),
         )
         self.assertFalse(result["ok"])
+        self.assertEqual(result["claim"], "populated_validation_failed")
         self.assertIn("secure bootstrap reader policy must be exactly read,rest-api", result["errors"])
 
     def test_machine_provenance_cannot_claim_operator_attestation(self):
