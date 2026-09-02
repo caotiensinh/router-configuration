@@ -65,6 +65,10 @@ class RouterOSRestClient:
             )
         if not parsed.hostname:
             raise ValueError("RouterOS REST base_url must include a hostname")
+        if parsed.username or parsed.password:
+            raise ValueError("credentials must not be embedded in RouterOS REST base_url")
+        if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            raise ValueError("RouterOS REST base_url must be scheme://host[:port] without path/query/fragment")
         if not self.username:
             raise ValueError("RouterOS username must not be empty")
 
