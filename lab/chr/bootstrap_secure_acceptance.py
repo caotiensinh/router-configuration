@@ -5,6 +5,7 @@ import base64
 import json
 import secrets
 import ssl
+import string
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -85,6 +86,15 @@ def _basic_auth(username: str, password: str) -> str:
     return f"Basic {token}"
 
 
+def _generate_routeros_password(length: int = 40) -> str:
+    """Use only characters explicitly documented as valid for RouterOS passwords."""
+
+    if length < 24:
+        raise ValueError("RouterOS lab password length must be at least 24 characters")
+    alphabet = string.ascii_letters + string.digits + "*_"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
 def _first_mapping(value: Any) -> Mapping[str, Any] | None:
     if isinstance(value, Mapping):
         return value
@@ -151,7 +161,7 @@ def bootstrap_secure_acceptance(
     admin = LoopbackRestAdmin(admin_url)
     platform = admin.assert_disposable_chr()
 
-    reader_password = secrets.token_urlsafe(30)
+    reader_password = _generate_routeros_password()
 
     admin.request(
         "PUT",
@@ -285,7 +295,12 @@ def bootstrap_secure_acceptance(
     try:
         with urllib.request.urlopen(secure_request, timeout=10, context=context) as response:
             secure_resource = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.HTTPError, urllib.error.URLError, ssl.SSLError) as exc:
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise LabBootstrapError(
+            f"dedicated reader HTTPS verification failed with HTTP {exc.code}: {detail[:240]}"
+        ) from exc
+    except (urllib.error.URLError, ssl.SSLError) as exc:
         raise LabBootstrapError(
             f"dedicated reader HTTPS verification failed: {exc.__class__.__name__}"
         ) from exc
