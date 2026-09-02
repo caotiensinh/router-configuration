@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 12
     env:
       CHR_VERSION: "7.24.1"
-      CHR_ACCEPTANCE_PROFILE: "dedicated-reader-tls"
+      CHR_ACCEPTANCE_PROFILE: "secure-populated-technical-gate"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -106,8 +106,14 @@ jobs:
             --https-url https://127.0.0.1:9443 \
             --ca-output evidence/chr-lab-ca.crt \
             --credentials-output /tmp/chr-reader-credentials.json \
-            > evidence/chr-secure-bootstrap-summary.json
-      - name: Run dedicated-reader HTTPS discovery with certificate verification
+            | tee evidence/chr-secure-bootstrap-summary.json
+      - name: Populate disposable high-value RouterOS surfaces
+        run: |
+          set -eu
+          python lab/chr/populate_acceptance_objects.py \
+            --admin-url http://127.0.0.1:9180 \
+            | tee evidence/chr-population-summary.json
+      - name: Run populated dedicated-reader HTTPS discovery
         run: |
           set -eu
           ROUTEROS_PASSWORD="$(python -c 'import json; print(json.load(open("/tmp/chr-reader-credentials.json"))["password"])')"
@@ -116,20 +122,47 @@ jobs:
           routerctl routeros-discover \
             --url https://127.0.0.1:9443 \
             --username routercfg-reader \
-            --output evidence/chr-ci-secure.json
+            --output evidence/chr-ci-secure-populated.json
           routerctl routeros-evidence-check \
-            --evidence evidence/chr-ci-secure.json
-          rm -f /tmp/chr-reader-credentials.json
-      - name: Preserve CHR smoke diagnostics
+            --evidence evidence/chr-ci-secure-populated.json
+      - name: Verify populated surfaces and secret boundary
+        run: |
+          set -eu
+          python lab/chr/verify_populated_evidence.py \
+            --evidence evidence/chr-ci-secure-populated.json \
+            | tee evidence/chr-populated-verification.json
+      - name: Build machine-only CHR provenance record
+        run: |
+          set -eu
+          python lab/chr/build_ci_provenance_record.py \
+            --evidence evidence/chr-ci-secure-populated.json \
+            --workflow-sha "$GITHUB_SHA" \
+            --image-url "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            --image-sha256-file /tmp/chr-download.sha256 \
+            --output evidence/chr-ci-machine-provenance.json
+          cat evidence/chr-ci-machine-provenance.json
+      - name: Evaluate technical acceptance gate
+        run: |
+          set -eu
+          python lab/chr/evaluate_technical_acceptance.py \
+            --evidence evidence/chr-ci-secure-populated.json \
+            --bootstrap evidence/chr-secure-bootstrap-summary.json \
+            --machine-provenance evidence/chr-ci-machine-provenance.json \
+            --output evidence/chr-technical-acceptance.json
+      - name: Preserve CHR acceptance diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: chr-live-smoke-diagnostics-${{ github.sha }}
+          name: chr-live-acceptance-diagnostics-${{ github.sha }}
           path: |
             evidence/chr-ci-live.json
-            evidence/chr-ci-secure.json
+            evidence/chr-ci-secure-populated.json
             evidence/chr-lab-ca.crt
             evidence/chr-secure-bootstrap-summary.json
+            evidence/chr-population-summary.json
+            evidence/chr-populated-verification.json
+            evidence/chr-ci-machine-provenance.json
+            evidence/chr-technical-acceptance.json
             /tmp/chr-resource.json
             /tmp/chr-serial.log
             /tmp/chr-download.sha256
