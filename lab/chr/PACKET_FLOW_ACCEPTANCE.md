@@ -17,16 +17,20 @@ Linux network namespaces provide two independent WAN peers and one CORE client. 
 
 1. Render and dry-run 17 recursive-failover commands plus 21 state-safe PCC commands.
 2. Apply the 38-command fixture to disposable CHR only.
-3. Confirm normal recursive routes are active.
-4. Generate 220 unique UDP connections from CORE and verify an approximately 10:1 WAN10:WAN1 distribution.
-5. Disconnect WAN10 reachability at the host-side isolated veth.
-6. Wait for RouterOS recursive `check-gateway` state to move WAN10-marked policy traffic to WAN1.
-7. Generate a fresh source-port range and require at least 98% WAN1 responses with at least 95% request success.
-8. Restore WAN10 reachability and wait for route recovery.
-9. Generate another fresh source-port range and require capacity-weighted distribution to return.
+3. Read RouterOS runtime state for every managed PCC mangle rule. Any `invalid=true` rule is an immediate hard failure before traffic measurement.
+4. Run a temporary diagnostic matrix to distinguish PCC matcher, connection-mark and routing-mark validity. Diagnostic rules are removed before traffic measurement.
+5. Confirm normal recursive routes are active.
+6. Generate 220 unique UDP connections from CORE and verify an approximately 10:1 WAN10:WAN1 distribution.
+7. Disconnect WAN10 reachability at the host-side isolated veth.
+8. Wait for RouterOS recursive `check-gateway` state to move WAN10-marked policy traffic to WAN1.
+9. Generate a fresh source-port range and require at least 98% WAN1 responses with at least 95% request success.
+10. Restore WAN10 reachability and wait for route recovery.
+11. Generate another fresh source-port range and require capacity-weighted distribution to return.
+
+The shell harness remains `set -Eeuo pipefail` for the entire run. Cleanup operations are individually best-effort and must never disable `errexit` globally. A failed evaluator or runtime-validity check therefore fails the GitHub Actions job.
 
 ## Safety boundary
 
 The gate uses only a QEMU `-snapshot` CHR image and loopback management forwarding. It contains no production router address, credential, secret resolver, or product write transport. The WAN and CORE networks exist only as temporary Linux namespaces, bridges, taps and veth pairs on the CI runner.
 
-Evidence is uploaded as a GitHub Actions artifact and includes flow counts, route states, RouterOS mangle snapshots, CHR resource/interface metadata and serial logs.
+Evidence is uploaded as a GitHub Actions artifact and includes flow counts, route states, RouterOS mangle snapshots, PCC runtime diagnostics, CHR resource/interface metadata and serial logs.
