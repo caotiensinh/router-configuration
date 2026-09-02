@@ -1,0 +1,3 @@
+QoS fresh creation-order diagnostic trigger.
+
+Each matrix mode runs on an independent official CHR snapshot to avoid packet-mark state priming between variants.
