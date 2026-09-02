@@ -112,6 +112,31 @@ def _find_rest_id_by_name(admin: LoopbackRestAdmin, path: str, name: str) -> str
     raise LabBootstrapError(f"RouterOS {path} entry not found by name: {name}")
 
 
+def _find_signed_certificate_by_common_name(
+    admin: LoopbackRestAdmin,
+    common_name: str,
+) -> Mapping[str, Any]:
+    records = admin.request("GET", "certificate")
+    rows = records if isinstance(records, list) else [records]
+    matches = [
+        item
+        for item in rows
+        if isinstance(item, Mapping)
+        and item.get("common-name") == common_name
+        and str(item.get("fingerprint") or "").strip()
+    ]
+    if len(matches) != 1:
+        raise LabBootstrapError(
+            f"expected exactly one signed certificate for common-name {common_name!r}, got {len(matches)}"
+        )
+    certificate_name = str(matches[0].get("name") or "").strip()
+    if not certificate_name:
+        raise LabBootstrapError(
+            f"signed certificate for common-name {common_name!r} has no RouterOS name"
+        )
+    return matches[0]
+
+
 def bootstrap_secure_acceptance(
     *,
     admin_url: str,
@@ -146,12 +171,13 @@ def bootstrap_secure_acceptance(
         },
     )
 
+    ca_common_name = "Router Configuration CHR Lab CA"
     ca_template = admin.request(
         "PUT",
         "certificate",
         {
             "name": "routercfg-ca",
-            "common-name": "Router Configuration CHR Lab CA",
+            "common-name": ca_common_name,
             "key-usage": "key-cert-sign,crl-sign",
             "trusted": "yes",
         },
@@ -162,13 +188,16 @@ def bootstrap_secure_acceptance(
         "certificate/sign",
         {".id": ca_template_id, "name": "routercfg-ca"},
     )
+    ca_certificate = _find_signed_certificate_by_common_name(admin, ca_common_name)
+    ca_certificate_name = str(ca_certificate["name"])
 
+    https_common_name = "127.0.0.1"
     https_template = admin.request(
         "PUT",
         "certificate",
         {
             "name": "routercfg-https",
-            "common-name": "127.0.0.1",
+            "common-name": https_common_name,
             "subject-alt-name": "IP:127.0.0.1",
             "key-usage": "digital-signature,key-encipherment,tls-server",
         },
@@ -179,17 +208,19 @@ def bootstrap_secure_acceptance(
         "certificate/sign",
         {
             ".id": https_template_id,
-            "ca": "routercfg-ca",
+            "ca": ca_certificate_name,
             "name": "routercfg-https",
         },
     )
+    https_certificate = _find_signed_certificate_by_common_name(admin, https_common_name)
+    https_certificate_name = str(https_certificate["name"])
 
     www_ssl_id = _find_rest_id_by_name(admin, "ip/service", "www-ssl")
     admin.request(
         "PATCH",
         f"ip/service/{www_ssl_id}",
         {
-            "certificate": "routercfg-https",
+            "certificate": https_certificate_name,
             "disabled": "false",
             "port": "443",
         },
@@ -199,7 +230,7 @@ def bootstrap_secure_acceptance(
         "POST",
         "certificate/export-certificate",
         {
-            "numbers": "routercfg-ca",
+            "numbers": ca_certificate_name,
             "file-name": "routercfg-ca",
             "type": "pem",
         },
@@ -278,8 +309,10 @@ def bootstrap_secure_acceptance(
         },
         "https": {
             "url": https_url,
+            "certificate_name": https_certificate_name,
             "certificate_verification": True,
             "ca_file": str(ca_output),
+            "ca_certificate_name": ca_certificate_name,
         },
         "credentials_file": str(credentials_output),
         "production_writer_available": False,
