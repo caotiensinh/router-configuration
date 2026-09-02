@@ -2,7 +2,7 @@
   "schema_version": "routeros-state/1",
   "platform": {
     "identity": "lab-ccr2116",
-    "version": "7.20.4 (stable)",
+    "version": "7.24.1 (stable)",
     "board_name": "CCR2116-12G-4S+",
     "architecture": "arm64"
   },
