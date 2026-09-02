@@ -1,0 +1,3 @@
+RouterOS CHR 7.24.1 secure populated Phase A v3
+Purpose: re-run exact live acceptance after documented password charset and safe HTTP diagnostics fix.
+This file contains no credentials, image data, or production configuration.
