@@ -349,20 +349,20 @@ def render_routeros_firewall(*, ir: Mapping[str, Any]) -> RouterOSFirewallComman
                 f'/ip/firewall/filter/add chain={chain_q} action=drop connection-state=invalid comment={_quote(CHAIN_COMMENT_PREFIX + "020-invalid-drop")}',
             ),
             _command(
-                "firewall.30.rule.030-icmp",
-                "firewall_filter",
-                (
-                    f'/ip/firewall/filter/add chain={chain_q} action=jump protocol=icmp '
-                    f'jump-target={icmp_chain_q} comment={_quote(CHAIN_COMMENT_PREFIX + "030-essential-icmp")}'
-                ),
-            ),
-            _command(
-                "firewall.30.rule.040-management-antispoof",
+                "firewall.30.rule.030-management-antispoof",
                 "firewall_filter",
                 (
                     f'/ip/firewall/filter/add chain={chain_q} action=drop '
                     f'in-interface-list={_quote(WAN_INTERFACE_LIST)} src-address-list={_quote(MANAGEMENT_ADDRESS_LIST)} '
-                    f'comment={_quote(CHAIN_COMMENT_PREFIX + "040-management-antispoof")}'
+                    f'comment={_quote(CHAIN_COMMENT_PREFIX + "030-management-antispoof")}'
+                ),
+            ),
+            _command(
+                "firewall.30.rule.040-icmp",
+                "firewall_filter",
+                (
+                    f'/ip/firewall/filter/add chain={chain_q} action=jump protocol=icmp '
+                    f'jump-target={icmp_chain_q} comment={_quote(CHAIN_COMMENT_PREFIX + "040-essential-icmp")}'
                 ),
             ),
             _command(
