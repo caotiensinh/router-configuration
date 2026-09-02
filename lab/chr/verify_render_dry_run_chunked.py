@@ -12,6 +12,7 @@ import verify_render_dry_run as base
 
 READ_CHUNK_BYTES = 4096
 FILE_SIZE_TIMEOUT_SECONDS = 5.0
+_BASE_CONFIGURATION_SNAPSHOT = base._configuration_snapshot
 
 
 def _file_size_bytes(admin: base.LoopbackCHRAdmin, name: str) -> int:
@@ -162,7 +163,7 @@ def _create_text_file_chunk_verified(
 def _configuration_snapshot_with_pcc(admin: base.LoopbackCHRAdmin) -> dict[str, Any]:
     """Extend the proven failover snapshot with PCC's mangle mutation surface."""
 
-    snapshot = base._configuration_snapshot(admin)
+    snapshot = _BASE_CONFIGURATION_SNAPSHOT(admin)
     _, payload = admin.request("GET", "ip/firewall/mangle")
     fields = (
         "chain",
