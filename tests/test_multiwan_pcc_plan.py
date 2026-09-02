@@ -23,7 +23,7 @@ class MultiWanPccPlanTests(unittest.TestCase):
 
     def test_pcc_rule_explosion_is_rejected_instead_of_silently_generated(self):
         planner = MultiWanPlanner()
-        policy = WeightedWanPolicy(("wan-a", 101), ("wan-b", 100))
+        policy = WeightedWanPolicy((("wan-a", 101), ("wan-b", 100)))
         with self.assertRaisesRegex(ValueError, "exceeds safe bucket limit"):
             planner.build_pcc_buckets(policy, max_buckets=64)
 
