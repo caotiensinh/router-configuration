@@ -11,6 +11,7 @@ CHR_DIR = ROOT / "lab" / "chr"
 VERIFY = CHR_DIR / "verify_packet_flow_behavior.py"
 HARNESS = CHR_DIR / "run_packet_flow_acceptance.sh"
 WORKFLOW = ROOT / ".github" / "workflows" / "chr-packet-flow.yml"
+DIAGNOSTIC = CHR_DIR / "diagnose_pcc_runtime.py"
 
 
 def load(path: Path, name: str):
@@ -54,6 +55,15 @@ class CHRPacketFlowContractTests(unittest.TestCase):
         self.assertIn("--tag WAN10", source)
         self.assertIn("--tag WAN1", source)
 
+    def test_harness_is_fail_closed_and_runs_runtime_invalid_rule_diagnostic(self):
+        source = HARNESS.read_text(encoding="utf-8")
+        self.assertIn("set -Eeuo pipefail", source)
+        self.assertNotIn("set +e", source)
+        self.assertIn("diagnose_pcc_runtime.py", source)
+        self.assertIn("pcc-runtime-diagnostic.json", source)
+        self.assertIn("managed_invalid_count", source)
+        self.assertIn("exit 19", source)
+
     def test_harness_measures_normal_failure_and_recovery_without_live_credentials(self):
         source = HARNESS.read_text(encoding="utf-8")
         self.assertIn("flows-normal.json", source)
@@ -70,6 +80,25 @@ class CHRPacketFlowContractTests(unittest.TestCase):
             "vault://",
             "192.168.11.",
             "production-router",
+        ):
+            self.assertNotIn(forbidden, source)
+
+    def test_runtime_diagnostic_is_disposable_chr_only_and_cleans_itself(self):
+        source = DIAGNOSTIC.read_text(encoding="utf-8")
+        self.assertIn("LoopbackCHRAdmin", source)
+        self.assertIn("assert_disposable_chr", source)
+        self.assertIn("_delete_diagnostics(admin)", source)
+        self.assertIn("pcc_passthrough_11_1", source)
+        self.assertIn("mark_connection_plain_w10", source)
+        self.assertIn("mark_routing_w10", source)
+        self.assertIn('"production_writer_available": False', source)
+        self.assertIn('"write_authorized": False', source)
+        for forbidden in (
+            "ROUTEROS_PASSWORD",
+            "ROUTEROS_USERNAME",
+            "192.168.11.",
+            "paramiko",
+            "requests.",
         ):
             self.assertNotIn(forbidden, source)
 
