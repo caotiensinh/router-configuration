@@ -1,0 +1,71 @@
+{
+  "schema_version": "routeros-chr-mutation-rollback-evidence/1",
+  "recorded_at": "2026-09-02",
+  "source": {
+    "workflow_run": 33598703013,
+    "job_id": 100147419605,
+    "artifact_id": 9834352523,
+    "artifact_name": "chr-mutation-rollback-aff3c352271890fc5e6aeee74fd78caa56866b7b",
+    "artifact_digest": "sha256:8e849cf5b749ccc078ad02555a1e0eac7f74126b3728000761fee2f733c006af",
+    "head_sha": "aff3c352271890fc5e6aeee74fd78caa56866b7b",
+    "normal_ci_run": 33598703025,
+    "normal_ci_python": ["3.11", "3.12", "3.13"],
+    "normal_ci_acceptance": "PASS"
+  },
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "fixture": {
+    "command_count": 38,
+    "recursive_command_count": 17,
+    "pcc_command_count": 21
+  },
+  "rollback_preflight": {
+    "passed": true,
+    "http_status": 200,
+    "verdict": "OK",
+    "captured_error": false
+  },
+  "mutation_apply": {
+    "passed": true,
+    "http_status": 200,
+    "verdict": "OK",
+    "configuration_baseline_sha256": "05e30ceefbf6ad9ff1c5c9f9aa889a371daf79704a65d1709228de9652678dd7",
+    "configuration_mutated_sha256": "b74f068ed033dc97c316bddd42457b3fc16b994bf75ee43a5d0b531c35ebb882",
+    "mutation_observed": true,
+    "managed_counts": {
+      "pcc_mangle": 13,
+      "pcc_policy_routes": 8,
+      "recursive_default_routes": 4,
+      "recursive_probe_routes": 4,
+      "routing_tables": 2,
+      "wan_addresses": 2
+    }
+  },
+  "failure_injection": {
+    "fixture": "this",
+    "observed": true,
+    "http_status": 200,
+    "verdict": "ERROR",
+    "error_detail": "Script Error: bad command name this (line 1 column 1)"
+  },
+  "rollback": {
+    "passed": true,
+    "http_status": 200,
+    "verdict": "OK",
+    "configuration_rollback_sha256": "05e30ceefbf6ad9ff1c5c9f9aa889a371daf79704a65d1709228de9652678dd7",
+    "rollback_digest_restored": true,
+    "managed_objects_removed": true,
+    "temporary_files_removed": true
+  },
+  "safety_boundary": {
+    "disposable_chr_only": true,
+    "rollback_syntax_proven_before_mutation": true,
+    "production_writer_available": false,
+    "transport_exposed_to_product": false,
+    "write_authorized": false
+  },
+  "acceptance": "PASS"
+}
