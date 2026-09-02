@@ -16,16 +16,17 @@ Linux network namespaces provide two independent WAN peers and one CORE client. 
 ## Acceptance sequence
 
 1. Render and dry-run 17 recursive-failover commands plus 21 state-safe PCC commands.
-2. Apply the 38-command fixture to disposable CHR only.
-3. Read RouterOS runtime state for every managed PCC mangle rule. Any `invalid=true` rule is an immediate hard failure before traffic measurement.
-4. Run a temporary CLI-import diagnostic matrix. It starts with minimal PCC `11/0`, `11/1`, and `11/2` rules using the same connection mark, then adds connection-state, no-mark, local-destination exclusion and CORE interface-list matching one field at a time. Routing-mark variants separately verify the dedicated routing-table dependency. Diagnostic rules and files are removed before traffic measurement.
-5. Confirm normal recursive routes are active.
-6. Generate 220 unique UDP connections from CORE and verify an approximately 10:1 WAN10:WAN1 distribution.
-7. Disconnect WAN10 reachability at the host-side isolated veth.
-8. Wait for RouterOS recursive `check-gateway` state to move WAN10-marked policy traffic to WAN1.
-9. Generate a fresh source-port range and require at least 98% WAN1 responses with at least 95% request success.
-10. Restore WAN10 reachability and wait for route recovery.
-11. Generate another fresh source-port range and require capacity-weighted distribution to return.
+2. Reconcile every dedicated policy routing table to `fib=yes`; an existing `fib=false` table is repaired rather than accepted as drift.
+3. Apply the 38-command fixture to disposable CHR only.
+4. Read RouterOS runtime state for every managed PCC mangle rule. Any `invalid=true` rule is an immediate hard failure before traffic measurement.
+5. Run a temporary CLI-import diagnostic matrix. It reuses the already valid managed WAN10 connection mark and tests PCC modulus variants `2/1`, `3/1`, `10/1`, `11/1`, and `11/10`, then separately tests new mark creation and routing-mark dependency. Diagnostic rules and files are removed before traffic measurement.
+6. Confirm normal recursive routes are active.
+7. Generate 220 unique UDP connections from CORE and verify an approximately 10:1 WAN10:WAN1 distribution.
+8. Disconnect WAN10 reachability at the host-side isolated veth.
+9. Wait for RouterOS recursive `check-gateway` state to move WAN10-marked policy traffic to WAN1.
+10. Generate a fresh source-port range and require at least 98% WAN1 responses with at least 95% request success.
+11. Restore WAN10 reachability and wait for route recovery.
+12. Generate another fresh source-port range and require capacity-weighted distribution to return.
 
 The shell harness remains `set -Eeuo pipefail` for the entire run. Cleanup operations are individually best-effort and must never disable `errexit` globally. A failed evaluator or runtime-validity check therefore fails the GitHub Actions job.
 
