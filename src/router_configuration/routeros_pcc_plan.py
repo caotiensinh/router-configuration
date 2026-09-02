@@ -9,22 +9,32 @@ from .m04_multiwan import MultiWanPlanner, PccBucket, WeightedWanPolicy
 @dataclass(frozen=True)
 class RouterOSPccRenderSpec:
     buckets: tuple[PccBucket, ...]
+    routing_tables: tuple[tuple[str, str], ...]
     classifier: str
     ingress_interface_list: str
+    scope: str
     exclude_local_destinations: bool
     connection_state: str
     require_unmarked_connection: bool
     fasttrack_compatible: bool
+
+    def table_for(self, wan_name: str) -> str:
+        for name, table in self.routing_tables:
+            if name == wan_name:
+                return table
+        raise KeyError(wan_name)
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "schema_version": "routeros-pcc-render-spec/1",
             "classifier": self.classifier,
             "ingress_interface_list": self.ingress_interface_list,
+            "scope": self.scope,
             "exclude_local_destinations": self.exclude_local_destinations,
             "connection_state": self.connection_state,
             "require_unmarked_connection": self.require_unmarked_connection,
             "fasttrack_compatible": self.fasttrack_compatible,
+            "routing_tables": dict(self.routing_tables),
             "buckets": [
                 {
                     "wan_name": bucket.wan_name,
@@ -87,6 +97,27 @@ def _active_fasttrack_rules(state: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(sorted(found))
 
 
+def _active_dstnat_rules(state: Mapping[str, Any]) -> tuple[str, ...]:
+    firewall = state.get("firewall", {})
+    if not isinstance(firewall, Mapping):
+        return ()
+    rows = firewall.get("nat", [])
+    if not isinstance(rows, list):
+        return ()
+
+    found: list[str] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("chain") or "").strip().lower() != "dstnat":
+            continue
+        if _enabled(row.get("disabled")):
+            continue
+        identifier = str(row.get(".id") or row.get("comment") or f"index:{index}")
+        found.append(identifier)
+    return tuple(sorted(found))
+
+
 def assess_routeros_pcc(
     *,
     ir: Mapping[str, Any],
@@ -96,11 +127,11 @@ def assess_routeros_pcc(
 ) -> RouterOSPccAssessment:
     """Build a non-executable PCC specification after fail-safe checks.
 
-    This function deliberately produces no RouterOS commands. It freezes the
-    invariants the eventual mangle renderer must honor: classify only new,
-    previously unmarked connections arriving from the trusted/core side, never
-    classify router-local destinations, and refuse an active FastTrack policy
-    until an explicit compatibility design exists for marked flows.
+    v0.1 is intentionally outbound-core-only. It classifies only new,
+    previously unmarked connections arriving from the core side, excludes
+    router-local destinations, and refuses active FastTrack or dstnat because
+    those require explicit compatibility/session-symmetry policy before a safe
+    production renderer may be generated.
     """
 
     errors: list[str] = []
@@ -150,11 +181,39 @@ def assess_routeros_pcc(
         errors.append(f"PCC weight plan: {exc}")
         return RouterOSPccAssessment(tuple(sorted(set(errors))), tuple(warnings))
 
+    paths = attributes.get("paths")
+    routing_tables: list[tuple[str, str]] = []
+    if not isinstance(paths, Mapping) or set(paths) != {name for name, _ in policy.weights}:
+        errors.append("PCC planning requires an explicit path and dedicated routing table for every weighted WAN")
+    else:
+        seen_tables: set[str] = set()
+        for wan_name, _ in policy.weights:
+            path = paths.get(wan_name)
+            if not isinstance(path, Mapping):
+                errors.append(f"PCC path for WAN {wan_name!r} must be an object")
+                continue
+            table = str(path.get("table") or "").strip()
+            if not table or table == "main":
+                errors.append(f"PCC WAN {wan_name!r} requires a dedicated non-main routing table")
+                continue
+            if table in seen_tables:
+                errors.append(f"PCC routing table {table!r} is assigned to multiple WANs")
+                continue
+            seen_tables.add(table)
+            routing_tables.append((wan_name, table))
+
     fasttrack = _active_fasttrack_rules(state)
     if fasttrack:
         errors.append(
             "active FastTrack rules conflict with non-main PCC routing marks; explicit FastTrack exclusion/removal policy is required before rendering: "
             + ", ".join(fasttrack)
+        )
+
+    dstnat = _active_dstnat_rules(state)
+    if dstnat:
+        errors.append(
+            "active dstnat rules require explicit inbound connection symmetry before outbound-only PCC rendering: "
+            + ", ".join(dstnat)
         )
 
     if not core_interface_list.strip():
@@ -165,8 +224,10 @@ def assess_routeros_pcc(
 
     spec = RouterOSPccRenderSpec(
         buckets=buckets,
+        routing_tables=tuple(routing_tables),
         classifier="both-addresses-and-ports",
         ingress_interface_list=core_interface_list,
+        scope="outbound_core_only",
         exclude_local_destinations=True,
         connection_state="new",
         require_unmarked_connection=True,
