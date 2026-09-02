@@ -3,8 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-
-import pytest
+import unittest
 
 from router_configuration.transaction_adapter_admission import (
     TransactionAdapterAdmissionError,
@@ -71,76 +70,79 @@ def _candidate():
     return plan, envelope, lifecycle, target
 
 
-def test_exact_authorized_disposable_chr_candidate_is_admitted_without_writer() -> None:
-    plan, envelope, lifecycle, target = _candidate()
-    result = admit_disposable_chr_candidate(
-        render_plan=plan,
-        envelope=envelope,
-        lifecycle=lifecycle,
-        target=target,
-    ).as_dict()
-    assert result["claim"] == "eligible_for_disposable_chr_adapter_only"
-    assert result["production_writer_available"] is False
-    assert result["physical_router_targeted"] is False
-    assert result["production_allowed"] is False
-    assert result["write_authorized"] is False
-    assert result["credentials_present"] is False
-
-
-def test_direct_adapter_bypass_before_authorization_is_rejected() -> None:
-    plan, envelope, _, target = _candidate()
-    lifecycle = initialize_transaction_lifecycle(envelope=envelope).as_dict()
-    with pytest.raises(TransactionAdapterAdmissionError, match="authorized lifecycle"):
-        admit_disposable_chr_candidate(
+class TransactionAdapterAdmissionTests(unittest.TestCase):
+    def test_exact_authorized_disposable_chr_candidate_is_admitted_without_writer(self):
+        plan, envelope, lifecycle, target = _candidate()
+        result = admit_disposable_chr_candidate(
             render_plan=plan,
             envelope=envelope,
             lifecycle=lifecycle,
             target=target,
-        )
+        ).as_dict()
+        self.assertEqual(result["claim"], "eligible_for_disposable_chr_adapter_only")
+        self.assertFalse(result["production_writer_available"])
+        self.assertFalse(result["physical_router_targeted"])
+        self.assertFalse(result["production_allowed"])
+        self.assertFalse(result["write_authorized"])
+        self.assertFalse(result["credentials_present"])
 
-
-def test_tampered_plan_and_cross_transaction_lifecycle_are_rejected() -> None:
-    plan, envelope, lifecycle, target = _candidate()
-    tampered = copy.deepcopy(plan)
-    tampered["render_sha256"] = "f" * 64
-    with pytest.raises(TransactionAdapterAdmissionError, match="approved envelope"):
-        admit_disposable_chr_candidate(
-            render_plan=tampered,
-            envelope=envelope,
-            lifecycle=lifecycle,
-            target=target,
-        )
-
-    other_plan, other_envelope, other_lifecycle, _ = _candidate()
-    other_envelope = copy.deepcopy(other_envelope)
-    other_envelope["transaction_id"] = "e" * 64
-    with pytest.raises(TransactionAdapterAdmissionError):
-        admit_disposable_chr_candidate(
-            render_plan=other_plan,
-            envelope=other_envelope,
-            lifecycle=other_lifecycle,
-            target=target,
-        )
-
-
-def test_physical_production_and_secret_bearing_targets_are_rejected() -> None:
-    plan, envelope, lifecycle, target = _candidate()
-    variants = []
-    physical = copy.deepcopy(target)
-    physical["physical_router_targeted"] = True
-    variants.append(physical)
-    production = copy.deepcopy(target)
-    production["production"] = True
-    variants.append(production)
-    secret = copy.deepcopy(target)
-    secret["password"] = "forbidden"
-    variants.append(secret)
-
-    for variant in variants:
-        with pytest.raises(TransactionAdapterAdmissionError):
+    def test_direct_adapter_bypass_before_authorization_is_rejected(self):
+        plan, envelope, _, target = _candidate()
+        lifecycle = initialize_transaction_lifecycle(envelope=envelope).as_dict()
+        with self.assertRaisesRegex(TransactionAdapterAdmissionError, "authorized lifecycle"):
             admit_disposable_chr_candidate(
                 render_plan=plan,
                 envelope=envelope,
                 lifecycle=lifecycle,
-                target=variant,
+                target=target,
             )
+
+    def test_tampered_plan_and_cross_transaction_lifecycle_are_rejected(self):
+        plan, envelope, lifecycle, target = _candidate()
+        tampered = copy.deepcopy(plan)
+        tampered["render_sha256"] = "f" * 64
+        with self.assertRaisesRegex(TransactionAdapterAdmissionError, "approved envelope"):
+            admit_disposable_chr_candidate(
+                render_plan=tampered,
+                envelope=envelope,
+                lifecycle=lifecycle,
+                target=target,
+            )
+
+        other_plan, other_envelope, other_lifecycle, _ = _candidate()
+        other_envelope = copy.deepcopy(other_envelope)
+        other_envelope["transaction_id"] = "e" * 64
+        with self.assertRaises(TransactionAdapterAdmissionError):
+            admit_disposable_chr_candidate(
+                render_plan=other_plan,
+                envelope=other_envelope,
+                lifecycle=other_lifecycle,
+                target=target,
+            )
+
+    def test_physical_production_and_secret_bearing_targets_are_rejected(self):
+        plan, envelope, lifecycle, target = _candidate()
+        variants = []
+        physical = copy.deepcopy(target)
+        physical["physical_router_targeted"] = True
+        variants.append(physical)
+        production = copy.deepcopy(target)
+        production["production"] = True
+        variants.append(production)
+        secret = copy.deepcopy(target)
+        secret["password"] = "forbidden"
+        variants.append(secret)
+
+        for variant in variants:
+            with self.subTest(variant=variant):
+                with self.assertRaises(TransactionAdapterAdmissionError):
+                    admit_disposable_chr_candidate(
+                        render_plan=plan,
+                        envelope=envelope,
+                        lifecycle=lifecycle,
+                        target=variant,
+                    )
+
+
+if __name__ == "__main__":
+    unittest.main()
