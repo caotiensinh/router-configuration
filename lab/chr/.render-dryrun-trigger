@@ -1,3 +1,3 @@
-RouterOS CHR 7.24.1 generated renderer syntax dry-run trigger
-Purpose: execute the dedicated CHR Render Dry Run workflow after the generation-only renderer and dry-run lab contract passed normal regression.
-Acceptance target: generated RouterOS topology script passes import verbose=yes dry-run; intentionally invalid negative-control script is rejected; interface-list configuration digest is identical before and after; temporary lab files removed; no production write authorization.
+RouterOS CHR 7.24.1 generated renderer syntax dry-run retry
+Purpose: rerun the dedicated CHR Render Dry Run workflow after hardening /rest/execute result interpretation and switching the negative control to MikroTik's documented bad-command fixture `this`.
+Acceptance target: generated RouterOS topology script passes import verbose=yes dry-run with no script-error semantics; documented invalid fixture is rejected with recognizable RouterOS script error; interface-list configuration digest is identical before and after; temporary lab files removed; no production write authorization.
