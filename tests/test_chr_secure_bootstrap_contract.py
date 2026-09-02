@@ -1,5 +1,6 @@
 import ast
 import importlib.util
+import string
 import unittest
 from pathlib import Path
 
@@ -51,6 +52,15 @@ class CHRSecureBootstrapContractTests(unittest.TestCase):
         self.assertIn('"policy": "read,rest-api"', source)
         self.assertNotIn('"policy": "read,write', source)
         self.assertIn('production_writer_available', source)
+
+    def test_reader_password_uses_documented_routeros_charset(self):
+        allowed = set(string.ascii_letters + string.digits + "*_")
+        for _ in range(20):
+            password = self.module._generate_routeros_password()
+            self.assertEqual(len(password), 40)
+            self.assertTrue(set(password) <= allowed)
+        with self.assertRaises(ValueError):
+            self.module._generate_routeros_password(16)
 
     def test_service_updates_resolve_routeros_rest_id_by_name(self):
         class FakeAdmin:
