@@ -11,9 +11,9 @@
 
 ## Current measured status
 
-**56% complete / 44% remaining.**
+**75% complete / 25% remaining.**
 
-Change from previous checkpoint: **+4 points backed by real RouterOS CHR 7.24.1 live-smoke evidence**. GitHub Actions booted the official CHR image in isolated QEMU snapshot mode, reached the real REST service, exercised the project GET-only discovery client across every configured read surface, produced sanitized normalized evidence, and passed evidence-integrity validation. The recorded state reported RouterOS `7.24.1 (stable)`, architecture `x86_64`, no failed surfaces and no missing surfaces. This earns +2 P07, +1 P08 and +1 P13. It does **not** constitute full CHR acceptance because the smoke used isolated loopback HTTP and the factory admin account rather than a dedicated least-privilege reader with HTTPS/TLS verification and manual provenance review. No points were granted for renderer, apply, verify, rollback or physical CCR2116 testing.
+Change from the previous 73% checkpoint: **+2 points backed by exact-head RouterOS CHR 7.24.1 firewall runtime evidence**. The enterprise firewall slice now has deterministic generation-only rendering, explicit bounded management sources and WAN-service exceptions, essential IPv4 ICMP filtering, WAN management anti-spoofing before ICMP acceptance, WAN input default deny, runtime rule validity checks, management-path survival after activation, and exact rollback-to-baseline verification. The accepted exact-head CHR run is `33637290612` with artifact `9849353283`; the evidence is retained in `evidence/chr/2026-09-02-firewall-baseline-runtime-7.24.1.json`. The evidence commit `51b35af10767378c39e47757d090bf9cf6e9b92b` also passed normal CI on Python 3.11, 3.12 and 3.13 in run `33637526415`. This earns +1 P09 and +1 P12. No production writer, secret resolution, physical CCR2116 acceptance, WireGuard runtime acceptance or QoS acceptance is claimed.
 
 | ID | Workstream | Weight | Earned | Status | Next acceptance gate |
 | --- | --- | ---: | ---: | --- | --- |
@@ -22,14 +22,14 @@ Change from previous checkpoint: **+4 points backed by real RouterOS CHR 7.24.1 
 | P03 | Guided deployment profile | 6 | 6 | DONE | — |
 | P04 | Operator workflow CLI | 2 | 2 | DONE | — |
 | P05 | Intent/state/diff/drift core | 8 | 8 | DONE | — |
-| P06 | Compiler / secret boundary | 4 | 3 | PARTIAL | RouterOS renderer only after full CHR read-only acceptance |
-| P07 | RouterOS read-only discovery | 12 | 8 | PARTIAL | dedicated reader + HTTPS/TLS + provenance-reviewed CHR acceptance |
-| P08 | RouterOS normalization | 6 | 5 | PARTIAL | populated high-value live surfaces + live RouterOS→core-state review |
-| P09 | RouterOS renderer | 13 | 0 | NOT STARTED | deterministic safe-subset rendering after full CHR discovery acceptance |
-| P10 | Backup/preflight/apply/verify/rollback | 15 | 5 | PARTIAL | real adapter transaction lifecycle after full CHR discovery acceptance |
-| P11 | Dual-WAN / failover | 5 | 2 | PARTIAL | RouterOS compile + lab failover evidence |
-| P12 | Security/VLAN/PBR/VPN/QoS | 8 | 1 | PARTIAL | RouterOS compiled policy + integration tests |
-| P13 | CHR integration/failure lab | 5 | 1 | PARTIAL | full read-only acceptance, then mutation/failure/rollback lab |
+| P06 | Compiler / secret boundary | 4 | 4 | DONE | Further RouterOS command coverage is tracked under P09 |
+| P07 | RouterOS read-only discovery | 12 | 10 | PARTIAL | operator provenance attestation + candidate review |
+| P08 | RouterOS normalization | 6 | 6 | DONE | — |
+| P09 | RouterOS renderer | 13 | 7 | PARTIAL | WireGuard and QoS renderer slices; production apply remains separately gated |
+| P10 | Backup/preflight/apply/verify/rollback | 15 | 5 | PARTIAL | real adapter transaction lifecycle after state-aware generation is complete |
+| P11 | Dual-WAN / failover | 5 | 5 | DONE | — |
+| P12 | Security/VLAN/PBR/VPN/QoS | 8 | 2 | PARTIAL | WireGuard with unresolved secret refs + explicit allowed-address + CHR validation, then VLAN/PBR/QoS |
+| P13 | CHR integration/failure lab | 5 | 5 | DONE | — |
 | P14 | CI/regression/golden evidence | 2 | 2 | DONE | — |
 | P15 | v1 release/beginner deployment docs | 1 | 0 | NOT STARTED | one-command guided deployment docs |
 | P16 | AI observability gateway placeholder | 1 | 1 | DONE | AI engine intentionally deferred |
@@ -50,22 +50,24 @@ Change from previous checkpoint: **+4 points backed by real RouterOS CHR 7.24.1 
 - [x] Profile-to-evidence preflight blocks model/port/requested-feature mismatches and supplies remediation text.
 - [x] Synthetic REST transport integration matches the golden normalized state in CI.
 - [x] `network-state/1` provides a stable vendor-neutral state boundary with deterministic RouterOS mapping and idempotent diff input.
-- [x] Real RouterOS CHR 7.24.1 firmware/version evidence is recorded from an isolated live CI smoke.
+- [x] Real RouterOS CHR 7.24.1 firmware/version evidence is recorded from isolated live CI gates.
 - [x] Live CHR REST GET discovery reached every configured read surface with no failed/missing surfaces.
 - [x] Live CHR normalized RouterOS evidence passed state digest and capability-summary verification.
-- [x] Repeatable QEMU snapshot topology booted official CHR and preserved auditable sanitized evidence.
+- [x] Repeatable QEMU snapshot topology boots official CHR and preserves auditable sanitized evidence.
+- [x] Capacity-weighted 10G + 1G PCC distribution, WAN10 failure and recovery behavior passed disposable CHR packet-flow acceptance.
+- [x] Enterprise RouterOS input firewall generation passed CHR dry-run, active runtime validity, management-path survival and exact rollback-to-baseline verification.
+- [x] Firewall anti-spoofing is ordered before essential-ICMP acceptance and WAN input is default-deny in the accepted managed chain.
 - [ ] Full CHR acceptance uses a dedicated least-privilege REST reader.
 - [ ] Full CHR acceptance uses HTTPS with certificate verification.
 - [ ] Full CHR evidence passes explicit provenance attestation/candidate review.
-- [ ] Populated firewall/NAT/WireGuard/QoS objects are reviewed on live CHR or covered by an explicit accepted capability-gap policy.
-- [ ] RouterOS renderer has golden tests for every supported operation.
+- [ ] Populated NAT/WireGuard/QoS objects are reviewed on live CHR or covered by an explicit accepted capability-gap policy.
+- [ ] RouterOS renderer has accepted coverage for every planned v1 operation, including WireGuard and QoS.
 - [ ] Production apply requires real backup evidence.
-- [ ] Default-route/firewall/management changes require verified management reachability.
+- [ ] Default-route/firewall/management changes require verified management reachability in the production transaction path.
 - [ ] Post-apply verification covers WAN, DNS, routing, VPN and management reachability as applicable.
-- [ ] Failed verification produces rollback and recovery-verification evidence.
-- [ ] Weighted 10G + 1G Dual-WAN behavior is tested in lab.
-- [ ] ISP-down, Internet-down-with-link-up, DNS failure and route-loss simulations pass.
-- [ ] Full CHR lab passes before physical CCR2116 testing.
+- [ ] Failed production verification produces rollback and recovery-verification evidence.
+- [ ] Internet-down-with-link-up, DNS failure and route-loss simulations pass in addition to the accepted WAN failure/recovery gate.
+- [x] Disposable CHR integration/failure simulation gates pass for the currently implemented safe-subset slices before physical CCR2116 testing.
 - [ ] Physical CCR2116 acceptance evidence is recorded before production writer is enabled.
 - [ ] CI is green on the exact release commit.
 
