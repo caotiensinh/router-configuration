@@ -18,7 +18,7 @@ Linux network namespaces provide two independent WAN peers and one CORE client. 
 1. Render and dry-run 17 recursive-failover commands plus 21 state-safe PCC commands.
 2. Apply the 38-command fixture to disposable CHR only.
 3. Read RouterOS runtime state for every managed PCC mangle rule. Any `invalid=true` rule is an immediate hard failure before traffic measurement.
-4. Run a temporary diagnostic matrix to distinguish PCC matcher, connection-mark and routing-mark validity. Diagnostic rules are removed before traffic measurement.
+4. Run a temporary CLI-import diagnostic matrix. It starts with minimal PCC `11/0`, `11/1`, and `11/2` rules using the same connection mark, then adds connection-state, no-mark, local-destination exclusion and CORE interface-list matching one field at a time. Routing-mark variants separately verify the dedicated routing-table dependency. Diagnostic rules and files are removed before traffic measurement.
 5. Confirm normal recursive routes are active.
 6. Generate 220 unique UDP connections from CORE and verify an approximately 10:1 WAN10:WAN1 distribution.
 7. Disconnect WAN10 reachability at the host-side isolated veth.
@@ -33,4 +33,4 @@ The shell harness remains `set -Eeuo pipefail` for the entire run. Cleanup opera
 
 The gate uses only a QEMU `-snapshot` CHR image and loopback management forwarding. It contains no production router address, credential, secret resolver, or product write transport. The WAN and CORE networks exist only as temporary Linux namespaces, bridges, taps and veth pairs on the CI runner.
 
-Evidence is uploaded as a GitHub Actions artifact and includes flow counts, route states, RouterOS mangle snapshots, PCC runtime diagnostics, CHR resource/interface metadata and serial logs.
+Evidence is uploaded as a GitHub Actions artifact and includes flow counts, route states, RouterOS mangle snapshots, CLI-import PCC runtime diagnostics, CHR resource/interface metadata and serial logs.
