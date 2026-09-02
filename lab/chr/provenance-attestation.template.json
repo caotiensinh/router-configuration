@@ -1,0 +1,13 @@
+{
+  "schema_version": "routeros-provenance-attestation/1",
+  "target_id": "chr-live-v7",
+  "target_kind": "routeros_chr",
+  "evidence_origin": "live_chr",
+  "operator_attested": false,
+  "controlled_environment": false,
+  "write_operations_performed": false,
+  "observed_at": null,
+  "routeros_version": null,
+  "normalized_state_sha256": null,
+  "note": "Copy this file next to the evidence bundle and fill it only after directly observing the controlled CHR run. Do not commit live environment secrets, management addresses or credentials."
+}
