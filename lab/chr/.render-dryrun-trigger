@@ -1,3 +1,3 @@
-RouterOS CHR 7.24.1 generated renderer syntax dry-run machine-verdict validation
-Purpose: execute the dedicated CHR Render Dry Run workflow after replacing opaque /rest/execute response interpretation with RouterOS onerror plus explicit :return OK or ERROR|<detail>.
-Acceptance target: generated RouterOS topology script returns OK; documented invalid fixture `this` returns ERROR|<detail>; interface-list configuration digest is identical before and after; temporary lab files removed; no production write authorization.
+RouterOS CHR 7.24.1 generated renderer syntax dry-run verdict-file validation
+Purpose: execute the dedicated CHR Render Dry Run workflow after moving the machine verdict from opaque /rest/execute ret values to a temporary RouterOS file written by the onerror wrapper.
+Acceptance target: generated RouterOS topology script writes OK; documented invalid fixture `this` writes ERROR|<detail>; interface-list configuration digest is identical before and after; all temporary RouterOS files are verified absent; no production write authorization.
