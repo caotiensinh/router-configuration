@@ -35,11 +35,17 @@ class RouterOSTargetMatrixTests(unittest.TestCase):
             if "verified" in target["status"]:
                 self.assertTrue(target["evidence"], target["id"])
 
-    def test_physical_verification_cannot_precede_chr_verification(self):
+    def test_live_smoke_is_not_full_chr_acceptance(self):
+        chr_target = self.targets["chr-live-v7"]
+        if chr_target["status"] == "verified_live_smoke":
+            self.assertTrue(chr_target["remaining_acceptance"])
+            self.assertNotEqual(chr_target["status"], "verified_read_only")
+
+    def test_physical_verification_requires_exact_full_chr_acceptance(self):
         physical = self.targets["ccr2116-physical"]
         chr_target = self.targets["chr-live-v7"]
-        if "verified" in physical["status"]:
-            self.assertIn("verified", chr_target["status"])
+        if physical["status"].startswith("verified_"):
+            self.assertEqual(chr_target["status"], "verified_read_only")
             self.assertTrue(chr_target["evidence"])
 
     def test_current_stable_source_is_official_mikrotik(self):
