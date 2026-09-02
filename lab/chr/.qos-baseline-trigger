@@ -1,0 +1,13 @@
+QoS CHR runtime acceptance trigger.
+
+Safety boundary:
+- official MikroTik CHR 7.24.1 only
+- disposable QEMU snapshot only
+- live conflict surfaces before rendering
+- dry-run before mutation
+- management REST survival after apply
+- exact rollback digest required
+- no throughput/latency acceptance claim
+- no physical router target
+- production writer unavailable
+- write_authorized=false
