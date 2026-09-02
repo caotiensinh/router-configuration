@@ -11,7 +11,8 @@ The objective is deliberately narrow:
 3. collect the same read surfaces used by the production discovery client;
 4. verify state/evidence integrity;
 5. compare the live state with the guided deployment profile;
-6. preserve an auditable manifest for review.
+6. preserve an auditable manifest for review;
+7. explicitly attest provenance before the target matrix may be reviewed.
 
 No configuration renderer, apply command, failover mutation or rollback mutation is part of this gate.
 
@@ -89,6 +90,46 @@ The runner executes only these project operations:
 
 If all four commands succeed, it creates a manifest containing hashes for the profile, evidence file and normalized state plus the discovered platform metadata.
 
+## Provenance review
+
+A valid evidence bundle is not automatically proof that the source was a real CHR instance. The next step is an explicit provenance attestation.
+
+Copy the safe template next to the evidence bundle:
+
+```bash
+cp lab/chr/provenance-attestation.template.json \
+  evidence/chr-readonly/provenance-attestation.json
+```
+
+After directly observing the controlled CHR run, fill only the non-secret provenance fields:
+
+- `operator_attested=true`;
+- `controlled_environment=true`;
+- exact `observed_at` with timezone;
+- exact RouterOS version reported by the validated evidence;
+- exact normalized-state SHA-256 from the validated evidence.
+
+Do not place credentials, management IP addresses, private keys, tokens or other secrets in the attestation file.
+
+Then review all three gates with one non-mutating command:
+
+```bash
+python -m router_configuration.review_candidate \
+  --profile examples/rd-10g-1g/deployment-profile.json \
+  --evidence evidence/chr-readonly/routeros-discovery.json \
+  --manifest evidence/chr-readonly/manifest.json \
+  --attestation evidence/chr-readonly/provenance-attestation.json \
+  --matrix ROUTEROS_TARGET_MATRIX.json
+```
+
+The command evaluates, in order:
+
+1. bundle integrity and hashes;
+2. provenance attestation consistency;
+3. target-matrix admission rules.
+
+A successful result only returns `candidate_for_manual_acceptance`. It does not mutate the matrix and it does not automatically mark CHR as verified.
+
 ## Required evidence before P07/P08 can advance
 
 The following must be reviewed from a real CHR run:
@@ -106,7 +147,9 @@ The following must be reviewed from a real CHR run:
 - capability gaps explicitly recorded rather than silently ignored;
 - `routeros-evidence-check` PASS;
 - `routeros-preflight` PASS or reviewed non-blocking warnings;
-- evidence and manifest hashes retained.
+- evidence and manifest hashes retained;
+- provenance attestation reviewed;
+- candidate admission output reviewed.
 
 Only after this live CHR evidence is reviewed should `ROUTEROS_TARGET_MATRIX.json` mark `chr-live-v7` as verified.
 
