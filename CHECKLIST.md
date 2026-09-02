@@ -11,9 +11,9 @@
 
 ## Current measured status
 
-**49% complete / 51% remaining.**
+**50% complete / 50% remaining.**
 
-Change from previous checkpoint: **+2 points** from the completed guided profile initializer and the versioned RouterOS state/evidence integrity contract. No points were granted for live CHR, renderer, apply, verify or rollback because those gates remain unmet.
+Change from previous checkpoint: **+1 point** from the completed CI/regression/golden evidence workstream. The new integration test exercises the real RouterOS REST HTTP client against a local synthetic REST server, checks GET-only endpoint behavior, Basic Auth, golden normalized state, secret redaction and evidence verification. No points were granted for live CHR, renderer, apply, verify or rollback because those gates remain unmet.
 
 | ID | Workstream | Weight | Earned | Status | Next acceptance gate |
 | --- | --- | ---: | ---: | --- | --- |
@@ -29,8 +29,8 @@ Change from previous checkpoint: **+2 points** from the completed guided profile
 | P10 | Backup/preflight/apply/verify/rollback | 15 | 5 | PARTIAL | real adapter transaction lifecycle after CHR discovery acceptance |
 | P11 | Dual-WAN / failover | 5 | 2 | PARTIAL | RouterOS compile + lab failover evidence |
 | P12 | Security/VLAN/PBR/VPN/QoS | 8 | 1 | PARTIAL | RouterOS compiled policy + integration tests |
-| P13 | CHR integration/failure lab | 5 | 0 | NOT STARTED | repeatable rollback/failure evidence |
-| P14 | CI/regression/golden evidence | 2 | 1 | PARTIAL | fixture/golden/integration matrix |
+| P13 | CHR integration/failure lab | 5 | 0 | NOT STARTED | repeatable CHR test topology with rollback evidence |
+| P14 | CI/regression/golden evidence | 2 | 2 | DONE | — |
 | P15 | v1 release/beginner deployment docs | 1 | 0 | NOT STARTED | one-command guided deployment docs |
 | P16 | AI observability gateway placeholder | 1 | 1 | DONE | AI engine intentionally deferred |
 
@@ -47,6 +47,7 @@ Change from previous checkpoint: **+2 points** from the completed guided profile
 - [x] RouterOS state/evidence verifier detects state, count, platform and capability-summary tampering before preflight.
 - [x] Synthetic CI, CHR live and physical CCR2116 evidence classes are explicitly separated.
 - [x] Profile-to-evidence preflight blocks model/port/requested-feature mismatches and supplies remediation text.
+- [x] Synthetic REST transport integration matches the golden normalized state in CI.
 - [ ] RouterOS live target firmware/version evidence is recorded from CHR.
 - [ ] Live read-only discovery covers interfaces, addresses, routes, routing tables, firewall/NAT, WireGuard and QoS state on CHR.
 - [ ] Desired-state diff is deterministic and idempotent against live normalized state.
