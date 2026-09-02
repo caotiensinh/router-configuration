@@ -1,0 +1,67 @@
+{
+  "schema_version": "routeros-render-dryrun-evidence/1",
+  "recorded_at": "2026-09-02",
+  "scope": "recursive_dualwan_failover_renderer",
+  "source": {
+    "workflow_run": 33596511996,
+    "job_id": 100140935663,
+    "artifact_id": 9833652148,
+    "artifact_name": "chr-render-dryrun-737a625a0c4487bc74673493178b4fa3f96d3488",
+    "artifact_sha256": "6e082c96daba03c800c2baa08e5243b3fe56572a044b04acb45289f959935fa3",
+    "head_sha": "737a625a0c4487bc74673493178b4fa3f96d3488"
+  },
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "generated_script": {
+    "command_count": 17,
+    "byte_length": 5214,
+    "sha256": "43ac789d72f39b0e81a061a93a592486731cd30f051796eaf477e6643d85fb59",
+    "render_sha256": "4c9de4ce36aa73fba265b96c875d5c7e6d7353b600aa0175493f600b38bcdc10",
+    "dry_run_passed": true,
+    "http_status": 200,
+    "execute_ret_observed": "*21",
+    "verdict": "OK"
+  },
+  "file_roundtrip_verification": {
+    "method": "routeros_file_read_chunked",
+    "chunk_bytes": 4096,
+    "sha256_verified": true
+  },
+  "covered_sections": [
+    "interface_list",
+    "interface_list_member",
+    "ip_address",
+    "routing_table",
+    "ip_route"
+  ],
+  "recursive_failover": {
+    "static_wan_addresses": 2,
+    "dedicated_routing_tables": 2,
+    "health_probe_routes": 4,
+    "recursive_default_routes": 4,
+    "acceptance": "PASS"
+  },
+  "deferred": {
+    "operation_id": "routing.multiwan.capacity_weighted",
+    "reason": "capacity-weighted PCC remains intentionally isolated for the next renderer slice"
+  },
+  "negative_control": {
+    "fixture": "this",
+    "dry_run_rejected": true,
+    "http_status": 200,
+    "execute_ret_observed": "*32",
+    "verdict": "ERROR",
+    "error_detail": "Script Error: found 1 error(s) in import file"
+  },
+  "configuration_before_sha256": "efdd6094e71455b04e81a7ac57da3206c6db300c466151ed12d5d0b1230889cf",
+  "configuration_after_sha256": "efdd6094e71455b04e81a7ac57da3206c6db300c466151ed12d5d0b1230889cf",
+  "configuration_changed": false,
+  "temporary_files_removed": true,
+  "lab_setup_write_operations_performed": true,
+  "production_writer_available": false,
+  "write_authorized": false,
+  "acceptance": "PASS"
+}
