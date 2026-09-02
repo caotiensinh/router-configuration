@@ -1,0 +1,12 @@
+PBR CHR runtime acceptance trigger.
+
+Safety boundary:
+- official MikroTik CHR 7.24.1 only
+- disposable QEMU snapshot only
+- live management network and routing prerequisites
+- dry-run before mutation
+- exact rule rollback and lab-table cleanup
+- no route-selection data-plane claim
+- no physical router target
+- production writer unavailable
+- write_authorized=false
