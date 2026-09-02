@@ -1,47 +1,10 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .routeros_capabilities import assess_routeros_capabilities
-
-_SECRET_KEY_TOKENS = (
-    "password",
-    "private-key",
-    "private_key",
-    "preshared-key",
-    "preshared_key",
-    "psk",
-    "secret",
-    "token",
-)
-
-
-def _contains_unredacted_secret(value: Any) -> bool:
-    if isinstance(value, Mapping):
-        for key, item in value.items():
-            lowered = str(key).lower()
-            if any(token in lowered for token in _SECRET_KEY_TOKENS):
-                if item != "<redacted>":
-                    return True
-            if _contains_unredacted_secret(item):
-                return True
-    elif isinstance(value, list):
-        return any(_contains_unredacted_secret(item) for item in value)
-    return False
-
-
-def _state_digest(state: Mapping[str, Any]) -> str:
-    payload = json.dumps(
-        state,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        default=str,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+from .routeros_state_contract import routeros_state_digest, validate_routeros_state
 
 
 def build_routeros_discovery_evidence(
@@ -53,12 +16,16 @@ def build_routeros_discovery_evidence(
     """Build a sanitized evidence artifact from normalized RouterOS state.
 
     Raw RouterOS responses and credentials are intentionally not part of this
-    artifact. The normalized state may be persisted because the normalizer
-    redacts secret-bearing keys before this boundary.
+    artifact. The normalized state may be persisted only after it passes the
+    versioned state/secret contract.
     """
 
-    if _contains_unredacted_secret(state):
-        raise ValueError("normalized state contains an unredacted secret-bearing field")
+    validation = validate_routeros_state(state)
+    if not validation.ok:
+        raise ValueError(
+            "normalized RouterOS state failed validation: "
+            + "; ".join(validation.errors)
+        )
 
     timestamp = observed_at or datetime.now(timezone.utc)
     if timestamp.tzinfo is None:
@@ -83,7 +50,7 @@ def build_routeros_discovery_evidence(
     return {
         "schema_version": "routeros-discovery-evidence/1",
         "observed_at": timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "state_sha256": _state_digest(state),
+        "state_sha256": routeros_state_digest(state),
         "platform": dict(state.get("platform", {})),
         "collection": {
             "failed_surfaces": sorted(errors),
