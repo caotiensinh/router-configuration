@@ -64,6 +64,11 @@ class RouterOSPccPlanTests(unittest.TestCase):
         spec = payload["spec"]
         self.assertEqual(spec["classifier"], "both-addresses-and-ports")
         self.assertEqual(spec["ingress_interface_list"], "routercfg-CORE")
+        self.assertEqual(spec["scope"], "outbound_core_only")
+        self.assertEqual(
+            spec["routing_tables"],
+            {"wan10g": "to-wan10g", "wan1g": "to-wan1g"},
+        )
         self.assertTrue(spec["exclude_local_destinations"])
         self.assertEqual(spec["connection_state"], "new")
         self.assertTrue(spec["require_unmarked_connection"])
@@ -81,8 +86,7 @@ class RouterOSPccPlanTests(unittest.TestCase):
         )
 
     def test_active_fasttrack_blocks_pcc_render_readiness(self):
-        current = state()
-        current = copy.deepcopy(current)
+        current = copy.deepcopy(state())
         current["firewall"]["filter"].append(
             {
                 ".id": "*FT1",
@@ -97,13 +101,40 @@ class RouterOSPccPlanTests(unittest.TestCase):
         self.assertIsNone(result.spec)
 
     def test_disabled_fasttrack_does_not_block(self):
-        current = state()
-        current = copy.deepcopy(current)
+        current = copy.deepcopy(state())
         current["firewall"]["filter"].append(
             {
                 ".id": "*FT1",
                 "chain": "forward",
                 "action": "fasttrack-connection",
+                "disabled": True,
+            }
+        )
+        result = assess_routeros_pcc(ir=ir(), state=current)
+        self.assertTrue(result.ok, result.errors)
+
+    def test_active_dstnat_blocks_outbound_only_pcc(self):
+        current = copy.deepcopy(state())
+        current["firewall"]["nat"].append(
+            {
+                ".id": "*DN1",
+                "chain": "dstnat",
+                "action": "dst-nat",
+                "disabled": False,
+            }
+        )
+        result = assess_routeros_pcc(ir=ir(), state=current)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("dstnat" in error and "*DN1" in error for error in result.errors))
+        self.assertIsNone(result.spec)
+
+    def test_disabled_dstnat_does_not_block(self):
+        current = copy.deepcopy(state())
+        current["firewall"]["nat"].append(
+            {
+                ".id": "*DN1",
+                "chain": "dstnat",
+                "action": "dst-nat",
                 "disabled": True,
             }
         )
