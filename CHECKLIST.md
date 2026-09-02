@@ -11,9 +11,9 @@
 
 ## Current measured status
 
-**51% complete / 49% remaining.**
+**52% complete / 48% remaining.**
 
-Change from previous checkpoint: **+1 point** from completing the vendor-neutral `network-state/1` contract. RouterOS discovery state now maps deterministically into a common core schema, private/PSK material is excluded, and the state/diff engine is regression-tested for idempotency. No points were granted for live CHR, renderer, apply, verify or rollback because those gates remain unmet.
+Change from previous checkpoint: **+1 point** from the configuration compiler workstream. The guided 10G+1G profile now compiles deterministically to `config-safe-subset-ir/1`, including 10:1 capacity weighting, firewall-management constraints, WireGuard secret references and QoS intent while explicitly containing no vendor command and no write transport. The IR is available through `routerctl profile-compile-ir` and is covered by unit/CLI regression tests. No points were granted for RouterOS rendering, live CHR acceptance, apply, verify or rollback.
 
 | ID | Workstream | Weight | Earned | Status | Next acceptance gate |
 | --- | --- | ---: | ---: | --- | --- |
@@ -22,7 +22,7 @@ Change from previous checkpoint: **+1 point** from completing the vendor-neutral
 | P03 | Guided deployment profile | 6 | 6 | DONE | — |
 | P04 | Operator workflow CLI | 2 | 2 | DONE | — |
 | P05 | Intent/state/diff/drift core | 8 | 8 | DONE | — |
-| P06 | Compiler / secret boundary | 4 | 2 | PARTIAL | compile full RouterOS safe subset after live CHR discovery acceptance |
+| P06 | Compiler / secret boundary | 4 | 3 | PARTIAL | render validated IR only after live CHR discovery acceptance |
 | P07 | RouterOS read-only discovery | 12 | 6 | PARTIAL | live read-only evidence on tested RouterOS v7 CHR |
 | P08 | RouterOS normalization | 6 | 4 | PARTIAL | live CHR RouterOS/core-state integrity + capability coverage |
 | P09 | RouterOS renderer | 13 | 0 | NOT STARTED | deterministic safe-subset rendering after CHR discovery acceptance |
@@ -39,6 +39,7 @@ Change from previous checkpoint: **+1 point** from completing the vendor-neutral
 - [x] Product spec, architecture and harness execution contract exist.
 - [x] Weighted progress ledger totals exactly 100 points and is machine-readable.
 - [x] Guided profile initializer is read-only by construction and defaults to the 10G + 1G reference topology.
+- [x] Guided profile compiles to deterministic `config-safe-subset-ir/1` without vendor commands or write transport.
 - [x] RouterOS discovery transport has an explicit read-only endpoint allowlist.
 - [x] RouterOS live-safe discovery CLI exists without a plaintext password CLI argument.
 - [x] Production discovery defaults to HTTPS with TLS verification; insecure modes require explicit lab mode.
