@@ -194,7 +194,9 @@ def render_routeros_pcc(
     commands: list[RouterOSPccCommand] = []
 
     # Every policy table gets its assigned WAN first and all other WANs as
-    # deterministic fallbacks ordered by operator failover distance.
+    # deterministic fallbacks ordered by operator failover distance. These
+    # routes intentionally come before any mangle rule so a future apply path
+    # never marks traffic toward an empty policy table.
     for target_wan, target_table in spec.routing_tables:
         alternatives = [name for name in paths if name != target_wan]
         alternatives.sort(key=lambda name: (int(paths[name]["failover_distance"]), name))
@@ -236,6 +238,8 @@ def render_routeros_pcc(
         )
 
     # All packets of an already classified connection inherit its WAN table.
+    # Routing marks remain after the connection classifiers so the connection
+    # mark exists before the routing mark is evaluated.
     for wan_name, table in spec.routing_tables:
         mark = _connection_mark(wan_name)
         comment = f"routercfg:managed:pcc-routing:{wan_name}"
@@ -255,5 +259,4 @@ def render_routeros_pcc(
             )
         )
 
-    commands.sort(key=lambda item: item.command_id)
     return RouterOSPccCommandPlan(spec=spec, commands=tuple(commands))
