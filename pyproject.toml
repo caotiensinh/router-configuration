@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
-routerctl = "router_configuration.cli:main"
+routerctl = "router_configuration.routerctl:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
