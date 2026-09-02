@@ -1,0 +1,149 @@
+name: CHR QoS Diagnostic
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-qos-diagnostic:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'diag(chr-qos):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: router-config-chr-qos-diagnostic-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and headless QEMU
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Prepare official MikroTik CHR image
+        run: |
+          set -euo pipefail
+          archive="/tmp/chr-${CHR_VERSION}.img.zip"
+          if [ ! -s "$archive" ]; then
+            curl -4 --http1.1 -fL \
+              --connect-timeout 15 \
+              --max-time 180 \
+              --retry 1 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+              -o "$archive"
+          fi
+          test -s "$archive"
+          unzip -t "$archive"
+          unzip -p "$archive" > /tmp/chr-qos-diagnostic.img
+          test -s /tmp/chr-qos-diagnostic.img
+          sha256sum "$archive" > /tmp/chr-qos-diagnostic-download.sha256
+
+      - name: Persist CHR archive cache before diagnostic gate
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Boot disposable two-interface CHR snapshot
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr-qos-diagnostic.img,format=raw,if=virtio \
+            -netdev user,id=mgmt,hostfwd=tcp:127.0.0.1:9780-:80 \
+            -device virtio-net-pci,netdev=mgmt,mac=52:54:00:12:3a:01 \
+            -netdev user,id=wan \
+            -device virtio-net-pci,netdev=wan,mac=52:54:00:12:3a:02 \
+            -display none \
+            -serial file:/tmp/chr-qos-diagnostic-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-qos-diagnostic.pid
+
+      - name: Wait for disposable CHR REST
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9780/rest/system/resource \
+              > /tmp/chr-qos-diagnostic-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chr-qos-diagnostic-serial.log >&2 || true
+            exit 1
+          fi
+
+      - name: Capture sanitized QoS runtime diagnostic
+        id: diagnose
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/chr-qos
+          python lab/chr/diagnose_qos_runtime.py \
+            --admin-url http://127.0.0.1:9780 \
+            --output evidence/chr-qos/qos-diagnostic.json
+
+      - name: Preserve sanitized diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-qos-diagnostic-${{ github.sha }}
+          path: |
+            evidence/chr-qos/qos-diagnostic.json
+            /tmp/chr-qos-diagnostic-resource.json
+            /tmp/chr-qos-diagnostic-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Require diagnostic to reproduce current failure
+        if: always()
+        run: |
+          set -euo pipefail
+          test -s evidence/chr-qos/qos-diagnostic.json
+          python - <<'PY'
+          import json
+          p = json.load(open('evidence/chr-qos/qos-diagnostic.json', encoding='utf-8'))
+          if p.get('ok') is True:
+              print('QoS runtime unexpectedly passed; diagnostic evidence captured a fixed state.')
+          else:
+              rows = p.get('managed_mangle', [])
+              if not isinstance(rows, list) or not rows:
+                  raise SystemExit('diagnostic did not capture managed mangle rows')
+              if not any(str(row.get('invalid', '')).lower() in {'true','yes','1'} for row in rows):
+                  raise SystemExit('diagnostic did not capture an invalid managed mangle row')
+              print(json.dumps({'reproduced': True, 'managed_mangle_count': len(rows)}))
+          PY
+
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr-qos-diagnostic.pid ]; then
+            kill "$(cat /tmp/chr-qos-diagnostic.pid)" 2>/dev/null || true
+          fi
