@@ -1,0 +1,144 @@
+name: CHR Mutation Rollback
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-mutation-rollback:
+    if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'ci(chr-rollback):'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: router-config-chr-mutation-rollback-main
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and headless QEMU
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Prepare official MikroTik CHR image
+        run: |
+          set -euo pipefail
+          archive="/tmp/chr-${CHR_VERSION}.img.zip"
+          if [ ! -s "$archive" ]; then
+            curl -4 --http1.1 -fL \
+              --connect-timeout 15 \
+              --max-time 180 \
+              --retry 1 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+              -o "$archive"
+          fi
+          test -s "$archive"
+          unzip -t "$archive"
+          unzip -p "$archive" > /tmp/chr.img
+          test -s /tmp/chr.img
+          sha256sum "$archive" > /tmp/chr-rollback-download.sha256
+
+      - name: Persist CHR archive cache before mutation gate
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Boot disposable three-interface CHR snapshot
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9280-:80 \
+            -device virtio-net-pci,netdev=net0,mac=52:54:00:12:35:01 \
+            -netdev user,id=net1 \
+            -device virtio-net-pci,netdev=net1,mac=52:54:00:12:35:02 \
+            -netdev user,id=net2 \
+            -device virtio-net-pci,netdev=net2,mac=52:54:00:12:35:03 \
+            -display none \
+            -serial file:/tmp/chr-rollback-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-rollback.pid
+
+      - name: Wait for CHR REST and verify three interfaces
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9280/rest/system/resource \
+              > /tmp/chr-rollback-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chr-rollback-serial.log >&2 || true
+            exit 1
+          fi
+          curl -fsS --user 'admin:' http://127.0.0.1:9280/rest/interface \
+            > /tmp/chr-rollback-interfaces.json
+          python - <<'PY'
+          import json
+          rows = json.load(open('/tmp/chr-rollback-interfaces.json', encoding='utf-8'))
+          names = {str(row.get('name')) for row in rows if isinstance(row, dict)}
+          required = {'ether1', 'ether2', 'ether3'}
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit(f'missing CHR mutation fixture interfaces: {missing}')
+          print(json.dumps({'ok': True, 'interfaces': sorted(names)}))
+          PY
+
+      - name: Apply, inject failure and rollback combined fixture
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python lab/chr/verify_mutation_rollback.py \
+            --admin-url http://127.0.0.1:9280 \
+            --output evidence/chr-mutation-rollback.json
+
+      - name: Preserve mutation rollback evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-mutation-rollback-${{ github.sha }}
+          path: |
+            evidence/chr-mutation-rollback.json
+            /tmp/chr-rollback-resource.json
+            /tmp/chr-rollback-interfaces.json
+            /tmp/chr-rollback-serial.log
+            /tmp/chr-rollback-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr-rollback.pid ]; then
+            kill "$(cat /tmp/chr-rollback.pid)" 2>/dev/null || true
+          fi
