@@ -1,0 +1,97 @@
+{
+  "schema_version": "routeros-pcc-render-dryrun-evidence/1",
+  "recorded_at": "2026-09-02",
+  "source": {
+    "workflow_run": 33598278377,
+    "job_id": 100146143644,
+    "artifact_id": 9834193683,
+    "artifact_name": "chr-render-dryrun-2b3e7a5f70f03fa91eb1baa6050ef3093a85b8f5",
+    "artifact_digest": "sha256:2b9f6e8ac68a376e17a7c54a1fee69e153ef66eeb1611087a59091724228d623",
+    "head_sha": "2b3e7a5f70f03fa91eb1baa6050ef3093a85b8f5",
+    "normal_ci_run": 33598278352,
+    "normal_ci_python": ["3.11", "3.12", "3.13"],
+    "normal_ci_acceptance": "PASS"
+  },
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "combined_fixture": {
+    "schema_version": "routeros-render-syntax-fixture/2",
+    "command_count": 38,
+    "recursive_command_count": 17,
+    "pcc_command_count": 21,
+    "pcc_syntax_included": true,
+    "script_byte_length": 18718,
+    "script_sha256": "c024c78d79792c5e9769209c9a61ce9a7505d256df93d066ce8221aea094db54"
+  },
+  "pcc": {
+    "mode": "capacity_weighted",
+    "scope": "outbound_core_only",
+    "classifier": "both-addresses-and-ports",
+    "bucket_count": 11,
+    "capacity_ratio": "10:1",
+    "wan_bucket_counts": {
+      "lab-wan10g": 10,
+      "lab-wan1g": 1
+    },
+    "policy_route_command_count": 8,
+    "connection_mark_command_count": 11,
+    "routing_mark_command_count": 2,
+    "routing_tables": {
+      "lab-wan10g": "to-lab-wan10g",
+      "lab-wan1g": "to-lab-wan1g"
+    },
+    "local_destinations_excluded": true,
+    "connection_state": "new",
+    "requires_unmarked_connection": true,
+    "fasttrack_compatible": false,
+    "active_fasttrack_fail_closed": true,
+    "active_dstnat_fail_closed": true,
+    "safe_command_order": [
+      "policy_routes",
+      "connection_marks",
+      "routing_marks"
+    ]
+  },
+  "dry_run": {
+    "passed": true,
+    "http_status": 200,
+    "verdict": "OK",
+    "file_roundtrip_method": "routeros_file_read_chunked",
+    "file_roundtrip_chunk_bytes": 4096,
+    "file_roundtrip_sha256_verified": true
+  },
+  "negative_control": {
+    "fixture": "this",
+    "rejected": true,
+    "http_status": 200,
+    "verdict": "ERROR",
+    "error_detail": "Script Error: found 1 error(s) in import file"
+  },
+  "configuration_integrity": {
+    "before_sha256": "05e30ceefbf6ad9ff1c5c9f9aa889a371daf79704a65d1709228de9652678dd7",
+    "after_sha256": "05e30ceefbf6ad9ff1c5c9f9aa889a371daf79704a65d1709228de9652678dd7",
+    "changed": false,
+    "mutation_surfaces": [
+      "interface/list",
+      "interface/list/member",
+      "ip/address",
+      "routing/table",
+      "ip/route",
+      "ip/firewall/mangle"
+    ],
+    "temporary_files_removed": true
+  },
+  "safety_boundary": {
+    "generation_only": true,
+    "production_generation_gate_claimed": false,
+    "production_writer_available": false,
+    "transport_present": false,
+    "apply_available": false,
+    "write_authorized": false,
+    "production_pcc_blocker_remains_until_live_state_generation_coordinator_is_integrated": true
+  },
+  "acceptance": "PASS"
+}
