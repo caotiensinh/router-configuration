@@ -1,0 +1,75 @@
+{
+  "schema_version": "routercfg-chr-wireguard-acceptance/1",
+  "recorded_at": "2026-09-02",
+  "scope": "disposable_chr_wireguard_deferred_secret_runtime",
+  "source_commit": "c14f1a550bf9720f3001fd787a35114d5e2d0ea7",
+  "workflow": {
+    "name": "CHR WireGuard Baseline",
+    "run_id": 33643366359,
+    "job_id": 100291781530,
+    "conclusion": "success",
+    "artifact_id": 9851773597,
+    "artifact_name": "chr-wireguard-baseline-c14f1a550bf9720f3001fd787a35114d5e2d0ea7",
+    "artifact_digest": "sha256:7ea6819df9fcd3a33b09708cca7b1882dbcadf2aabc4a2c77f70b6aaea487fdd"
+  },
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "environment": "official MikroTik CHR QEMU snapshot"
+  },
+  "fixture": {
+    "template_count": 4,
+    "managed_interface_count": 1,
+    "managed_address_count": 1,
+    "managed_peer_count": 1,
+    "managed_route_count": 1,
+    "listen_port": 51820,
+    "private_key_source": "synthetic ephemeral in-memory X25519-compatible random",
+    "remote_public_key_source": "temporary disposable-CHR WireGuard interface public key"
+  },
+  "acceptance": {
+    "result": "PASS",
+    "apply_dry_run_verdict": "OK",
+    "negative_control_rejected": true,
+    "rollback_dry_run_verdict": "OK",
+    "dry_run_configuration_changed": false,
+    "apply_verdict": "OK",
+    "invalid_managed_objects": 0,
+    "disabled_managed_objects": 0,
+    "allowed_addresses_exact": true,
+    "management_rest_reachable_after_apply": true,
+    "rollback_verdict": "OK",
+    "managed_objects_removed": true,
+    "temporary_files_removed": true
+  },
+  "configuration_digests": {
+    "baseline_sha256": "338d9eb635bc336ab6977067685207b4cfdc3954369ccfeb28c46e9c4967bd19",
+    "mutated_sha256": "b7b7c3a879214c8c65efafc89ea1dbce58ffad6b21a2f212cd0fbb56c57d2466",
+    "rollback_sha256": "338d9eb635bc336ab6977067685207b4cfdc3954369ccfeb28c46e9c4967bd19",
+    "mutation_observed": true,
+    "rollback_digest_restored": true
+  },
+  "secret_boundary": {
+    "product_secret_reference_remains_unresolved": true,
+    "private_key_recorded": false,
+    "private_key_serialized": false,
+    "preshared_key_used": false,
+    "artifact_excludes_routeros_import_scripts": true,
+    "artifact_excludes_chr_serial_log": true
+  },
+  "product_boundary": {
+    "production_writer_available": false,
+    "transport_exposed_to_product": false,
+    "write_authorized": false,
+    "wireguard_templates_attached_only_as_deferred_generation_extension": true,
+    "vpn_wireguard_blocker_retained_until_secret_binding_and_authorized_transaction": true
+  },
+  "claims_not_made": [
+    "peer_to_peer_wireguard_handshake",
+    "encrypted_packet_transfer",
+    "production_firewall_udp_51820_exception",
+    "internet_reachability",
+    "physical_ccr2116_behavior",
+    "production_apply_readiness"
+  ]
+}
