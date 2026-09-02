@@ -10,6 +10,7 @@ from typing import Any, Mapping
 from .deployment_profile import DeploymentProfileValidator
 from .m04_multiwan import MultiWanPlanner, WanLink
 from .m06_security import FindingSeverity, SecurityBaseline, SecurityPolicyValidator
+from .qos_intent import normalize_qos_intent
 from .wireguard_intent import normalize_wireguard_intent
 
 
@@ -351,12 +352,13 @@ class SafeSubsetCompiler:
         qos = intent.get("qos")
         if not isinstance(qos, Mapping) or not bool(qos.get("enabled", False)):
             return []
+        normalized = normalize_qos_intent(qos)
         return [
             IntentOperation(
                 operation_id="qos.policy",
                 feature="qos",
                 resource="traffic_policy",
-                attributes={"policy": str(qos.get("policy") or "latency_sensitive_first")},
+                attributes=normalized.attributes,
                 risk=IntentRisk.MEDIUM,
                 requires=("qos",),
             )
