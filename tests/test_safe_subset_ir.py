@@ -27,6 +27,7 @@ def with_explicit_static_routing():
             "routing": {
                 "gateway": "192.0.2.1",
                 "table": "to-wan10g",
+                "failover_distance": 1,
                 "health_probe_targets": ["1.1.1.1", "8.8.8.8"],
             },
         },
@@ -40,6 +41,7 @@ def with_explicit_static_routing():
             "routing": {
                 "gateway": "198.51.100.1",
                 "table": "to-wan1g",
+                "failover_distance": 2,
                 "health_probe_targets": ["9.9.9.9", "208.67.222.222"],
             },
         },
@@ -80,8 +82,10 @@ class SafeSubsetIRTests(unittest.TestCase):
         self.assertEqual(paths["wan10g"]["gateway"], "192.0.2.1")
         self.assertEqual(paths["wan10g"]["table"], "to-wan10g")
         self.assertEqual(paths["wan10g"]["address"], "192.0.2.2/30")
+        self.assertEqual(paths["wan10g"]["failover_distance"], 1)
         self.assertEqual(paths["wan10g"]["health_probe_targets"], ["1.1.1.1", "8.8.8.8"])
         self.assertEqual(paths["wan1g"]["gateway"], "198.51.100.1")
+        self.assertEqual(paths["wan1g"]["failover_distance"], 2)
         self.assertEqual(operation["attributes"]["weights"], {"wan10g": 10, "wan1g": 1})
         rendered = json.dumps(operation, sort_keys=True)
         self.assertNotIn("/ip/route", rendered)

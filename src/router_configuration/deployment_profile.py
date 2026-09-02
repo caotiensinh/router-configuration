@@ -69,6 +69,7 @@ class DeploymentProfileValidator:
         index: int,
         addressing: str,
         routing_tables: set[str],
+        failover_distances: set[int],
         errors: list[str],
     ) -> None:
         prefix = f"topology.wans[{index}]"
@@ -110,6 +111,14 @@ class DeploymentProfileValidator:
             errors.append(f"duplicate WAN routing table: {table}")
         else:
             routing_tables.add(table)
+
+        distance = routing.get("failover_distance")
+        if isinstance(distance, bool) or not isinstance(distance, int) or not 1 <= distance <= 255:
+            errors.append(f"{prefix}.routing.failover_distance must be an integer from 1 to 255")
+        elif distance in failover_distances:
+            errors.append(f"duplicate WAN failover_distance: {distance}")
+        else:
+            failover_distances.add(distance)
 
         probes = routing.get("health_probe_targets")
         parsed_probes: list[ipaddress._BaseAddress] = []
@@ -211,6 +220,7 @@ class DeploymentProfileValidator:
         names: set[str] = set()
         interfaces: set[str] = set()
         routing_tables: set[str] = set()
+        failover_distances: set[int] = set()
         for index, wan in enumerate(wans):
             if not isinstance(wan, Mapping):
                 errors.append(f"topology.wans[{index}] must be an object")
@@ -248,6 +258,7 @@ class DeploymentProfileValidator:
                     index=index,
                     addressing=addressing,
                     routing_tables=routing_tables,
+                    failover_distances=failover_distances,
                     errors=errors,
                 )
 

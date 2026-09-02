@@ -167,6 +167,7 @@ class SafeSubsetCompiler:
                     "addressing": str(wan.get("addressing") or "isp_defined").strip(),
                     "gateway": str(routing.get("gateway") or "").strip(),
                     "table": str(routing.get("table") or "").strip(),
+                    "failover_distance": int(routing.get("failover_distance", 0)),
                     "health_probe_targets": [
                         str(value).strip()
                         for value in routing.get("health_probe_targets", [])

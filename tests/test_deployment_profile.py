@@ -43,6 +43,7 @@ class DeploymentProfileTests(unittest.TestCase):
                 "routing": {
                     "gateway": "192.0.2.1",
                     "table": "to-wan10g",
+                    "failover_distance": 1,
                     "health_probe_targets": ["1.1.1.1", "8.8.8.8"],
                 },
             },
@@ -55,6 +56,7 @@ class DeploymentProfileTests(unittest.TestCase):
                 "routing": {
                     "gateway": "198.51.100.1",
                     "table": "to-wan1g",
+                    "failover_distance": 2,
                     "health_probe_targets": ["9.9.9.9", "208.67.222.222"],
                 },
             },
@@ -123,6 +125,22 @@ class DeploymentProfileTests(unittest.TestCase):
         self.assertIn("duplicate WAN routing table", rendered)
         self.assertIn("must not reuse the WAN gateway", rendered)
         self.assertIn("must be unique", rendered)
+
+    def test_failover_distance_is_required_bounded_and_explicit(self):
+        data = self.with_explicit_static_routing()
+        del data["topology"]["wans"][0]["routing"]["failover_distance"]
+        data["topology"]["wans"][1]["routing"]["failover_distance"] = 0
+        result = DeploymentProfileValidator().validate(data)
+        self.assertFalse(result.ok)
+        rendered = "\n".join(result.errors)
+        self.assertIn("failover_distance must be an integer from 1 to 255", rendered)
+
+    def test_failover_distance_must_not_be_inferred_or_duplicated(self):
+        data = self.with_explicit_static_routing()
+        data["topology"]["wans"][1]["routing"]["failover_distance"] = 1
+        result = DeploymentProfileValidator().validate(data)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("duplicate WAN failover_distance: 1" in error for error in result.errors))
 
 
 if __name__ == "__main__":
