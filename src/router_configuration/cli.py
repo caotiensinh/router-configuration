@@ -12,6 +12,7 @@ from .deployment_profile import DeploymentProfileValidator
 from .harness import ExecutionStage, HarnessEngine
 from .m02_state_engine import StateEngine
 from .m04_multiwan import MultiWanPlanner, WanLink
+from .preflight import RouterOSPreflightEvaluator
 from .progress import ProgressTracker
 from .routeros_discovery import (
     RouterOSDiscoveryCollector,
@@ -222,6 +223,15 @@ def command_routeros_discover(args: argparse.Namespace) -> int:
     return 0 if not blockers else 4
 
 
+def command_routeros_preflight(args: argparse.Namespace) -> int:
+    result = RouterOSPreflightEvaluator().evaluate(
+        _load_json(args.profile),
+        _load_json(args.evidence),
+    )
+    print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+    return 0 if result.ok else 5
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="routerctl")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -283,6 +293,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="lab only: disable TLS certificate verification",
     )
     discover.set_defaults(func=command_routeros_discover)
+
+    preflight = subparsers.add_parser(
+        "routeros-preflight",
+        help="compare a deployment profile with sanitized RouterOS discovery evidence",
+    )
+    preflight.add_argument("--profile", required=True)
+    preflight.add_argument("--evidence", required=True)
+    preflight.set_defaults(func=command_routeros_preflight)
 
     return parser
 
