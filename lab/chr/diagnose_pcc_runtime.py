@@ -76,10 +76,39 @@ def _routing_tables(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
 
 
 def _diagnostic_commands() -> tuple[tuple[str, str], ...]:
-    """Return incremental CLI variants so one field at a time can be isolated."""
+    """Return CLI variants that isolate mark registration, PCC modulus and routing-table validity."""
 
     common = "chain=prerouting action=mark-connection new-connection-mark=diag-common passthrough=yes"
+    existing = "chain=prerouting action=mark-connection new-connection-mark=routercfg-pcc-lab-wan10g passthrough=yes"
     return (
+        (
+            "mc_existing_plain",
+            f'/ip/firewall/mangle/add {existing} comment="{PREFIX}mc_existing_plain"',
+        ),
+        (
+            "mc_existing_pcc_2_0",
+            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:2/0" comment="{PREFIX}mc_existing_pcc_2_0"',
+        ),
+        (
+            "mc_existing_pcc_2_1",
+            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:2/1" comment="{PREFIX}mc_existing_pcc_2_1"',
+        ),
+        (
+            "mc_existing_pcc_3_1",
+            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:3/1" comment="{PREFIX}mc_existing_pcc_3_1"',
+        ),
+        (
+            "mc_existing_pcc_10_1",
+            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:10/1" comment="{PREFIX}mc_existing_pcc_10_1"',
+        ),
+        (
+            "mc_existing_pcc_11_1",
+            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_existing_pcc_11_1"',
+        ),
+        (
+            "mc_existing_pcc_11_10",
+            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:11/10" comment="{PREFIX}mc_existing_pcc_11_10"',
+        ),
         (
             "mc_pcc_11_0_min",
             f'/ip/firewall/mangle/add {common} per-connection-classifier="both-addresses-and-ports:11/0" comment="{PREFIX}mc_pcc_11_0_min"',
@@ -87,10 +116,6 @@ def _diagnostic_commands() -> tuple[tuple[str, str], ...]:
         (
             "mc_pcc_11_1_min",
             f'/ip/firewall/mangle/add {common} per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_pcc_11_1_min"',
-        ),
-        (
-            "mc_pcc_11_2_min",
-            f'/ip/firewall/mangle/add {common} per-connection-classifier="both-addresses-and-ports:11/2" comment="{PREFIX}mc_pcc_11_2_min"',
         ),
         (
             "mc_second_mark_11_1",
@@ -117,12 +142,12 @@ def _diagnostic_commands() -> tuple[tuple[str, str], ...]:
             f'/ip/firewall/mangle/add chain=prerouting action=mark-routing new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_table_only"',
         ),
         (
-            "routing_mark_connection",
-            f'/ip/firewall/mangle/add chain=prerouting action=mark-routing connection-mark=diag-common new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_connection"',
+            "routing_mark_existing_connection",
+            f'/ip/firewall/mangle/add chain=prerouting action=mark-routing connection-mark=routercfg-pcc-lab-wan10g new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_existing_connection"',
         ),
         (
-            "routing_mark_full",
-            f'/ip/firewall/mangle/add chain=prerouting action=mark-routing connection-mark=diag-common dst-address-type=!local in-interface-list="routercfg-CORE" new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_full"',
+            "routing_mark_full_existing",
+            f'/ip/firewall/mangle/add chain=prerouting action=mark-routing connection-mark=routercfg-pcc-lab-wan10g dst-address-type=!local in-interface-list="routercfg-CORE" new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_full_existing"',
         ),
     )
 
@@ -173,9 +198,9 @@ def diagnose(*, admin_url: str, output: Path) -> dict[str, Any]:
         base._assert_files_absent(admin, TEMP_FILES)
 
     result = {
-        "schema_version": "chr-pcc-runtime-diagnostic/2",
+        "schema_version": "chr-pcc-runtime-diagnostic/3",
         "ok": True,
-        "method": "routeros_cli_import_incremental_matrix",
+        "method": "routeros_cli_import_existing_mark_and_modulus_matrix",
         "platform": {
             "version": str(platform.get("version") or ""),
             "architecture": str(platform.get("architecture-name") or ""),
