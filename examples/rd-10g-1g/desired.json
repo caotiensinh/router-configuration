@@ -1,0 +1,65 @@
+{
+  "device": {
+    "id": "rd-router-01",
+    "vendor": "mikrotik",
+    "model": "CCR2116-12G-4S+",
+    "management": {
+      "address": "192.168.11.1",
+      "allowed_sources": ["192.168.50.0/24"]
+    }
+  },
+  "wan": {
+    "wan10g": {
+      "capacity_mbps": 10000,
+      "enabled": true,
+      "weight": 10
+    },
+    "wan1g": {
+      "capacity_mbps": 1000,
+      "enabled": true,
+      "weight": 1
+    }
+  },
+  "routing": {
+    "policy_routes": {
+      "server-primary": {
+        "source_zone": "server",
+        "preferred_wan": "wan10g",
+        "fallback_wan": "wan1g"
+      }
+    }
+  },
+  "security": {
+    "default_wan_input": "deny",
+    "anti_spoofing": true,
+    "bogon_filtering": true
+  },
+  "zones": {
+    "camera": {
+      "cidr": "192.168.20.0/24",
+      "internet_access": false
+    },
+    "server": {
+      "cidr": "192.168.30.0/24",
+      "internet_access": true
+    }
+  },
+  "qos": {
+    "classes": {
+      "interactive": {
+        "priority": 1,
+        "tags": ["dns", "vpn", "voice"]
+      },
+      "bulk": {
+        "priority": 6,
+        "tags": ["backup", "download"]
+      }
+    }
+  },
+  "vpn": {
+    "wireguard": {
+      "enabled": true,
+      "private_key": "vault://routers/rd-router-01/wireguard-private-key"
+    }
+  }
+}
