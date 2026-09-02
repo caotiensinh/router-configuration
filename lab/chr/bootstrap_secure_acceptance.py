@@ -103,6 +103,15 @@ def _require_rest_id(value: Any, label: str) -> str:
     return record_id
 
 
+def _find_rest_id_by_name(admin: LoopbackRestAdmin, path: str, name: str) -> str:
+    records = admin.request("GET", path)
+    rows = records if isinstance(records, list) else [records]
+    for item in rows:
+        if isinstance(item, Mapping) and item.get("name") == name:
+            return _require_rest_id(item, f"{path} entry {name}")
+    raise LabBootstrapError(f"RouterOS {path} entry not found by name: {name}")
+
+
 def bootstrap_secure_acceptance(
     *,
     admin_url: str,
@@ -174,9 +183,11 @@ def bootstrap_secure_acceptance(
             "name": "routercfg-https",
         },
     )
+
+    www_ssl_id = _find_rest_id_by_name(admin, "ip/service", "www-ssl")
     admin.request(
         "PATCH",
-        "ip/service/www-ssl",
+        f"ip/service/{www_ssl_id}",
         {
             "certificate": "routercfg-https",
             "disabled": "false",
