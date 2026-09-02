@@ -46,10 +46,10 @@ jobs:
       - name: Download official MikroTik CHR image
         run: |
           set -eu
-          curl -fL \
+          curl -4 --http1.1 -fL \
             --connect-timeout 15 \
-            --max-time 120 \
-            --retry 3 \
+            --max-time 180 \
+            --retry 1 \
             --retry-delay 2 \
             --retry-all-errors \
             "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
