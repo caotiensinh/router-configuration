@@ -217,6 +217,7 @@ def verify_mutation_rollback(*, admin_url: str) -> dict[str, Any]:
             f"mutation lab requires the accepted 38-command fixture, observed {len(commands)}"
         )
     apply_script = "\n".join(str(item["command"]) for item in commands) + "\n"
+    rollback_script = _rollback_script()
 
     for name in TEMP_FILES:
         base._delete_file_if_present(admin, name)
@@ -225,6 +226,7 @@ def verify_mutation_rollback(*, admin_url: str) -> dict[str, Any]:
     baseline_digest = base._canonical_digest(baseline)
     mutated_digest = None
     rollback_digest = None
+    rollback_dry_run_result: dict[str, Any] | None = None
     apply_result: dict[str, Any] | None = None
     failure_result: dict[str, Any] | None = None
     rollback_result: dict[str, Any] | None = None
@@ -232,6 +234,17 @@ def verify_mutation_rollback(*, admin_url: str) -> dict[str, Any]:
     rollback_verified = False
 
     try:
+        # Prove the rollback syntax on the untouched baseline before allowing
+        # the lab to mutate RouterOS at all.
+        chunked._create_text_file_chunk_verified(admin, ROLLBACK_FILE, rollback_script)
+        _write_verdict_file(admin)
+        rollback_dry_run_result = base._execute_import_dry_run(
+            admin,
+            file_name=ROLLBACK_FILE,
+            verdict_name=VERDICT_FILE,
+            expect_success=True,
+        )
+
         chunked._create_text_file_chunk_verified(admin, APPLY_FILE, apply_script)
         apply_result = _execute_import(
             admin,
@@ -253,8 +266,6 @@ def verify_mutation_rollback(*, admin_url: str) -> dict[str, Any]:
             expect_success=False,
         )
 
-        rollback_script = _rollback_script()
-        chunked._create_text_file_chunk_verified(admin, ROLLBACK_FILE, rollback_script)
         rollback_result = _execute_import(
             admin,
             file_name=ROLLBACK_FILE,
@@ -286,6 +297,7 @@ def verify_mutation_rollback(*, admin_url: str) -> dict[str, Any]:
             "recursive_command_count": int(fixture.get("base_command_count") or 0),
             "pcc_command_count": int(fixture.get("pcc_command_count") or 0),
         },
+        "rollback_preflight": rollback_dry_run_result,
         "apply": apply_result,
         "mutated_counts": mutated_counts,
         "failure_injection": failure_result,
