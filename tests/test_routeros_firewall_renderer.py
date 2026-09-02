@@ -122,9 +122,18 @@ class RouterOSFirewallRendererTests(unittest.TestCase):
             self.assertIn(f"icmp-options={icmp_options}", source)
         self.assertIn("routercfg:managed:fw:icmp:099-drop-other", source)
         self.assertNotIn(
-            'action=accept protocol=icmp comment="routercfg:managed:fw:chain:030-essential-icmp"',
+            'action=accept protocol=icmp comment="routercfg:managed:fw:chain:040-essential-icmp"',
             source,
         )
+
+    def test_anti_spoof_precedes_icmp_and_management_accept(self):
+        plan = render_routeros_firewall(ir=firewall_ir()).as_dict()
+        ids = [item["command_id"] for item in plan["commands"]]
+        anti_spoof = ids.index("firewall.30.rule.030-management-antispoof")
+        icmp = ids.index("firewall.30.rule.040-icmp")
+        management = ids.index("firewall.30.rule.050-management-accept")
+        self.assertLess(anti_spoof, icmp)
+        self.assertLess(icmp, management)
 
     def test_staging_uses_find_derived_anchor_not_unstable_item_number(self):
         plan = render_routeros_firewall(ir=firewall_ir()).as_dict()
