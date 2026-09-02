@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 from dataclasses import dataclass
 from enum import IntEnum
@@ -8,6 +9,7 @@ from typing import Any, Mapping
 
 from .deployment_profile import DeploymentProfileValidator
 from .m04_multiwan import MultiWanPlanner, WanLink
+from .m06_security import FindingSeverity, SecurityBaseline, SecurityPolicyValidator
 
 
 class IntentRisk(IntEnum):
@@ -198,22 +200,127 @@ class SafeSubsetCompiler:
             )
         ]
 
+    @staticmethod
+    def _normalize_required_wan_services(raw: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw, list):
+            raise ValueError("security.required_wan_services must be a list")
+        normalized: list[dict[str, Any]] = []
+        seen: set[tuple[str, int, tuple[str, ...]]] = set()
+        for index, item in enumerate(raw):
+            if not isinstance(item, Mapping):
+                raise ValueError(f"security.required_wan_services[{index}] must be an object")
+            name = str(item.get("name") or "").strip()
+            protocol = str(item.get("protocol") or "").strip().lower()
+            dst_port = item.get("dst_port")
+            sources_raw = item.get("source_cidrs")
+            if not name:
+                raise ValueError(f"security.required_wan_services[{index}].name is required")
+            if protocol not in {"tcp", "udp"}:
+                raise ValueError(
+                    f"security.required_wan_services[{index}].protocol must be tcp or udp"
+                )
+            if isinstance(dst_port, bool) or not isinstance(dst_port, int) or not 1 <= dst_port <= 65535:
+                raise ValueError(
+                    f"security.required_wan_services[{index}].dst_port must be an integer from 1 to 65535"
+                )
+            if not isinstance(sources_raw, list) or not sources_raw:
+                raise ValueError(
+                    f"security.required_wan_services[{index}].source_cidrs requires at least one bounded CIDR"
+                )
+            sources: list[str] = []
+            for source_index, value in enumerate(sources_raw):
+                text = str(value or "").strip()
+                try:
+                    network = ipaddress.ip_network(text, strict=False)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"security.required_wan_services[{index}].source_cidrs[{source_index}] must be a CIDR"
+                    ) from exc
+                if network.version != 4 or network.prefixlen == 0:
+                    raise ValueError(
+                        f"security.required_wan_services[{index}].source_cidrs must be bounded IPv4 CIDRs"
+                    )
+                sources.append(str(network))
+            sources = sorted(set(sources))
+            key = (protocol, dst_port, tuple(sources))
+            if key in seen:
+                raise ValueError("security.required_wan_services contains a duplicate service rule")
+            seen.add(key)
+            normalized.append(
+                {
+                    "name": name,
+                    "protocol": protocol,
+                    "dst_port": dst_port,
+                    "source_cidrs": sources,
+                }
+            )
+        normalized.sort(key=lambda item: (str(item["protocol"]), int(item["dst_port"]), str(item["name"])))
+        return normalized
+
     def _compile_security(self, intent: Mapping[str, Any]) -> list[IntentOperation]:
         security = intent.get("security")
         if not isinstance(security, Mapping):
             return []
         if bool(security.get("management_from_wan", False)):
             raise ValueError("safe subset v0.1 refuses management_from_wan=true")
+
+        profile = str(security.get("profile") or "enterprise_baseline")
+        wan_input_default = str(security.get("wan_input_default") or "deny")
+        if profile != "enterprise_baseline":
+            raise ValueError("safe subset v0.1 supports only security.profile=enterprise_baseline")
+        if wan_input_default != "deny":
+            raise ValueError("safe subset v0.1 requires security.wan_input_default=deny")
+
+        attributes: dict[str, Any] = {
+            "profile": profile,
+            "wan_input_default": wan_input_default,
+            "management_from_wan": False,
+        }
+
+        if "management_sources" in security:
+            raw_sources = security.get("management_sources")
+            if not isinstance(raw_sources, list):
+                raise ValueError("security.management_sources must be a list")
+            sources = tuple(str(value or "").strip() for value in raw_sources)
+            anti_spoofing = security.get("anti_spoofing", True)
+            if anti_spoofing is not True:
+                raise ValueError("enterprise firewall baseline requires security.anti_spoofing=true")
+            baseline = SecurityBaseline(
+                management_sources=sources,
+                default_wan_input_deny=True,
+                anti_spoofing=True,
+            )
+            blocking = [
+                finding.message
+                for finding in SecurityPolicyValidator().validate(baseline)
+                if finding.severity is FindingSeverity.ERROR
+            ]
+            if blocking:
+                raise ValueError("security baseline: " + "; ".join(blocking))
+            normalized_sources = sorted(
+                {
+                    str(ipaddress.ip_network(source, strict=False))
+                    for source in sources
+                }
+            )
+            attributes["management_sources"] = normalized_sources
+            attributes["anti_spoofing"] = True
+            icmp_policy = str(security.get("icmp_policy") or "essential_ipv4")
+            if icmp_policy != "essential_ipv4":
+                raise ValueError("safe subset v0.1 supports only security.icmp_policy=essential_ipv4")
+            attributes["icmp_policy"] = icmp_policy
+
+        if "required_wan_services" in security:
+            attributes["required_wan_services"] = self._normalize_required_wan_services(
+                security.get("required_wan_services")
+            )
+
         return [
             IntentOperation(
                 operation_id="security.baseline",
                 feature="security",
                 resource="firewall_baseline",
-                attributes={
-                    "profile": str(security.get("profile") or "enterprise_baseline"),
-                    "wan_input_default": str(security.get("wan_input_default") or "deny"),
-                    "management_from_wan": False,
-                },
+                attributes=attributes,
                 risk=IntentRisk.HIGH,
                 requires=("firewall", "nat", "management_path"),
             )

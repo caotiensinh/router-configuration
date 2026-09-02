@@ -49,6 +49,19 @@ def with_explicit_static_routing():
     return profile
 
 
+def with_explicit_firewall_facts():
+    profile = load_profile()
+    profile["intent"]["security"].update(
+        {
+            "management_sources": ["192.0.2.16/28"],
+            "required_wan_services": [],
+            "anti_spoofing": True,
+            "icmp_policy": "essential_ipv4",
+        }
+    )
+    return profile
+
+
 class SafeSubsetIRTests(unittest.TestCase):
     def test_reference_profile_compiles_without_vendor_commands_or_write_transport(self):
         payload = SafeSubsetCompiler().compile(load_profile()).as_dict()
@@ -99,6 +112,54 @@ class SafeSubsetIRTests(unittest.TestCase):
             if item["operation_id"] == "routing.multiwan.capacity_weighted"
         )
         self.assertNotIn("paths", operation["attributes"])
+
+    def test_reference_profile_without_firewall_facts_does_not_invent_management_sources(self):
+        payload = SafeSubsetCompiler().compile(load_profile()).as_dict()
+        operation = next(
+            item for item in payload["operations"] if item["operation_id"] == "security.baseline"
+        )
+        self.assertNotIn("management_sources", operation["attributes"])
+        self.assertNotIn("required_wan_services", operation["attributes"])
+        self.assertNotIn("anti_spoofing", operation["attributes"])
+        self.assertNotIn("icmp_policy", operation["attributes"])
+
+    def test_explicit_firewall_facts_are_preserved_vendor_neutrally(self):
+        payload = SafeSubsetCompiler().compile(with_explicit_firewall_facts()).as_dict()
+        operation = next(
+            item for item in payload["operations"] if item["operation_id"] == "security.baseline"
+        )
+        self.assertEqual(operation["attributes"]["management_sources"], ["192.0.2.16/28"])
+        self.assertEqual(operation["attributes"]["required_wan_services"], [])
+        self.assertTrue(operation["attributes"]["anti_spoofing"])
+        self.assertEqual(operation["attributes"]["icmp_policy"], "essential_ipv4")
+        rendered = json.dumps(operation, sort_keys=True)
+        self.assertNotIn("/ip/firewall", rendered)
+        self.assertNotIn("action=", rendered)
+
+    def test_firewall_management_source_must_be_bounded(self):
+        profile = with_explicit_firewall_facts()
+        profile["intent"]["security"]["management_sources"] = ["0.0.0.0/0"]
+        with self.assertRaisesRegex(ValueError, "entire address space"):
+            SafeSubsetCompiler().compile(profile)
+
+    def test_required_wan_service_sources_must_be_bounded_when_declared(self):
+        profile = with_explicit_firewall_facts()
+        profile["intent"]["security"]["required_wan_services"] = [
+            {
+                "name": "example-service",
+                "protocol": "udp",
+                "dst_port": 51820,
+                "source_cidrs": ["0.0.0.0/0"],
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "bounded IPv4 CIDRs"):
+            SafeSubsetCompiler().compile(profile)
+
+    def test_enterprise_firewall_refuses_disabled_anti_spoofing(self):
+        profile = with_explicit_firewall_facts()
+        profile["intent"]["security"]["anti_spoofing"] = False
+        with self.assertRaisesRegex(ValueError, "anti_spoofing"):
+            SafeSubsetCompiler().compile(profile)
 
     def test_digest_and_operation_order_are_deterministic(self):
         compiler = SafeSubsetCompiler()
