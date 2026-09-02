@@ -30,20 +30,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
 
-      - name: Download official MikroTik CHR image
+      - name: Cache official MikroTik CHR archive
+        id: chr-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Prepare official MikroTik CHR image
         run: |
           set -euo pipefail
-          curl -4 --http1.1 -fL \
-            --connect-timeout 15 \
-            --max-time 180 \
-            --retry 1 \
-            --retry-delay 2 \
-            --retry-all-errors \
-            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
-            -o /tmp/chr.img.zip
-          unzip -p /tmp/chr.img.zip > /tmp/chr.img
+          archive="/tmp/chr-${CHR_VERSION}.img.zip"
+          if [ ! -s "$archive" ]; then
+            curl -4 --http1.1 -fL \
+              --connect-timeout 15 \
+              --max-time 180 \
+              --retry 1 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+              -o "$archive"
+          fi
+          test -s "$archive"
+          unzip -t "$archive"
+          unzip -p "$archive" > /tmp/chr.img
           test -s /tmp/chr.img
-          sha256sum /tmp/chr.img.zip > /tmp/chr-render-download.sha256
+          sha256sum "$archive" > /tmp/chr-render-download.sha256
 
       - name: Boot disposable three-interface CHR snapshot
         run: |
