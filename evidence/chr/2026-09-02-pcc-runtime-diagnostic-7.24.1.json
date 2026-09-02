@@ -1,0 +1,67 @@
+{
+  "schema_version": "chr-pcc-runtime-diagnostic-summary/1",
+  "captured_at": "2026-09-02",
+  "routeros": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "source": {
+    "workflow_run_id": 33616274561,
+    "workflow_head_sha": "bc907090c76b530780f86bf24edef5617ac456c8",
+    "artifact_id": 9841071030,
+    "artifact_digest": "sha256:79b21422cf590e0bf3b802797d04a2bddaf617835a5fd4506eaaaf9ad46385d3"
+  },
+  "acceptance": "FAIL_EXPECTED_DIAGNOSTIC",
+  "progress_credit": 0,
+  "findings": {
+    "combined_fixture_command_count": 38,
+    "managed_pcc_mangle_count": 13,
+    "managed_pcc_invalid_count": 12,
+    "managed_valid_rules": [
+      {
+        "comment": "routercfg:managed:pcc-connection:lab-wan10g:0",
+        "action": "mark-connection",
+        "per_connection_classifier": "both-addresses-and-ports:11/0",
+        "invalid": false
+      }
+    ],
+    "managed_invalid_rule_classes": {
+      "connection_classifier_remainders": "11/1 through 11/10 were invalid at runtime",
+      "routing_marks": "both managed mark-routing rules were invalid at runtime"
+    },
+    "diagnostic_variant_count": 7,
+    "diagnostic_invalid_count": 7,
+    "diagnostic_variants": [
+      "passthrough with PCC 11/0",
+      "passthrough with PCC 11/1",
+      "passthrough with PCC 11/2",
+      "plain mark-connection",
+      "mark-connection with PCC 11/1",
+      "mark-connection with PCC 11/2",
+      "mark-routing to to-lab-wan10g"
+    ]
+  },
+  "important_observation": "RouterOS import dry-run and apply both returned verdict OK, but runtime mangle objects were invalid. Therefore syntax/import success is not sufficient evidence for PCC correctness; runtime invalid-state inspection and dataplane behavior are mandatory gates.",
+  "false_green_discovered": {
+    "workflow_run_id": 33615540152,
+    "head_sha": "425c8da1b8c1523c8b535d6c04ce485e99df9338",
+    "workflow_conclusion": "success",
+    "artifact_acceptance": "FAIL",
+    "normal_phase": {
+      "requested_flows": 220,
+      "successful_flows": 220,
+      "WAN10": 220,
+      "WAN1": 0
+    },
+    "root_harness_bug": "cleanup() executed set +e and disabled shell errexit for the remainder of the acceptance script, allowing evaluator exit 17 to be masked.",
+    "harness_fix": "cleanup no longer changes errexit; contract tests forbid set +e; prepare now fails closed if any managed PCC mangle rule has invalid=true."
+  },
+  "safety": {
+    "production_writer_available": false,
+    "write_authorized": false,
+    "production_apply_enabled": false,
+    "physical_router_targeted": false
+  },
+  "next_gate": "Identify the exact RouterOS 7.24.1 runtime requirement causing PCC/mangle objects to become invalid, fix the renderer from observed evidence, then rerun fail-closed CHR packet-flow acceptance until normal 10:1 distribution, WAN10 failure failover, and recovery/failback all PASS."
+}
