@@ -9,6 +9,7 @@ from .deployment_profile import DeploymentProfileValidator
 from .harness import ExecutionStage, HarnessEngine
 from .m02_state_engine import StateEngine
 from .m04_multiwan import MultiWanPlanner, WanLink
+from .progress import ProgressTracker
 
 
 def _load_json(path: str) -> Any:
@@ -97,6 +98,25 @@ def command_workflow(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_progress(args: argparse.Namespace) -> int:
+    summary = ProgressTracker().load(args.file)
+    payload = {
+        "scope": summary.scope,
+        "completed_percent": summary.completed_percent,
+        "remaining_percent": summary.remaining_percent,
+        "total_weight": summary.total_weight,
+        "items": {
+            "done": summary.items_done,
+            "partial": summary.items_partial,
+            "not_started": summary.items_not_started,
+            "blocked": summary.items_blocked,
+        },
+        "next_gates": list(summary.next_gates[:5]),
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="routerctl")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -130,6 +150,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=ExecutionStage.DISCOVER.value,
     )
     workflow.set_defaults(func=command_workflow)
+
+    progress = subparsers.add_parser(
+        "progress",
+        help="report weighted project completion from PROJECT_PROGRESS.json",
+    )
+    progress.add_argument("--file", default="PROJECT_PROGRESS.json")
+    progress.set_defaults(func=command_progress)
 
     return parser
 
