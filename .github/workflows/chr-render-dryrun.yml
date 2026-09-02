@@ -119,11 +119,13 @@ jobs:
       - name: Validate generated syntax with import dry-run and negative control
         run: |
           set -uo pipefail
+          set +e
           python lab/chr/verify_render_dry_run_chunked.py \
             --admin-url http://127.0.0.1:9180 \
             --script evidence/chr-render-fixture.rsc \
             --output evidence/chr-render-dryrun.json
           rc=$?
+          set -e
           if [ "$rc" -ne 0 ]; then
             echo "Full-script validation failed; isolating each generated command."
             python lab/chr/diagnose_renderer_syntax.py \
