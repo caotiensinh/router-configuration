@@ -11,9 +11,9 @@
 
 ## Current measured status
 
-**75% complete / 25% remaining.**
+**77% complete / 23% remaining.**
 
-Change from the previous 73% checkpoint: **+2 points backed by exact-head RouterOS CHR 7.24.1 firewall runtime evidence**. The enterprise firewall slice now has deterministic generation-only rendering, explicit bounded management sources and WAN-service exceptions, essential IPv4 ICMP filtering, WAN management anti-spoofing before ICMP acceptance, WAN input default deny, runtime rule validity checks, management-path survival after activation, and exact rollback-to-baseline verification. The accepted exact-head CHR run is `33637290612` with artifact `9849353283`; the evidence is retained in `evidence/chr/2026-09-02-firewall-baseline-runtime-7.24.1.json`. The evidence commit `51b35af10767378c39e47757d090bf9cf6e9b92b` also passed normal CI on Python 3.11, 3.12 and 3.13 in run `33637526415`. This earns +1 P09 and +1 P12. No production writer, secret resolution, physical CCR2116 acceptance, WireGuard runtime acceptance or QoS acceptance is claimed.
+Change from the previous 75% checkpoint: **+2 points backed by exact-head RouterOS CHR 7.24.1 deferred-secret WireGuard runtime evidence**. The WireGuard configuration slice now has explicit vendor-neutral intent facts, bounded and non-overlapping peer `allowed-address` validation, route containment checks, deterministic RouterOS command templates, unresolved private-key binding, and a product generation boundary that keeps WireGuard out of normal executable `commands` until both secret binding and an authorized transactional apply boundary exist. The accepted exact-head CHR run is `33643366359`, job `100291781530`, artifact `9851773597`, with artifact digest `sha256:7ea6819df9fcd3a33b09708cca7b1882dbcadf2aabc4a2c77f70b6aaea487fdd`. The sanitized evidence is retained in `evidence/chr/2026-09-02-wireguard-baseline-runtime-7.24.1.json`. The exact code SHA `c14f1a550bf9720f3001fd787a35114d5e2d0ea7` passed Python 3.11/3.12/3.13 normal CI in run `33643366356`; the evidence commit `7e76b1556043e507c112cec59a120c2d345e1e32` also passed all three versions in run `33643604804`. This earns +1 P09 and +1 P12. The gate does **not** claim a peer-to-peer WireGuard handshake, encrypted packet transfer, production UDP/51820 firewall admission, Internet reachability, physical CCR2116 behavior, or production writer readiness.
 
 | ID | Workstream | Weight | Earned | Status | Next acceptance gate |
 | --- | --- | ---: | ---: | --- | --- |
@@ -25,10 +25,10 @@ Change from the previous 73% checkpoint: **+2 points backed by exact-head Router
 | P06 | Compiler / secret boundary | 4 | 4 | DONE | Further RouterOS command coverage is tracked under P09 |
 | P07 | RouterOS read-only discovery | 12 | 10 | PARTIAL | operator provenance attestation + candidate review |
 | P08 | RouterOS normalization | 6 | 6 | DONE | — |
-| P09 | RouterOS renderer | 13 | 7 | PARTIAL | WireGuard and QoS renderer slices; production apply remains separately gated |
+| P09 | RouterOS renderer | 13 | 8 | PARTIAL | QoS renderer slice; production apply remains separately gated |
 | P10 | Backup/preflight/apply/verify/rollback | 15 | 5 | PARTIAL | real adapter transaction lifecycle after state-aware generation is complete |
 | P11 | Dual-WAN / failover | 5 | 5 | DONE | — |
-| P12 | Security/VLAN/PBR/VPN/QoS | 8 | 2 | PARTIAL | WireGuard with unresolved secret refs + explicit allowed-address + CHR validation, then VLAN/PBR/QoS |
+| P12 | Security/VLAN/PBR/VPN/QoS | 8 | 3 | PARTIAL | QoS, VLAN and PBR; WireGuard handshake/data-plane remains separately unclaimed |
 | P13 | CHR integration/failure lab | 5 | 5 | DONE | — |
 | P14 | CI/regression/golden evidence | 2 | 2 | DONE | — |
 | P15 | v1 release/beginner deployment docs | 1 | 0 | NOT STARTED | one-command guided deployment docs |
@@ -57,11 +57,15 @@ Change from the previous 73% checkpoint: **+2 points backed by exact-head Router
 - [x] Capacity-weighted 10G + 1G PCC distribution, WAN10 failure and recovery behavior passed disposable CHR packet-flow acceptance.
 - [x] Enterprise RouterOS input firewall generation passed CHR dry-run, active runtime validity, management-path survival and exact rollback-to-baseline verification.
 - [x] Firewall anti-spoofing is ordered before essential-ICMP acceptance and WAN input is default-deny in the accepted managed chain.
+- [x] WireGuard explicit intent facts compile to a deferred-secret RouterOS template plan without resolving or serializing the private key.
+- [x] WireGuard bounded `allowed-address` policy, RouterOS runtime validity, management-path survival and exact rollback passed disposable CHR 7.24.1 acceptance.
+- [x] WireGuard CHR evidence confirms `private_key_recorded=false`, `private_key_serialized=false`, no PSK, no product writer and no product write transport.
+- [ ] WireGuard peer-to-peer handshake and encrypted packet transfer are independently proven where required by the v1 acceptance scope.
 - [ ] Full CHR acceptance uses a dedicated least-privilege REST reader.
 - [ ] Full CHR acceptance uses HTTPS with certificate verification.
 - [ ] Full CHR evidence passes explicit provenance attestation/candidate review.
-- [ ] Populated NAT/WireGuard/QoS objects are reviewed on live CHR or covered by an explicit accepted capability-gap policy.
-- [ ] RouterOS renderer has accepted coverage for every planned v1 operation, including WireGuard and QoS.
+- [ ] Populated NAT/QoS objects are reviewed on live CHR or covered by an explicit accepted capability-gap policy.
+- [ ] RouterOS renderer has accepted coverage for every planned v1 operation, including QoS.
 - [ ] Production apply requires real backup evidence.
 - [ ] Default-route/firewall/management changes require verified management reachability in the production transaction path.
 - [ ] Post-apply verification covers WAN, DNS, routing, VPN and management reachability as applicable.
