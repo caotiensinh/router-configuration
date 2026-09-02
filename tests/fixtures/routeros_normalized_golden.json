@@ -1,0 +1,46 @@
+{
+  "schema_version": "routeros-state/1",
+  "platform": {
+    "identity": "lab-ccr2116",
+    "version": "7.20.4 (stable)",
+    "board_name": "CCR2116-12G-4S+",
+    "architecture": "arm64"
+  },
+  "interfaces": [
+    {".id": "*1", "name": "sfp-sfpplus1", "type": "ether", "running": true, "disabled": false},
+    {".id": "*2", "name": "sfp-sfpplus2", "type": "ether", "running": true, "disabled": false},
+    {".id": "*3", "name": "ether1", "type": "ether", "running": true, "disabled": false}
+  ],
+  "ip_addresses": [
+    {".id": "*A", "address": "192.0.2.1/24", "interface": "sfp-sfpplus2", "dynamic": false}
+  ],
+  "ip_routes": [
+    {".id": "*R1", "dst-address": "0.0.0.0/0", "gateway": "198.51.100.1", "distance": "1", "active": true}
+  ],
+  "routing_tables": [
+    {".id": "*T1", "name": "main", "fib": true}
+  ],
+  "firewall": {
+    "filter": [
+      {".id": "*F1", "chain": "input", "action": "drop", "disabled": false}
+    ],
+    "nat": [
+      {".id": "*N1", "chain": "srcnat", "action": "masquerade", "out-interface": "sfp-sfpplus1"}
+    ]
+  },
+  "wireguard": {
+    "interfaces": [
+      {".id": "*W1", "name": "wg-office", "listen-port": "51820", "private-key": "<redacted>", "public-key": "synthetic-public-key"}
+    ],
+    "peers": [
+      {".id": "*P1", "interface": "wg-office", "public-key": "peer-public-key", "preshared-key": "<redacted>", "allowed-address": "10.100.0.2/32"}
+    ]
+  },
+  "qos": {
+    "simple_queues": [
+      {".id": "*Q1", "name": "office", "max-limit": "100M/100M", "disabled": false}
+    ],
+    "queue_tree": []
+  },
+  "missing_surfaces": []
+}
