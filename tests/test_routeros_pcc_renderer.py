@@ -67,6 +67,19 @@ class RouterOSPccRendererTests(unittest.TestCase):
         sections = [command.section for command in plan.commands]
         self.assertEqual(sections.count("pcc_policy_route"), 8)
         self.assertEqual(sections.count("firewall_mangle"), 13)
+        self.assertEqual(sections[:8], ["pcc_policy_route"] * 8)
+        self.assertTrue(
+            all(
+                command.command_id.startswith("pcc.mangle.connection.")
+                for command in plan.commands[8:19]
+            )
+        )
+        self.assertTrue(
+            all(
+                command.command_id.startswith("pcc.mangle.routing.")
+                for command in plan.commands[19:]
+            )
+        )
 
         connection_rules = [
             command.command
@@ -107,8 +120,7 @@ class RouterOSPccRendererTests(unittest.TestCase):
         self.assertEqual(first, second)
 
     def test_active_fasttrack_is_fail_closed(self):
-        state = clean_state()
-        state = copy.deepcopy(state)
+        state = copy.deepcopy(clean_state())
         state["firewall"]["filter"].append(
             {".id": "*FT1", "chain": "forward", "action": "fasttrack-connection", "disabled": False}
         )
@@ -116,8 +128,7 @@ class RouterOSPccRendererTests(unittest.TestCase):
             render_routeros_pcc(ir=pcc_ir(), state=state)
 
     def test_active_dstnat_is_fail_closed(self):
-        state = clean_state()
-        state = copy.deepcopy(state)
+        state = copy.deepcopy(clean_state())
         state["firewall"]["nat"].append(
             {".id": "*DN1", "chain": "dstnat", "action": "dst-nat", "disabled": False}
         )
