@@ -1,0 +1,157 @@
+name: CHR Transaction Runtime Admission
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/router_configuration/transaction_*.py"
+      - "lab/chr/verify_transaction_runtime_admission.py"
+      - "lab/chr/verify_mutation_rollback.py"
+      - "lab/chr/verify_render_dry_run.py"
+      - "lab/chr/verify_render_dry_run_chunked.py"
+      - "lab/chr/build_renderer_syntax_fixture.py"
+      - "tests/test_chr_transaction_runtime_admission_contract.py"
+      - ".github/workflows/chr-transaction-runtime-admission.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  chr-transaction-runtime-admission:
+    concurrency:
+      group: router-config-chr-transaction-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project and QEMU
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+      - name: Download official MikroTik CHR image
+        run: |
+          set -euo pipefail
+          curl -4 --http1.1 -fL \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --retry 1 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o /tmp/chr.img.zip
+          unzip -p /tmp/chr.img.zip > /tmp/chr.img
+          test -s /tmp/chr.img
+          sha256sum /tmp/chr.img.zip > /tmp/chr-download.sha256
+      - name: Boot isolated CHR in QEMU snapshot mode
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9380-:80 \
+            -device virtio-net-pci,netdev=net0 \
+            -netdev user,id=net1 \
+            -device virtio-net-pci,netdev=net1 \
+            -netdev user,id=net2 \
+            -device virtio-net-pci,netdev=net2 \
+            -display none \
+            -serial file:/tmp/chr-transaction-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-transaction.pid
+      - name: Wait for disposable CHR REST
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9380/rest/system/resource \
+              > /tmp/chr-transaction-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo 'Disposable CHR REST did not become reachable' >&2
+            cat /tmp/chr-transaction-serial.log >&2 || true
+            exit 1
+          fi
+          curl -fsS --max-time 2 --user 'admin:' \
+            http://127.0.0.1:9380/rest/interface \
+            > /tmp/chr-transaction-interfaces.json
+      - name: Prove admission before mutation runtime
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python lab/chr/verify_transaction_runtime_admission.py \
+            --admin-url http://127.0.0.1:9380 \
+            --workflow-sha "$GITHUB_SHA" \
+            --output evidence/chr-transaction-runtime-admission.json
+      - name: Validate sanitized acceptance artifact
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("evidence/chr-transaction-runtime-admission.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          assert payload["ok"] is True
+          assert payload["acceptance"] == "PASS"
+          assert payload["workflow_sha"] == "${{ github.sha }}"
+          assert payload["admission_completed_before_runtime_call"] is True
+          assert payload["runtime_baseline_matches_envelope"] is True
+          assert payload["recovery_verification_claimed"] is False
+          assert payload["operator_attestation_claimed"] is False
+          assert payload["production_writer_available"] is False
+          assert payload["transport_exposed_to_product"] is False
+          assert payload["physical_router_targeted"] is False
+          assert payload["production_allowed"] is False
+          assert payload["write_authorized"] is False
+          assert payload["lifecycle"]["phase"] == "rollback_observed"
+          assert payload["runtime"]["acceptance"] == "PASS"
+          assert payload["runtime"]["rollback_digest_restored"] is True
+          assert payload["sanitized_pre_state"]["raw_configuration_present"] is False
+          assert payload["sanitized_pre_state"]["binary_backup_present"] is False
+          assert payload["backup_evidence"]["binary_payload_present"] is False
+          rendered = json.dumps(payload, sort_keys=True).lower()
+          for forbidden in ("private_key", "password", "token", ".backup"):
+              assert forbidden not in rendered, forbidden
+          print(json.dumps({
+              "acceptance": payload["acceptance"],
+              "workflow_sha": payload["workflow_sha"],
+              "transaction_id": payload["transaction"]["transaction_id"],
+              "pre_state_sha256": payload["transaction"]["pre_state_sha256"],
+              "lifecycle_phase": payload["lifecycle"]["phase"],
+          }, indent=2, sort_keys=True))
+          PY
+      - name: Preserve sanitized transaction runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-transaction-runtime-admission-${{ github.sha }}
+          path: |
+            evidence/chr-transaction-runtime-admission.json
+            /tmp/chr-transaction-resource.json
+            /tmp/chr-transaction-interfaces.json
+            /tmp/chr-download.sha256
+            /tmp/chr-transaction-serial.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr-transaction.pid ]; then
+            kill "$(cat /tmp/chr-transaction.pid)" 2>/dev/null || true
+          fi
