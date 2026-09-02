@@ -1,0 +1,65 @@
+{
+  "schema_version": "routeros-vlan-runtime-evidence/1",
+  "acceptance": "PASS",
+  "scope": "disposable_chr_vlan_management_survival_and_rollback",
+  "source": {
+    "exact_head_sha": "a0a32a869eaa28e7e7f4366797a88e9ecc4fe933",
+    "workflow_run_id": 33656978581,
+    "artifact_id": 9857136311,
+    "artifact_name": "chr-vlan-baseline-a0a32a869eaa28e7e7f4366797a88e9ecc4fe933",
+    "artifact_digest": "sha256:148d4f5ccf9f4e39ab85273690eefa75c0ffcbb9d79ad0dea1abeab3c95913d8"
+  },
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "fixture": {
+    "command_count": 8,
+    "oob_management_interface": "ether1",
+    "trunk_port": "ether2",
+    "access_port": "ether3",
+    "management_vlan": 10,
+    "user_vlan": 20,
+    "management_address": "192.0.2.1/24"
+  },
+  "runtime": {
+    "invalid_managed_objects": 0,
+    "disabled_managed_objects": 0,
+    "vlan_filtering_enabled": true,
+    "trunk_membership_exact": true,
+    "access_pvid_exact": true,
+    "management_vlan_interface_exact": true,
+    "oob_management_interface_untouched": true,
+    "management_rest_reachable_after_apply": true,
+    "in_band_vlan_data_plane_claimed": false
+  },
+  "configuration": {
+    "baseline_sha256": "aeb20d67c8d3c98a413159a088421c59e39cd89d3923dda3a5fafd2703f00778",
+    "mutated_sha256": "bea7e1a5238fe882bc6adc677e250f803fb5511b1b64e4f1ccaa971026875eec",
+    "rollback_sha256": "aeb20d67c8d3c98a413159a088421c59e39cd89d3923dda3a5fafd2703f00778",
+    "rollback_digest_restored": true
+  },
+  "dry_run": {
+    "apply_verdict": "OK",
+    "rollback_verdict": "OK",
+    "configuration_unchanged": true
+  },
+  "safety": {
+    "temporary_files_removed": true,
+    "production_writer_available": false,
+    "transport_exposed_to_product": false,
+    "write_authorized": false,
+    "physical_router_targeted": false
+  },
+  "claims_not_made": [
+    "in-band VLAN data-plane acceptance",
+    "physical CCR2116 behavior",
+    "production writer readiness"
+  ],
+  "progress_credit": {
+    "p09_points": 1,
+    "p12_points": 1,
+    "ledger_update_required_separately": true
+  }
+}

@@ -1,0 +1,3 @@
+Current-main VLAN acceptance trigger.
+Base lineage: fd19ebe32dbc375637a91389ec4f2dc85ba92516
+Acceptance: official CHR 7.24.1, eight generated commands, OOB management survival, exact rollback.
