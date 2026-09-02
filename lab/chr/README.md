@@ -166,3 +166,38 @@ A CHR read-only PASS does not prove:
 - production readiness.
 
 Those remain separate weighted gates in `PROJECT_PROGRESS.json` and `CHECKLIST.md`.
+
+## Firewall baseline runtime gate
+
+The enterprise firewall renderer has a separate disposable CHR gate. It does not use the production discovery identity and it does not expose a production writer.
+
+Trigger the dedicated workflow by committing to `main` with a message beginning with:
+
+```text
+ci(chr-firewall):
+```
+
+The gate runs against the official MikroTik CHR 7.24.1 image in a QEMU snapshot. It derives the management CIDR from the live IPv4 address observed on `ether1`; the management network is not hard-coded or inferred from a production topology.
+
+The validator executes these gates in order:
+
+1. render the explicit enterprise firewall fixture;
+2. dry-run both rollback and apply scripts;
+3. prove the configuration digest is unchanged by dry-run;
+4. apply only to the disposable CHR snapshot;
+5. require all managed filter rules to be enabled and `invalid=false`;
+6. verify the managed input and essential-ICMP chain order;
+7. verify management-source anti-spoofing precedes ICMP handling;
+8. verify management accept is bounded to `routercfg-CORE` plus the explicit management source list;
+9. verify WAN input default deny and bounded explicit WAN-service exceptions;
+10. perform a fresh REST read after activation to prove the observed management path remains reachable;
+11. rollback only `routercfg`-owned firewall surfaces;
+12. require the post-rollback configuration digest to equal the exact pre-apply baseline digest.
+
+The workflow preserves evidence even on failure. The artifact name is:
+
+```text
+chr-firewall-baseline-${{ github.sha }}
+```
+
+The gate uses no production credentials, targets no physical router, exposes no product write transport, and keeps `write_authorized=false`.
