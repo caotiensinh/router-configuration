@@ -24,6 +24,7 @@ Use MikroTik sources for CHR and REST behavior:
 - RouterOS users/policies: https://help.mikrotik.com/docs/spaces/ROS/pages/8978504/User
 - RouterOS installation/CHR context: https://help.mikrotik.com/docs/spaces/ROS/pages/328142/Upgrading%20and%20installation
 - MikroTik download page: https://mikrotik.com/download
+- RouterOS WireGuard: https://help.mikrotik.com/docs/spaces/ROS/pages/69664792/WireGuard
 
 RouterOS REST is documented from v7.1beta4. Production-style discovery in this project requires HTTPS with certificate verification. HTTP or disabled TLS verification is accepted only in an explicitly isolated lab.
 
@@ -201,3 +202,40 @@ chr-firewall-baseline-${{ github.sha }}
 ```
 
 The gate uses no production credentials, targets no physical router, exposes no product write transport, and keeps `write_authorized=false`.
+
+## WireGuard deferred-secret runtime gate
+
+WireGuard uses a stricter product boundary than ordinary generation-only commands. The product renderer validates the interface, address, listen port, MTU, peer public keys, peer tunnel addresses, non-overlapping bounded `allowed-address` ranges, endpoints, keepalive/responder flags, and explicit routes, but it does **not** resolve or serialize the private key. Instead it emits a deferred template plan and keeps `vpn.wireguard` blocked on two remaining boundaries: private-key secret binding and an authorized transactional apply path.
+
+Trigger the disposable CHR validator by committing to `main` with a message beginning with:
+
+```text
+ci(chr-wireguard):
+```
+
+The workflow boots official MikroTik CHR 7.24.1 in a QEMU snapshot and binds a synthetic private key only inside the lab process. The synthetic private key is generated from in-memory random bytes, is never committed, never written to the evidence JSON, never uploaded as an artifact, and is cleared from the validator's local variables after the mutation gate. A valid remote public key is obtained from a temporary WireGuard interface created on the disposable CHR; only the public key is read, and that temporary interface is removed before the baseline digest is captured.
+
+The WireGuard validator requires all of the following:
+
+1. product templates remain generation-only and retain an unresolved secret binding;
+2. apply and rollback scripts both pass RouterOS import dry-run while a negative control is rejected;
+3. dry-run leaves the configuration digest unchanged;
+4. real apply is permitted only inside the disposable CHR lab boundary;
+5. exactly one managed WireGuard interface, address, peer and explicit route exist after apply;
+6. all managed WireGuard objects are enabled and `invalid=false`;
+7. the peer's bounded `allowed-address` set exactly matches the synthetic fixture;
+8. a fresh REST read succeeds after activation, proving management access still works;
+9. rollback removes only `routercfg:managed:wg:*` objects in dependency order;
+10. the final configuration digest equals the exact pre-apply baseline digest;
+11. evidence explicitly records `private_key_recorded=false`, `private_key_serialized=false` and `preshared_key_used=false`;
+12. the product still reports no writer, no exposed transport and no write authorization.
+
+The sanitized artifact is named:
+
+```text
+chr-wireguard-baseline-${{ github.sha }}
+```
+
+The artifact intentionally excludes RouterOS import scripts and the CHR serial log because those surfaces are unnecessary for acceptance and could expand the secret-exposure boundary.
+
+This gate proves RouterOS syntax/runtime acceptance and exact rollback for the deferred-secret WireGuard configuration slice. It does **not** prove a peer-to-peer WireGuard handshake, encrypted packet transfer, production firewall UDP exception, Internet reachability, or physical CCR2116 behavior. Those remain separate acceptance gates.
