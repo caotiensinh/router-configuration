@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # This script is intentionally colocated with the disposable CHR bootstrap and
-# is never imported by the product package/routerctl.
+# is never imported by the production package or command surface.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bootstrap_secure_acceptance import LabBootstrapError, LoopbackRestAdmin  # noqa: E402
 
