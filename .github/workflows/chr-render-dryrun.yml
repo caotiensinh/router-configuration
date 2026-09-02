@@ -106,11 +106,20 @@ jobs:
 
       - name: Validate generated syntax with import dry-run and negative control
         run: |
-          set -euo pipefail
+          set -uo pipefail
           python lab/chr/verify_render_dry_run_chunked.py \
             --admin-url http://127.0.0.1:9180 \
             --script evidence/chr-render-fixture.rsc \
             --output evidence/chr-render-dryrun.json
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "Full-script validation failed; isolating each generated command."
+            python lab/chr/diagnose_renderer_syntax.py \
+              --admin-url http://127.0.0.1:9180 \
+              --script evidence/chr-render-fixture.rsc \
+              --output evidence/chr-render-diagnostic.json || true
+            exit "$rc"
+          fi
 
       - name: Preserve render dry-run evidence
         if: always()
@@ -122,6 +131,7 @@ jobs:
             evidence/chr-render-plan.json
             evidence/chr-render-build-summary.json
             evidence/chr-render-dryrun.json
+            evidence/chr-render-diagnostic.json
             /tmp/chr-render-resource.json
             /tmp/chr-render-interfaces.json
             /tmp/chr-render-serial.log
