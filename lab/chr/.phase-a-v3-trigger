@@ -1,4 +1,4 @@
-RouterOS CHR 7.24.1 populated live validation retry
-Purpose: run the disposable populated-surface Phase A on the current least-privilege compatibility baseline after clean read-only admission succeeded.
-Validation target: dedicated reader write-denial; firewall/NAT/WireGuard/QoS fixture population by isolated lab admin; HTTPS reader discovery; evidence integrity; private-key/secret boundary verification; technical acceptance.
+RouterOS CHR 7.24.1 populated live validation retry after boundary-verifier hardening
+Purpose: rerun disposable populated-surface Phase A after the reader write-denial verifier was updated for RouterOS 7.24.1 REST semantics.
+Validation target: dedicated reader GET succeeds; attempted write is explicitly denied and confirmed absent by GET read-back; lab-only fixture population covers firewall/NAT/WireGuard/QoS; HTTPS reader discovery; evidence integrity; secret boundary; technical acceptance.
 This file contains no credentials, image data, production configuration, or production write authorization.
