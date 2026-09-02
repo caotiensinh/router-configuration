@@ -34,16 +34,27 @@
       "id": "chr-live-v7",
       "kind": "routeros_chr",
       "routeros_version": "7.24.1 (stable)",
-      "status": "clean_readonly_candidate",
+      "status": "technical_readonly_validated_pending_attestation",
       "evidence": [
         "evidence/chr/2026-09-02-live-smoke-7.24.1.json",
         "evidence/chr/2026-09-02-clean-readonly-7.24.1.json",
+        "evidence/chr/2026-09-02-populated-validation-7.24.1.json",
         "GitHub Actions run 33581768613 / job 100097350679 / artifact 9828691931",
-        "GitHub Actions run 33586254728 / artifact 9830230324"
+        "GitHub Actions run 33586254728 / artifact 9830230324",
+        "GitHub Actions run 33587554602 / job 100114754888 / artifact 9830628071"
       ],
+      "technical_acceptance": {
+        "clean_get_only_admission": true,
+        "https_certificate_verification": true,
+        "least_privilege_reader_policy": ["read", "api", "rest-api"],
+        "reader_write_denial_verified": true,
+        "populated_high_value_surfaces_verified": true,
+        "secret_boundary_verified": true,
+        "automatic_target_matrix_admission": false,
+        "write_authorized": false
+      },
       "remaining_acceptance": [
-        "operator provenance attestation and candidate review",
-        "populated-object live coverage for high-value RouterOS surfaces"
+        "operator provenance attestation and candidate review"
       ]
     },
     {
@@ -51,7 +62,7 @@
       "kind": "physical_router",
       "model": "CCR2116-12G-4S+",
       "routeros_version": null,
-      "status": "pending_after_chr_acceptance",
+      "status": "pending_after_chr_attestation",
       "evidence": []
     }
   ]

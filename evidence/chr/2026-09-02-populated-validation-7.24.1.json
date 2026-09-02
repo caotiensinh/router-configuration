@@ -1,0 +1,53 @@
+{
+  "schema_version": "routeros-chr-populated-evidence-summary/1",
+  "date": "2026-09-02",
+  "target_kind": "routeros_chr",
+  "routeros_version": "7.24.1 (stable)",
+  "architecture": "x86_64",
+  "workflow_sha": "854ac6bb911da83ccbd2427abd7a7be94588df64",
+  "github_actions": {
+    "run_id": 33587554602,
+    "job_id": 100114754888,
+    "artifact_id": 9830628071,
+    "artifact_name": "chr-live-acceptance-diagnostics-854ac6bb911da83ccbd2427abd7a7be94588df64",
+    "artifact_digest": "sha256:8e15524d43847935dc4dac4cdd0c0e82771bcacee08ef31d70a2c8cb79e832df"
+  },
+  "official_image": {
+    "url": "https://download.mikrotik.com/routeros/7.24.1/chr-7.24.1.img.zip",
+    "zip_sha256": "50345f0197164321f1c6c933cd2a92b94222e7df76311b22b46adc3eca7a1aa8"
+  },
+  "normalized_state_sha256": "f3f87ea01efdea58ea67ef97a69d87902342f6c0772d76892132fd5f81983795",
+  "reader": {
+    "username": "routercfg-reader",
+    "declared_policy": ["read", "api", "rest-api"],
+    "effective_policy": ["api", "read", "rest-api"],
+    "https_certificate_verification": true,
+    "read_verified": true,
+    "write_denied_http_status": 500,
+    "write_denial_detail": "not enough permissions (9)",
+    "write_denial_verified_by_readback": true,
+    "probe_marker_absent_after_denial": true
+  },
+  "populated_validation": {
+    "claim": "populated_surface_validation_passed",
+    "firewall_filter": 1,
+    "firewall_nat": 1,
+    "wireguard_interfaces": 1,
+    "qos_simple_queues": 1,
+    "secret_boundary_verified": true,
+    "errors": []
+  },
+  "provenance": {
+    "claim": "machine_observation_only",
+    "record_sha256": "7323f1e5d60a4b2001f641af5e64f38d7731aa54a86b31fdec60e72412acbbe5",
+    "operator_attested": false,
+    "automatic_target_matrix_admission": false
+  },
+  "safety_boundary": {
+    "fixture_setup_writes_performed": true,
+    "acceptance_collection_write_operations": false,
+    "production_writer_available": false,
+    "renderer_enabled_by_this_evidence": false,
+    "write_authorized": false
+  }
+}
