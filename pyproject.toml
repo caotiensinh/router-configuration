@@ -9,8 +9,8 @@ description = "Clean-room network configuration control system"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.scripts]
+routerctl = "router_configuration.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.unittest]
-start-directory = "tests"
