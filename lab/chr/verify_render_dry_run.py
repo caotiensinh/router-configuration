@@ -15,6 +15,15 @@ class CHRRenderDryRunError(RuntimeError):
     pass
 
 
+_SCRIPT_ERROR_MARKERS = (
+    "script error",
+    "bad command",
+    "syntax error",
+    "expected end of command",
+    "no such command",
+)
+
+
 class LoopbackCHRAdmin:
     """Lab-only RouterOS REST mutator restricted to disposable loopback CHR."""
 
@@ -102,6 +111,15 @@ def _rows(payload: Any) -> list[Mapping[str, Any]]:
     return []
 
 
+def _response_has_script_error(payload: Any) -> bool:
+    """Detect RouterOS import/script failure even if /rest/execute returns HTTP 2xx."""
+
+    if payload is None:
+        return False
+    text = json.dumps(payload, sort_keys=True, ensure_ascii=False).lower()
+    return any(marker in text for marker in _SCRIPT_ERROR_MARKERS)
+
+
 def _configuration_snapshot(admin: LoopbackCHRAdmin) -> dict[str, Any]:
     """Capture only surfaces the current renderer syntax fixture could mutate."""
 
@@ -176,18 +194,27 @@ def _execute_import_dry_run(
         {"script": script},
         allow_http_error=True,
     )
-    success = status < 400
-    if expect_success and not success:
-        raise CHRRenderDryRunError(
-            f"generated RouterOS script dry-run failed with HTTP {status}: {str(payload)[:400]}"
-        )
-    if not expect_success and success:
-        raise CHRRenderDryRunError("negative-control RouterOS script unexpectedly passed dry-run")
-    if not expect_success:
-        text = json.dumps(payload, sort_keys=True).lower()
-        if not any(marker in text for marker in ("script error", "bad command", "error")):
-            raise CHRRenderDryRunError("negative-control dry-run failed without a recognizable RouterOS script error")
-    return {"http_status": status, "response": payload}
+    response_has_script_error = _response_has_script_error(payload)
+    transport_success = status < 400
+
+    if expect_success:
+        if not transport_success or response_has_script_error:
+            raise CHRRenderDryRunError(
+                "generated RouterOS script dry-run reported an error "
+                f"(HTTP {status}): {str(payload)[:400]}"
+            )
+    else:
+        if not response_has_script_error:
+            raise CHRRenderDryRunError(
+                "negative-control dry-run did not expose a recognizable RouterOS script error "
+                f"(HTTP {status}): {str(payload)[:400]}"
+            )
+
+    return {
+        "http_status": status,
+        "response_has_script_error": response_has_script_error,
+        "response": payload,
+    }
 
 
 def verify_render_dry_run(
@@ -216,7 +243,9 @@ def verify_render_dry_run(
             expect_success=True,
         )
 
-        _create_script_file(admin, invalid_name, "this-is-not-a-routeros-command\n")
+        # MikroTik's RouterOS 7.16+ import documentation uses `this` as the
+        # canonical bad-command example for syntax-error handling.
+        _create_script_file(admin, invalid_name, "this\n")
         negative_result = _execute_import_dry_run(
             admin,
             file_name=invalid_name,
@@ -244,10 +273,17 @@ def verify_render_dry_run(
             "byte_length": len(script_contents.encode("utf-8")),
             "dry_run_passed": True,
             "http_status": valid_result.get("http_status") if valid_result else None,
+            "response_has_script_error": (
+                valid_result.get("response_has_script_error") if valid_result else None
+            ),
         },
         "negative_control": {
+            "fixture": "this",
             "dry_run_rejected": True,
             "http_status": negative_result.get("http_status") if negative_result else None,
+            "response_has_script_error": (
+                negative_result.get("response_has_script_error") if negative_result else None
+            ),
         },
         "configuration_before_sha256": before_digest,
         "configuration_after_sha256": after_digest,
