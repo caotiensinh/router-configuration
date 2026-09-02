@@ -102,26 +102,24 @@ def _rows(payload: Any) -> list[Mapping[str, Any]]:
     return []
 
 
-def _extract_execute_verdict(payload: Any) -> tuple[bool, str]:
-    """Return (is_error, detail) from a machine-readable /rest/execute :return value."""
+def _parse_verdict_contents(contents: str) -> tuple[bool, str]:
+    """Return (is_error, detail) from the temporary RouterOS verdict file."""
 
-    if not isinstance(payload, Mapping):
-        raise CHRRenderDryRunError("RouterOS /rest/execute did not return an object")
-    ret = str(payload.get("ret") or "").strip()
-    if ret == "OK":
+    text = str(contents or "").strip()
+    if text == "OK":
         return False, ""
-    if ret.startswith("ERROR|"):
-        detail = ret[len("ERROR|"):].strip()
+    if text.startswith("ERROR|"):
+        detail = text[len("ERROR|"):].strip()
         if not detail:
-            raise CHRRenderDryRunError("RouterOS dry-run returned an empty captured error")
+            raise CHRRenderDryRunError("RouterOS dry-run verdict file contains an empty captured error")
         return True, detail
     raise CHRRenderDryRunError(
-        f"RouterOS dry-run returned an unexpected machine verdict: {ret[:200] or '<empty>'}"
+        f"RouterOS dry-run verdict file contains an unexpected value: {text[:200] or '<empty>'}"
     )
 
 
 def _configuration_snapshot(admin: LoopbackCHRAdmin) -> dict[str, Any]:
-    """Capture only surfaces the current renderer syntax fixture could mutate."""
+    """Capture only product configuration surfaces the current syntax fixture could mutate."""
 
     surfaces: dict[str, Any] = {}
     for key, path in (
@@ -143,13 +141,17 @@ def _configuration_snapshot(admin: LoopbackCHRAdmin) -> dict[str, Any]:
     return surfaces
 
 
-def _find_file_id(admin: LoopbackCHRAdmin, name: str) -> str | None:
+def _file_record(admin: LoopbackCHRAdmin, name: str) -> Mapping[str, Any] | None:
     _, payload = admin.request("GET", "file")
-    for row in _rows(payload):
-        if row.get("name") == name:
-            value = str(row.get(".id") or "").strip()
-            return value or None
-    return None
+    return next((row for row in _rows(payload) if row.get("name") == name), None)
+
+
+def _find_file_id(admin: LoopbackCHRAdmin, name: str) -> str | None:
+    record = _file_record(admin, name)
+    if record is None:
+        return None
+    value = str(record.get(".id") or "").strip()
+    return value or None
 
 
 def _delete_file_if_present(admin: LoopbackCHRAdmin, name: str) -> None:
@@ -158,9 +160,9 @@ def _delete_file_if_present(admin: LoopbackCHRAdmin, name: str) -> None:
         admin.request("DELETE", f"file/{file_id}")
 
 
-def _create_script_file(admin: LoopbackCHRAdmin, name: str, contents: str) -> None:
+def _create_text_file(admin: LoopbackCHRAdmin, name: str, contents: str) -> None:
     if len(contents.encode("utf-8")) > 60_000:
-        raise CHRRenderDryRunError("render dry-run script exceeds RouterOS editable file limit")
+        raise CHRRenderDryRunError("render dry-run file exceeds RouterOS editable file limit")
     _delete_file_if_present(admin, name)
     _, created = admin.request(
         "PUT",
@@ -175,37 +177,55 @@ def _create_script_file(admin: LoopbackCHRAdmin, name: str, contents: str) -> No
         raise CHRRenderDryRunError("RouterOS did not expose the created render dry-run file")
     admin.request("PATCH", f"file/{file_id}", {"contents": contents})
 
-    _, files = admin.request("GET", "file")
-    record = next((row for row in _rows(files) if row.get("name") == name), None)
+    record = _file_record(admin, name)
     if record is None or str(record.get("contents") or "") != contents:
         raise CHRRenderDryRunError("RouterOS render dry-run file contents did not round-trip")
+
+
+def _read_file_contents(admin: LoopbackCHRAdmin, name: str) -> str:
+    record = _file_record(admin, name)
+    if record is None:
+        raise CHRRenderDryRunError(f"RouterOS verdict file disappeared unexpectedly: {name}")
+    return str(record.get("contents") or "")
+
+
+def _assert_files_absent(admin: LoopbackCHRAdmin, names: tuple[str, ...]) -> None:
+    remaining = [name for name in names if _file_record(admin, name) is not None]
+    if remaining:
+        raise CHRRenderDryRunError(f"temporary RouterOS dry-run files were not removed: {remaining}")
 
 
 def _execute_import_dry_run(
     admin: LoopbackCHRAdmin,
     *,
     file_name: str,
+    verdict_name: str,
     expect_success: bool,
 ) -> dict[str, Any]:
-    # RouterOS 7.16+ can catch import syntax errors with `onerror e in={...}`.
-    # Force a deterministic :return value so REST does not expose an opaque
-    # console return such as an internal item id instead of the import verdict.
+    # /rest/execute may return an opaque internal value (for example *12) even
+    # when a script uses :return. Use a temporary RouterOS file as the explicit
+    # verdict side channel instead. The file lives only inside a disposable CHR
+    # snapshot and is deleted before the gate can pass.
+    verdict_q = verdict_name.replace('"', '\\"')
     script = (
-        f'onerror e in={{ import {file_name} verbose=yes dry-run }} '
-        'do={ :return "ERROR|$e" }; :return "OK"'
+        f':onerror e in={{ import {file_name} verbose=yes dry-run }} do={{'
+        f'/file set [find where name="{verdict_q}"] contents=("ERROR|" . [:tostr $e]);'
+        ':return};'
+        f'/file set [find where name="{verdict_q}"] contents="OK"'
     )
-    status, payload = admin.request(
+    status, response = admin.request(
         "POST",
         "execute",
         {"script": script},
         allow_http_error=True,
     )
+    contents = _read_file_contents(admin, verdict_name)
+    captured_error, detail = _parse_verdict_contents(contents)
+
     if status >= 400:
         raise CHRRenderDryRunError(
-            f"RouterOS dry-run verdict wrapper failed with HTTP {status}: {str(payload)[:400]}"
+            f"RouterOS dry-run wrapper returned HTTP {status} despite verdict {contents[:200]}"
         )
-
-    captured_error, detail = _extract_execute_verdict(payload)
     if expect_success and captured_error:
         raise CHRRenderDryRunError(
             f"generated RouterOS script dry-run reported an error: {detail[:400]}"
@@ -213,11 +233,16 @@ def _execute_import_dry_run(
     if not expect_success and not captured_error:
         raise CHRRenderDryRunError("negative-control RouterOS script unexpectedly passed dry-run")
 
+    opaque_ret = None
+    if isinstance(response, Mapping):
+        opaque_ret = str(response.get("ret") or "").strip() or None
     return {
         "http_status": status,
         "captured_error": captured_error,
         "error_detail": detail,
         "verdict": "ERROR" if captured_error else "OK",
+        "verdict_channel": "temporary_routeros_file",
+        "execute_ret_observed": opaque_ret,
     }
 
 
@@ -234,30 +259,42 @@ def verify_render_dry_run(
 
     valid_name = "routercfg-render-dryrun.rsc"
     invalid_name = "routercfg-render-negative-control.rsc"
+    verdict_name = "routercfg-render-verdict.txt"
+    temporary_names = (valid_name, invalid_name, verdict_name)
     before = _configuration_snapshot(admin)
     before_digest = _canonical_digest(before)
 
     valid_result: dict[str, Any] | None = None
     negative_result: dict[str, Any] | None = None
+    cleanup_verified = False
     try:
-        _create_script_file(admin, valid_name, script_contents)
+        _create_text_file(admin, valid_name, script_contents)
+        _create_text_file(admin, verdict_name, "PENDING")
         valid_result = _execute_import_dry_run(
             admin,
             file_name=valid_name,
+            verdict_name=verdict_name,
             expect_success=True,
         )
 
         # MikroTik's RouterOS 7.16+ import documentation uses `this` as the
         # canonical bad-command example for syntax-error handling.
-        _create_script_file(admin, invalid_name, "this\n")
+        _create_text_file(admin, invalid_name, "this\n")
+        verdict_id = _find_file_id(admin, verdict_name)
+        if not verdict_id:
+            raise CHRRenderDryRunError("RouterOS verdict file is missing before negative control")
+        admin.request("PATCH", f"file/{verdict_id}", {"contents": "PENDING"})
         negative_result = _execute_import_dry_run(
             admin,
             file_name=invalid_name,
+            verdict_name=verdict_name,
             expect_success=False,
         )
     finally:
-        _delete_file_if_present(admin, valid_name)
-        _delete_file_if_present(admin, invalid_name)
+        for name in temporary_names:
+            _delete_file_if_present(admin, name)
+        _assert_files_absent(admin, temporary_names)
+        cleanup_verified = True
 
     after = _configuration_snapshot(admin)
     after_digest = _canonical_digest(after)
@@ -272,12 +309,14 @@ def verify_render_dry_run(
             "architecture": platform.get("architecture-name"),
             "board_name": platform.get("board-name"),
         },
+        "verdict_channel": "temporary_routeros_file",
         "generated_script": {
             "sha256": hashlib.sha256(script_contents.encode("utf-8")).hexdigest(),
             "byte_length": len(script_contents.encode("utf-8")),
             "dry_run_passed": True,
             "http_status": valid_result.get("http_status") if valid_result else None,
             "verdict": valid_result.get("verdict") if valid_result else None,
+            "execute_ret_observed": valid_result.get("execute_ret_observed") if valid_result else None,
         },
         "negative_control": {
             "fixture": "this",
@@ -285,11 +324,12 @@ def verify_render_dry_run(
             "http_status": negative_result.get("http_status") if negative_result else None,
             "verdict": negative_result.get("verdict") if negative_result else None,
             "error_detail": negative_result.get("error_detail") if negative_result else None,
+            "execute_ret_observed": negative_result.get("execute_ret_observed") if negative_result else None,
         },
         "configuration_before_sha256": before_digest,
         "configuration_after_sha256": after_digest,
         "configuration_changed": False,
-        "temporary_files_removed": True,
+        "temporary_files_removed": cleanup_verified,
         "lab_setup_write_operations_performed": True,
         "production_writer_available": False,
         "write_authorized": False,

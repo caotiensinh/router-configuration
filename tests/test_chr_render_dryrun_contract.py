@@ -50,28 +50,32 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
         second = {"interface_list_members": [], "interface_lists": [{"name": "a"}]}
         self.assertEqual(module._canonical_digest(first), module._canonical_digest(second))
 
-    def test_execute_verdict_requires_explicit_machine_return(self):
-        module = load(VERIFY, "verify_render_dry_run_verdict")
-        self.assertEqual(module._extract_execute_verdict({"ret": "OK"}), (False, ""))
-        captured, detail = module._extract_execute_verdict(
-            {"ret": "ERROR|Script Error: bad command name this (line 1 column 1)"}
+    def test_verdict_file_parser_is_fail_closed(self):
+        module = load(VERIFY, "verify_render_dry_run_verdict_file")
+        self.assertEqual(module._parse_verdict_contents("OK"), (False, ""))
+        captured, detail = module._parse_verdict_contents(
+            "ERROR|Script Error: bad command name this (line 1 column 1)"
         )
         self.assertTrue(captured)
         self.assertIn("bad command name this", detail)
-        for payload in ({"ret": "*1D"}, {"ret": ""}, {}, [], None):
+        for contents in ("PENDING", "*12", "ERROR|", "", "unknown"):
             with self.assertRaises(module.CHRRenderDryRunError):
-                module._extract_execute_verdict(payload)
+                module._parse_verdict_contents(contents)
 
-    def test_validator_uses_onerror_machine_verdict_and_documented_negative_control(self):
+    def test_validator_uses_temporary_file_verdict_and_documented_negative_control(self):
         source = VERIFY.read_text(encoding="utf-8")
         cli_source = CLI.read_text(encoding="utf-8")
         self.assertNotIn("verify_render_dry_run", cli_source)
         self.assertIn("verbose=yes dry-run", source)
-        self.assertIn("onerror e in={", source)
-        self.assertIn(':return "ERROR|$e"', source)
-        self.assertIn(':return "OK"', source)
-        self.assertIn("_extract_execute_verdict", source)
-        self.assertIn('_create_script_file(admin, invalid_name, "this\\n")', source)
+        self.assertIn(":onerror e in={", source)
+        self.assertIn("routercfg-render-verdict.txt", source)
+        self.assertIn('contents=("ERROR|" . [:tostr $e])', source)
+        self.assertIn('contents="OK"', source)
+        self.assertIn("_parse_verdict_contents", source)
+        self.assertNotIn("_extract_execute_verdict", source)
+        self.assertIn('_create_text_file(admin, invalid_name, "this\\n")', source)
+        self.assertIn("temporary_routeros_file", source)
+        self.assertIn("_assert_files_absent", source)
         self.assertIn("negative-control RouterOS script unexpectedly passed dry-run", source)
         self.assertIn("configuration changed during import dry-run validation", source)
         self.assertIn('"production_writer_available": False', source)
