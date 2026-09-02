@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 12
     env:
       CHR_VERSION: "7.24.1"
-      CHR_ACCEPTANCE_PROFILE: "secure-populated-technical-gate"
+      CHR_ACCEPTANCE_PROFILE: "secure-populated-phase-a-v2"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
