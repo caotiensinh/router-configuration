@@ -9,6 +9,9 @@ permissions:
 
 jobs:
   test:
+    concurrency:
+      group: router-config-regression-${{ github.ref }}-${{ matrix.python-version }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,6 +31,9 @@ jobs:
         run: python -m unittest discover -s tests -v
 
   chr-live-smoke:
+    concurrency:
+      group: router-config-chr-live-main
+      cancel-in-progress: false
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'ci(chr):')
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -44,7 +50,7 @@ jobs:
           set -euo pipefail
           python -m pip install -e .
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 unzip
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
       - name: Download official MikroTik CHR image
         run: |
           set -euo pipefail
