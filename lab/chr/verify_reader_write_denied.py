@@ -8,10 +8,20 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any, Mapping
 
 
 class ReaderBoundaryError(RuntimeError):
     pass
+
+
+BOUNDARY_PROBE_MARKER = "routercfg-readonly-boundary-probe"
+_PERMISSION_MARKERS = (
+    "not enough permissions",
+    "not allowed",
+    "permission denied",
+    "forbidden",
+)
 
 
 def _loopback_https(url: str) -> str:
@@ -28,6 +38,64 @@ def _auth_header(username: str, password: str) -> str:
     return f"Basic {token}"
 
 
+def _decode_routeros_error(raw: bytes) -> dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        return {"detail": raw.decode("utf-8", errors="replace")[:400]}
+    if isinstance(payload, Mapping):
+        return {str(key): value for key, value in payload.items()}
+    return {"detail": str(payload)[:400]}
+
+
+def _is_explicit_permission_denial(status: int, payload: Mapping[str, Any]) -> bool:
+    """Accept only an HTTP failure that clearly represents authorization denial.
+
+    RouterOS REST is a JSON wrapper over console/API operations. RouterOS 7.24.1
+    may surface a missing write policy as HTTP 500 with a permission error in the
+    response body instead of HTTP 403. We therefore require either a direct 403,
+    or a 500 whose RouterOS error text explicitly says permission/not-allowed.
+    Arbitrary 5xx errors never satisfy this boundary check.
+    """
+
+    if status == 403:
+        return True
+    if status != 500:
+        return False
+    text = " ".join(str(payload.get(key) or "") for key in ("message", "detail", "error"))
+    lowered = text.lower()
+    return any(marker in lowered for marker in _PERMISSION_MARKERS)
+
+
+def _contains_probe_marker(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return any(_contains_probe_marker(key) or _contains_probe_marker(item) for key, item in value.items())
+    if isinstance(value, list):
+        return any(_contains_probe_marker(item) for item in value)
+    return BOUNDARY_PROBE_MARKER in str(value)
+
+
+def _read_json(
+    *,
+    base_url: str,
+    path: str,
+    headers: Mapping[str, str],
+    context: ssl.SSLContext,
+) -> Any:
+    request = urllib.request.Request(
+        f"{base_url}/rest/{path.lstrip('/')}",
+        headers=dict(headers),
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10, context=context) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, ssl.SSLError) as exc:
+        raise ReaderBoundaryError(f"dedicated reader GET failed: {exc.__class__.__name__}") from exc
+
+
 def verify_reader_boundary(*, url: str, ca_file: Path, credentials_file: Path) -> dict[str, object]:
     base_url = _loopback_https(url)
     credentials = json.loads(credentials_file.read_text(encoding="utf-8"))
@@ -42,14 +110,12 @@ def verify_reader_boundary(*, url: str, ca_file: Path, credentials_file: Path) -
         "Accept": "application/json",
     }
 
-    read_request = urllib.request.Request(
-        f"{base_url}/rest/system/resource", headers=headers, method="GET"
+    resource = _read_json(
+        base_url=base_url,
+        path="system/resource",
+        headers=headers,
+        context=context,
     )
-    try:
-        with urllib.request.urlopen(read_request, timeout=10, context=context) as response:
-            resource = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.HTTPError, urllib.error.URLError, ssl.SSLError) as exc:
-        raise ReaderBoundaryError(f"dedicated reader GET failed: {exc.__class__.__name__}") from exc
     if not isinstance(resource, dict) or resource.get("platform") != "MikroTik":
         raise ReaderBoundaryError("dedicated reader GET did not reach RouterOS")
 
@@ -59,7 +125,7 @@ def verify_reader_boundary(*, url: str, ca_file: Path, credentials_file: Path) -
             "action": "accept",
             "protocol": "tcp",
             "dst-port": "65534",
-            "comment": "routercfg-readonly-boundary-probe",
+            "comment": BOUNDARY_PROBE_MARKER,
         }
     ).encode("utf-8")
     write_headers = dict(headers)
@@ -70,13 +136,19 @@ def verify_reader_boundary(*, url: str, ca_file: Path, credentials_file: Path) -
         headers=write_headers,
         method="PUT",
     )
+
+    denied_status: int | None = None
+    denial_payload: dict[str, Any] = {}
     try:
         with urllib.request.urlopen(write_request, timeout=10, context=context) as response:
             response.read()
     except urllib.error.HTTPError as exc:
-        if exc.code != 403:
+        denied_status = int(exc.code)
+        denial_payload = _decode_routeros_error(exc.read())
+        if not _is_explicit_permission_denial(denied_status, denial_payload):
+            detail = str(denial_payload.get("detail") or denial_payload.get("message") or "")[:240]
             raise ReaderBoundaryError(
-                f"dedicated reader write returned HTTP {exc.code}, expected 403"
+                f"dedicated reader write failed with unverified HTTP {denied_status}: {detail}"
             ) from exc
     except (urllib.error.URLError, ssl.SSLError) as exc:
         raise ReaderBoundaryError(
@@ -85,12 +157,29 @@ def verify_reader_boundary(*, url: str, ca_file: Path, credentials_file: Path) -
     else:
         raise ReaderBoundaryError("dedicated reader unexpectedly performed a write operation")
 
+    filters = _read_json(
+        base_url=base_url,
+        path="ip/firewall/filter",
+        headers=headers,
+        context=context,
+    )
+    if _contains_probe_marker(filters):
+        raise ReaderBoundaryError("reader boundary probe object exists after denied write")
+
+    safe_error = {
+        key: denial_payload[key]
+        for key in ("error", "message", "detail")
+        if key in denial_payload
+    }
     return {
         "ok": True,
         "scope": "disposable_chr_reader_permission_boundary",
         "username": username,
         "read_verified": True,
-        "write_denied_http_status": 403,
+        "write_denied_http_status": denied_status,
+        "write_denial_error": safe_error,
+        "write_denial_verified_by_readback": True,
+        "probe_marker_absent_after_denial": True,
         "write_authorized": False,
         "production_writer_available": False,
     }
