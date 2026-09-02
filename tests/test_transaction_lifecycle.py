@@ -2,6 +2,7 @@ import hashlib
 import json
 import unittest
 
+from router_configuration.transaction_backup_evidence import build_transaction_backup_evidence
 from router_configuration.transaction_envelope import build_transaction_envelope
 from router_configuration.transaction_lifecycle import (
     TransactionLifecycleError,
@@ -34,12 +35,12 @@ def envelope():
     return build_transaction_envelope(
         render_plan=plan,
         pre_state_sha256="a" * 64,
-        backup={
-            "ok": True,
-            "readable": True,
-            "artifact_ref": "backup/pre-change.backup",
-            "sha256": "b" * 64,
-        },
+        backup=build_transaction_backup_evidence(
+            kind="sanitized_export",
+            artifact_ref="artifact://chr/pre-change.rsc",
+            sha256="b" * 64,
+            pre_state_sha256="a" * 64,
+        ).as_dict(),
         approval={
             "approved": True,
             "plan_sha256": plan["render_sha256"],

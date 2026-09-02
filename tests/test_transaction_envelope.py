@@ -2,6 +2,7 @@ import hashlib
 import json
 import unittest
 
+from router_configuration.transaction_backup_evidence import build_transaction_backup_evidence
 from router_configuration.transaction_envelope import (
     TransactionEnvelopeError,
     build_transaction_envelope,
@@ -32,17 +33,21 @@ def render_plan():
     return payload
 
 
+def backup_evidence(pre_state_sha256="a" * 64):
+    return build_transaction_backup_evidence(
+        kind="sanitized_export",
+        artifact_ref="artifact://chr/routercfg-before-change.rsc",
+        sha256="b" * 64,
+        pre_state_sha256=pre_state_sha256,
+    ).as_dict()
+
+
 def build(**overrides):
     plan = overrides.pop("render_plan", render_plan())
     kwargs = {
         "render_plan": plan,
         "pre_state_sha256": "a" * 64,
-        "backup": {
-            "ok": True,
-            "readable": True,
-            "artifact_ref": "backup/routercfg-before-change.backup",
-            "sha256": "b" * 64,
-        },
+        "backup": backup_evidence(),
         "approval": {
             "approved": True,
             "plan_sha256": plan["render_sha256"],
@@ -68,6 +73,10 @@ class TransactionEnvelopeTests(unittest.TestCase):
         self.assertFalse(first["secret_values_present"])
         self.assertEqual(len(first["transaction_id"]), 64)
         self.assertEqual(len(first["envelope_sha256"]), 64)
+        self.assertEqual(
+            first["bindings"]["backup"]["pre_state_sha256"],
+            first["bindings"]["pre_state_sha256"],
+        )
 
     def test_tampered_render_plan_is_rejected(self):
         plan = render_plan()
@@ -82,16 +91,15 @@ class TransactionEnvelopeTests(unittest.TestCase):
         with self.assertRaisesRegex(TransactionEnvelopeError, "must not contain a transport"):
             build(render_plan=plan)
 
-    def test_unreadable_backup_is_rejected(self):
-        with self.assertRaisesRegex(TransactionEnvelopeError, "successful and readable"):
-            build(
-                backup={
-                    "ok": True,
-                    "readable": False,
-                    "artifact_ref": "backup/a",
-                    "sha256": "b" * 64,
-                }
-            )
+    def test_unreadable_backup_evidence_is_rejected(self):
+        backup = backup_evidence()
+        backup["readable"] = False
+        with self.assertRaisesRegex(TransactionEnvelopeError, "backup evidence verification failed"):
+            build(backup=backup)
+
+    def test_backup_must_bind_exact_pre_state(self):
+        with self.assertRaisesRegex(TransactionEnvelopeError, "backup evidence verification failed"):
+            build(backup=backup_evidence("c" * 64))
 
     def test_approval_must_bind_exact_plan(self):
         with self.assertRaisesRegex(TransactionEnvelopeError, "exact render plan"):
@@ -121,6 +129,7 @@ class TransactionEnvelopeTests(unittest.TestCase):
         self.assertNotIn("private_key", rendered)
         self.assertNotIn("password", rendered)
         self.assertNotIn("token", rendered)
+        self.assertNotIn(".backup", rendered)
 
 
 if __name__ == "__main__":
