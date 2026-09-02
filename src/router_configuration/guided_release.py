@@ -77,7 +77,7 @@ def build_guided_release_workspace(
     validation = DeploymentProfileValidator().validate(profile)
     if not validation.ok:
         raise GuidedReleaseError("guided profile did not pass validation")
-    if bool(profile.get("safety", {}).get("allow_write")):
+    if profile.get("allow_write") is not False:
         raise GuidedReleaseError("guided workspace must keep allow_write=false")
 
     ir = SafeSubsetCompiler().compile(profile).as_dict()
