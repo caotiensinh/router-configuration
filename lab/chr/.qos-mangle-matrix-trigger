@@ -1,0 +1,3 @@
+QoS mangle field-isolation matrix trigger.
+
+This marker binds the diagnostic CHR workflow to the exact branch head after matrix and diagnostic contract tests passed normal CI.
