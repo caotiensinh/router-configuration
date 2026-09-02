@@ -95,6 +95,14 @@ def _first_mapping(value: Any) -> Mapping[str, Any] | None:
     return None
 
 
+def _require_rest_id(value: Any, label: str) -> str:
+    record = _first_mapping(value)
+    record_id = str((record or {}).get(".id") or "").strip()
+    if not record_id:
+        raise LabBootstrapError(f"RouterOS did not return .id for {label}")
+    return record_id
+
+
 def bootstrap_secure_acceptance(
     *,
     admin_url: str,
@@ -129,7 +137,7 @@ def bootstrap_secure_acceptance(
         },
     )
 
-    admin.request(
+    ca_template = admin.request(
         "PUT",
         "certificate",
         {
@@ -139,12 +147,14 @@ def bootstrap_secure_acceptance(
             "trusted": "yes",
         },
     )
+    ca_template_id = _require_rest_id(ca_template, "CA certificate template")
     admin.request(
         "POST",
         "certificate/sign",
-        {"numbers": "routercfg-ca", "name": "routercfg-ca"},
+        {".id": ca_template_id, "name": "routercfg-ca"},
     )
-    admin.request(
+
+    https_template = admin.request(
         "PUT",
         "certificate",
         {
@@ -154,11 +164,12 @@ def bootstrap_secure_acceptance(
             "key-usage": "digital-signature,key-encipherment,tls-server",
         },
     )
+    https_template_id = _require_rest_id(https_template, "HTTPS certificate template")
     admin.request(
         "POST",
         "certificate/sign",
         {
-            "numbers": "routercfg-https",
+            ".id": https_template_id,
             "ca": "routercfg-ca",
             "name": "routercfg-https",
         },
@@ -185,8 +196,6 @@ def bootstrap_secure_acceptance(
     files = admin.request("GET", "file?name=routercfg-ca.crt")
     file_record = _first_mapping(files)
     if not file_record or not str(file_record.get("contents") or "").strip():
-        # Some RouterOS builds omit file contents from filtered print. Ask for
-        # the complete file table and select locally before failing.
         all_files = admin.request("GET", "file")
         records = all_files if isinstance(all_files, list) else []
         file_record = next(
