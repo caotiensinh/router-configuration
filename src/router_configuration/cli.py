@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .deployment_profile import DeploymentProfileValidator
+from .harness import ExecutionStage, HarnessEngine
 from .m02_state_engine import StateEngine
 from .m04_multiwan import MultiWanPlanner, WanLink
 
@@ -52,9 +54,45 @@ def _parse_wan(value: str) -> WanLink:
 
 
 def command_multiwan(args: argparse.Namespace) -> int:
-    planner = MultiWanPlanner()
-    policy = planner.derive_capacity_weights(args.wan)
+    policy = MultiWanPlanner().derive_capacity_weights(args.wan)
     payload = {"weights": dict(policy.weights), "total_weight": policy.total_weight}
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
+def command_profile_check(args: argparse.Namespace) -> int:
+    result = DeploymentProfileValidator().validate(_load_json(args.profile))
+    payload: dict[str, Any] = {
+        "ok": result.ok,
+        "errors": list(result.errors),
+        "warnings": list(result.warnings),
+        "wan_weights": dict(result.wan_weights),
+    }
+    if result.deployment_spec is not None:
+        spec = result.deployment_spec
+        payload["deployment"] = {
+            "device_id": spec.device_id,
+            "vendor": spec.vendor,
+            "management_target": spec.management_target,
+            "environment": spec.environment.value,
+            "operator_mode": spec.operator_mode.value,
+            "site_name": spec.site_name,
+            "allow_write": spec.allow_write,
+        }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if result.ok else 2
+
+
+def command_workflow(args: argparse.Namespace) -> int:
+    stage = ExecutionStage(args.stage)
+    guide = HarnessEngine().guide(stage)
+    payload = {
+        "stage": stage.value,
+        "title": guide.title,
+        "purpose": guide.purpose,
+        "success_criteria": guide.success_criteria,
+        "failure_action": guide.failure_action,
+    }
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 
@@ -74,6 +112,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     multiwan.add_argument("--wan", action="append", type=_parse_wan, required=True)
     multiwan.set_defaults(func=command_multiwan)
+
+    profile = subparsers.add_parser(
+        "profile-check",
+        help="validate a guided deployment profile without changing a router",
+    )
+    profile.add_argument("--profile", required=True)
+    profile.set_defaults(func=command_profile_check)
+
+    workflow = subparsers.add_parser(
+        "workflow",
+        help="show guided success/failure criteria for a harness stage",
+    )
+    workflow.add_argument(
+        "--stage",
+        choices=[stage.value for stage in ExecutionStage],
+        default=ExecutionStage.DISCOVER.value,
+    )
+    workflow.set_defaults(func=command_workflow)
 
     return parser
 

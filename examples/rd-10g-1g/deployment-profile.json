@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "site_name": "rd",
+  "environment": "production",
+  "operator_mode": "guided",
+  "allow_write": false,
+  "device": {
+    "id": "rd-router-01",
+    "vendor": "mikrotik",
+    "model": "CCR2116-12G-4S+",
+    "management_target": "192.168.11.1"
+  },
+  "topology": {
+    "wans": [
+      {
+        "name": "wan10g",
+        "interface": "sfp-sfpplus1",
+        "capacity_mbps": 10000,
+        "addressing": "isp_defined",
+        "enabled": true
+      },
+      {
+        "name": "wan1g",
+        "interface": "ether1",
+        "capacity_mbps": 1000,
+        "addressing": "isp_defined",
+        "enabled": true
+      }
+    ],
+    "core": {
+      "interface": "sfp-sfpplus2",
+      "capacity_mbps": 10000
+    }
+  },
+  "recovery_access": {
+    "documented": true,
+    "method": "local-console-or-management-path"
+  },
+  "intent": {
+    "multiwan": {
+      "mode": "capacity_weighted",
+      "failover": true,
+      "failback": "health_hysteresis"
+    },
+    "security": {
+      "profile": "enterprise_baseline",
+      "wan_input_default": "deny",
+      "management_from_wan": false
+    },
+    "vpn": {
+      "wireguard": {
+        "enabled": true,
+        "secret_ref": "vault://routers/rd-router-01/wireguard"
+      }
+    },
+    "qos": {
+      "enabled": true,
+      "policy": "latency_sensitive_first"
+    }
+  }
+}
