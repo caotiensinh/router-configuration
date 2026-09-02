@@ -46,11 +46,17 @@ jobs:
       - name: Download official MikroTik CHR image
         run: |
           set -eu
-          curl -fL --retry 3 \
+          curl -fL \
+            --connect-timeout 15 \
+            --max-time 120 \
+            --retry 3 \
+            --retry-delay 2 \
+            --retry-all-errors \
             "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
             -o /tmp/chr.img.zip
           unzip -p /tmp/chr.img.zip > /tmp/chr.img
           test -s /tmp/chr.img
+          sha256sum /tmp/chr.img.zip > /tmp/chr-download.sha256
       - name: Boot isolated CHR in QEMU snapshot mode
         run: |
           set -eu
@@ -91,15 +97,17 @@ jobs:
           python lab/chr/run_ci_live_smoke.py \
             --url http://127.0.0.1:9180 \
             --output evidence/chr-ci-live.json
-      - name: Preserve sanitized live evidence
+      - name: Preserve CHR smoke diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: chr-live-readonly-evidence-${{ github.sha }}
+          name: chr-live-smoke-diagnostics-${{ github.sha }}
           path: |
             evidence/chr-ci-live.json
             /tmp/chr-resource.json
             /tmp/chr-serial.log
-          if-no-files-found: error
+            /tmp/chr-download.sha256
+          if-no-files-found: warn
           retention-days: 14
       - name: Stop CHR
         if: always()
