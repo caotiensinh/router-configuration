@@ -52,6 +52,28 @@ class CHRSecureBootstrapContractTests(unittest.TestCase):
         self.assertNotIn('"policy": "read,write', source)
         self.assertIn('production_writer_available', source)
 
+    def test_service_updates_resolve_routeros_rest_id_by_name(self):
+        class FakeAdmin:
+            def request(self, method, path, payload=None):
+                self.last = (method, path, payload)
+                return [
+                    {".id": "*1", "name": "www", "port": "80"},
+                    {".id": "*2", "name": "www-ssl", "port": "443"},
+                ]
+
+        admin = FakeAdmin()
+        resolved = self.module._find_rest_id_by_name(admin, "ip/service", "www-ssl")
+        self.assertEqual(resolved, "*2")
+        self.assertEqual(admin.last[:2], ("GET", "ip/service"))
+
+    def test_missing_service_name_is_blocking(self):
+        class FakeAdmin:
+            def request(self, method, path, payload=None):
+                return [{".id": "*1", "name": "www"}]
+
+        with self.assertRaises(self.module.LabBootstrapError):
+            self.module._find_rest_id_by_name(FakeAdmin(), "ip/service", "www-ssl")
+
 
 if __name__ == "__main__":
     unittest.main()
