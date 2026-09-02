@@ -42,16 +42,29 @@ class CHRQoSDiagnosticContractTests(unittest.TestCase):
             "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip",
             "-snapshot",
             "hostfwd=tcp:127.0.0.1:9780-:80",
+            "diagnose_qos_mangle_matrix.py",
+            "qos-mangle-matrix.json",
             "diagnose_qos_runtime.py",
             "qos-diagnostic.json",
             "chr-qos-diagnostic-${{ github.sha }}",
+            "mangle isolation matrix is incomplete",
             "diagnostic did not capture an invalid managed mangle row",
         ):
             self.assertIn(required, source)
-        artifact_section = source[
-            source.index("- name: Preserve sanitized diagnostic evidence"):
-            source.index("- name: Require diagnostic to reproduce current failure")
-        ]
+        matrix_step = source.index(
+            "- name: Isolate RouterOS mangle field compatibility on clean CHR"
+        )
+        diagnostic_step = source.index("- name: Capture sanitized QoS runtime diagnostic")
+        preserve_step = source.index("- name: Preserve sanitized diagnostic evidence")
+        require_step = source.index(
+            "- name: Require field-isolation evidence and reproduce current failure"
+        )
+        self.assertLess(matrix_step, diagnostic_step)
+        self.assertLess(diagnostic_step, preserve_step)
+        self.assertLess(preserve_step, require_step)
+        artifact_section = source[preserve_step:require_step]
+        self.assertIn("qos-mangle-matrix.json", artifact_section)
+        self.assertIn("qos-diagnostic.json", artifact_section)
         self.assertNotIn("serial.log", artifact_section)
         self.assertNotIn(".rsc", artifact_section)
         for forbidden in (
