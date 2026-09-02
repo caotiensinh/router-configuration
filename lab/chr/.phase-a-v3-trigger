@@ -1,4 +1,4 @@
-RouterOS CHR 7.24.1 clean read-only admission retry
-Purpose: rerun the isolated CHR Clean Admission after validating RouterOS 7.24.1 custom REST compatibility with read,api,rest-api and explicit forbidden-policy checks.
-Acceptance target: dedicated least-privilege identity; HTTPS with CA verification; GET-only discovery from a fresh snapshot; machine provenance and clean execution manifest.
+RouterOS CHR 7.24.1 clean read-only admission final retry
+Purpose: rerun isolated CHR Clean Admission after the evaluator was hardened to require both declared and RouterOS-observed effective policy exactly {read,api,rest-api}.
+Acceptance target: fresh snapshot; dedicated least-privilege identity; HTTPS with CA verification; GET-only discovery; evidence integrity; machine provenance; zero admission-phase mutation.
 This file contains no credentials, image data, production configuration, or write authorization.
