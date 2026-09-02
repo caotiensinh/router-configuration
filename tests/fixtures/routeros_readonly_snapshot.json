@@ -1,0 +1,17 @@
+{
+  "system_identity": {"name": "lab-ccr2116"},
+  "system_resource": {"version": "7.x", "board-name": "CCR2116-12G-4S+", "architecture-name": "arm64"},
+  "interfaces": [
+    {".id": "*2", "name": "sfp-sfpplus2", "type": "ether", "running": "true", "disabled": "false"},
+    {".id": "*1", "name": "sfp-sfpplus1", "type": "ether", "running": "true", "disabled": "false"}
+  ],
+  "ip_addresses": [{".id": "*A", "address": "192.0.2.1/24", "interface": "sfp-sfpplus2", "dynamic": "false"}],
+  "ip_routes": [{".id": "*R1", "dst-address": "0.0.0.0/0", "gateway": "198.51.100.1", "distance": "1", "active": "true"}],
+  "routing_tables": [{".id": "*T1", "name": "main", "fib": "true"}],
+  "firewall_filter": [{".id": "*F1", "chain": "input", "action": "drop", "disabled": "false"}],
+  "firewall_nat": [{".id": "*N1", "chain": "srcnat", "action": "masquerade", "out-interface": "sfp-sfpplus1"}],
+  "wireguard_interfaces": [{".id": "*W1", "name": "wg-office", "listen-port": "51820", "private-key": "synthetic-private-key", "public-key": "synthetic-public-key"}],
+  "wireguard_peers": [{".id": "*P1", "interface": "wg-office", "public-key": "peer-public-key", "preshared-key": "synthetic-psk", "allowed-address": "10.100.0.2/32"}],
+  "queue_simple": [{".id": "*Q1", "name": "office", "max-limit": "100M/100M", "disabled": "false"}],
+  "queue_tree": []
+}

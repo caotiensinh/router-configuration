@@ -1,18 +1,19 @@
 # Master Completion Checklist
 
-This checklist is the human-readable companion to `PROJECT_PROGRESS.json`, which is the machine-readable source of truth.
+`PROJECT_PROGRESS.json` is the machine-readable source of truth. This document is its human-readable release checklist.
 
 ## Measurement rule
 
-- The v1 configuration-automation scope is fixed at **100 weighted points**.
-- A point is earned only when repository evidence exists and the acceptance gate for that item has been met.
-- Documentation alone does not complete a device-integration item.
-- AI analytics/agent implementation is **not part of v1**. Only the safe observability gateway placeholder is counted.
-- Completion = sum of `completed_points`; Remaining = `100 - completion`.
+- v1 configuration automation is fixed at **100 weighted points**.
+- Points are earned only when repository evidence and the stated acceptance gate exist.
+- Documentation alone cannot complete a device-integration item.
+- Future AI analytics is excluded; only its safe gateway placeholder is counted.
 
 ## Current measured status
 
-**36% complete / 64% remaining.**
+**41% complete / 59% remaining.**
+
+Change from previous checkpoint: **+5 points** from the first RouterOS read-only discovery and normalization foundation.
 
 | ID | Workstream | Weight | Earned | Status | Next acceptance gate |
 | --- | --- | ---: | ---: | --- | --- |
@@ -22,8 +23,8 @@ This checklist is the human-readable companion to `PROJECT_PROGRESS.json`, which
 | P04 | Operator workflow CLI | 2 | 2 | DONE | — |
 | P05 | Intent/state/diff/drift core | 8 | 7 | PARTIAL | normalized-state schema versioning |
 | P06 | Compiler / secret boundary | 4 | 2 | PARTIAL | compile full RouterOS safe subset |
-| P07 | RouterOS read-only discovery | 12 | 0 | NOT STARTED | collect approved state surfaces read-only |
-| P08 | RouterOS normalization | 6 | 0 | NOT STARTED | fixture-backed normalized state + redaction |
+| P07 | RouterOS read-only discovery | 12 | 3 | PARTIAL | live read-only evidence on tested RouterOS v7/CHR |
+| P08 | RouterOS normalization | 6 | 2 | PARTIAL | live-target schema/capability coverage |
 | P09 | RouterOS renderer | 13 | 0 | NOT STARTED | deterministic safe-subset rendering |
 | P10 | Backup/preflight/apply/verify/rollback | 15 | 4 | PARTIAL | real adapter transaction lifecycle |
 | P11 | Dual-WAN / failover | 5 | 2 | PARTIAL | RouterOS compile + lab failover evidence |
@@ -35,15 +36,16 @@ This checklist is the human-readable companion to `PROJECT_PROGRESS.json`, which
 
 ## Hard release gates
 
-A v1 production-ready claim is forbidden until all of these are checked:
-
-- [ ] RouterOS target firmware/version matrix is explicitly recorded.
-- [ ] Read-only discovery covers interfaces, addresses, routes, routing tables, firewall/NAT, WireGuard and QoS state.
-- [ ] Discovery output redacts all secret/private-key material.
-- [ ] Desired-state diff is deterministic and idempotent.
+- [x] Product spec, architecture and harness execution contract exist.
+- [x] Weighted progress ledger totals exactly 100 points and is machine-readable.
+- [x] RouterOS discovery transport has an explicit read-only endpoint allowlist.
+- [x] Discovery normalized state redacts private-key/PSK/password/token-like fields.
+- [ ] RouterOS target firmware/version matrix is explicitly recorded from tested targets.
+- [ ] Live read-only discovery covers interfaces, addresses, routes, routing tables, firewall/NAT, WireGuard and QoS state.
+- [ ] Desired-state diff is deterministic and idempotent against live normalized state.
 - [ ] RouterOS renderer has golden tests for every supported operation.
-- [ ] Production apply requires backup evidence.
-- [ ] Default-route/firewall/management changes require management-path verification.
+- [ ] Production apply requires real backup evidence.
+- [ ] Default-route/firewall/management changes require verified management reachability.
 - [ ] Post-apply verification covers WAN, DNS, routing, VPN and management reachability as applicable.
 - [ ] Failed verification produces rollback and recovery-verification evidence.
 - [ ] Weighted 10G + 1G Dual-WAN behavior is tested in lab.
@@ -55,12 +57,4 @@ A v1 production-ready claim is forbidden until all of these are checked:
 
 ## Progress reporting contract
 
-Every development handoff should report:
-
-1. exact Git commit SHA;
-2. completed percentage;
-3. remaining percentage;
-4. points gained since the prior checkpoint;
-5. checklist items changed;
-6. tests/CI evidence;
-7. next highest-value gate.
+Every development handoff reports exact SHA, completed %, remaining %, point delta, checklist changes, test/CI evidence and the next highest-value gate.

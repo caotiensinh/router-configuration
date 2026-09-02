@@ -10,6 +10,7 @@ from .harness import ExecutionStage, HarnessEngine
 from .m02_state_engine import StateEngine
 from .m04_multiwan import MultiWanPlanner, WanLink
 from .progress import ProgressTracker
+from .routeros_discovery import normalize_routeros_snapshot
 
 
 def _load_json(path: str) -> Any:
@@ -117,6 +118,12 @@ def command_progress(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_routeros_normalize(args: argparse.Namespace) -> int:
+    state = normalize_routeros_snapshot(_load_json(args.fixture))
+    print(json.dumps(state, indent=2, sort_keys=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="routerctl")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -126,24 +133,15 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--actual", required=True)
     plan.set_defaults(func=command_plan)
 
-    multiwan = subparsers.add_parser(
-        "multiwan",
-        help="derive normalized WAN weights from capacity",
-    )
+    multiwan = subparsers.add_parser("multiwan", help="derive normalized WAN weights from capacity")
     multiwan.add_argument("--wan", action="append", type=_parse_wan, required=True)
     multiwan.set_defaults(func=command_multiwan)
 
-    profile = subparsers.add_parser(
-        "profile-check",
-        help="validate a guided deployment profile without changing a router",
-    )
+    profile = subparsers.add_parser("profile-check", help="validate a guided deployment profile without changing a router")
     profile.add_argument("--profile", required=True)
     profile.set_defaults(func=command_profile_check)
 
-    workflow = subparsers.add_parser(
-        "workflow",
-        help="show guided success/failure criteria for a harness stage",
-    )
+    workflow = subparsers.add_parser("workflow", help="show guided success/failure criteria for a harness stage")
     workflow.add_argument(
         "--stage",
         choices=[stage.value for stage in ExecutionStage],
@@ -151,12 +149,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     workflow.set_defaults(func=command_workflow)
 
-    progress = subparsers.add_parser(
-        "progress",
-        help="report weighted project completion from PROJECT_PROGRESS.json",
-    )
+    progress = subparsers.add_parser("progress", help="report weighted project completion from PROJECT_PROGRESS.json")
     progress.add_argument("--file", default="PROJECT_PROGRESS.json")
     progress.set_defaults(func=command_progress)
+
+    normalize = subparsers.add_parser(
+        "routeros-normalize",
+        help="normalize an offline RouterOS read-only discovery fixture",
+    )
+    normalize.add_argument("--fixture", required=True)
+    normalize.set_defaults(func=command_routeros_normalize)
 
     return parser
 
