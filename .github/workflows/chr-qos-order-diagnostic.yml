@@ -1,0 +1,155 @@
+name: CHR QoS Creation Order Diagnostic
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-qos-order-diagnostic:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'diag(chr-qos-order):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [batch-mangle, interleaved, leaves-first]
+    concurrency:
+      group: router-config-chr-qos-order-${{ github.ref }}-${{ matrix.mode }}
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and headless QEMU
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Prepare fresh official CHR snapshot image
+        run: |
+          set -euo pipefail
+          archive="/tmp/chr-${CHR_VERSION}.img.zip"
+          if [ ! -s "$archive" ]; then
+            curl -4 --http1.1 -fL \
+              --connect-timeout 15 \
+              --max-time 180 \
+              --retry 1 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+              -o "$archive"
+          fi
+          test -s "$archive"
+          unzip -t "$archive"
+          unzip -p "$archive" > /tmp/chr-qos-order.img
+          test -s /tmp/chr-qos-order.img
+          sha256sum "$archive" > /tmp/chr-qos-order-download.sha256
+
+      - name: Persist CHR archive cache
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Boot fresh disposable two-interface CHR snapshot
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr-qos-order.img,format=raw,if=virtio \
+            -netdev user,id=mgmt,hostfwd=tcp:127.0.0.1:9790-:80 \
+            -device virtio-net-pci,netdev=mgmt,mac=52:54:00:12:3d:01 \
+            -netdev user,id=wan \
+            -device virtio-net-pci,netdev=wan,mac=52:54:00:12:3d:02 \
+            -display none \
+            -serial file:/tmp/chr-qos-order-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-qos-order.pid
+
+      - name: Wait for fresh CHR REST
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9790/rest/system/resource \
+              > /tmp/chr-qos-order-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chr-qos-order-serial.log >&2 || true
+            exit 1
+          fi
+
+      - name: Isolate packet-mark creation order on fresh snapshot
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/chr-qos
+          python lab/chr/diagnose_qos_creation_order.py \
+            --admin-url http://127.0.0.1:9790 \
+            --mode "${{ matrix.mode }}" \
+            --output "evidence/chr-qos/qos-order-${{ matrix.mode }}.json"
+
+      - name: Require sanitized diagnostic evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import pathlib
+          mode = "${{ matrix.mode }}"
+          path = pathlib.Path(f"evidence/chr-qos/qos-order-{mode}.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          if payload.get("ok") is not True:
+              raise SystemExit(f"QoS creation-order diagnostic failed for {mode}: {payload.get('error')}")
+          if payload.get("secrets_present") is not False:
+              raise SystemExit("diagnostic evidence secret boundary failed")
+          if payload.get("physical_router_targeted") is not False:
+              raise SystemExit("diagnostic unexpectedly targeted physical hardware")
+          if payload.get("production_writer_available") is not False:
+              raise SystemExit("diagnostic unexpectedly exposed a production writer")
+          if payload.get("write_authorized") is not False:
+              raise SystemExit("diagnostic unexpectedly authorized writes")
+          print(json.dumps({"ok": True, "mode": mode, "steps": len(payload.get("steps", []))}))
+          PY
+
+      - name: Preserve creation-order evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-qos-order-${{ matrix.mode }}-${{ github.sha }}
+          path: |
+            evidence/chr-qos/qos-order-${{ matrix.mode }}.json
+            /tmp/chr-qos-order-resource.json
+            /tmp/chr-qos-order-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr-qos-order.pid ]; then
+            kill "$(cat /tmp/chr-qos-order.pid)" 2>/dev/null || true
+          fi
