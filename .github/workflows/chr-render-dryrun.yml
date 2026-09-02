@@ -30,9 +30,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
 
-      - name: Cache official MikroTik CHR archive
+      - name: Restore official MikroTik CHR archive cache
         id: chr-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
           key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
@@ -56,6 +56,13 @@ jobs:
           unzip -p "$archive" > /tmp/chr.img
           test -s /tmp/chr.img
           sha256sum "$archive" > /tmp/chr-render-download.sha256
+
+      - name: Persist CHR archive cache before syntax gate
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
 
       - name: Boot disposable three-interface CHR snapshot
         run: |
