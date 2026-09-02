@@ -9,10 +9,12 @@ from .render_readiness import assess_render_readiness
 from .routeros_firewall_renderer import RouterOSFirewallRenderError, render_routeros_firewall
 from .routeros_pcc_renderer import RouterOSPccRenderError, render_routeros_pcc
 from .routeros_renderer import RouterOSRenderError, RouterOSSafeSubsetRenderer
+from .routeros_wireguard_renderer import RouterOSWireGuardRenderError, render_routeros_wireguard
 
 
 PCC_OPERATION_ID = "routing.multiwan.capacity_weighted"
 FIREWALL_OPERATION_ID = "security.baseline"
+WIREGUARD_OPERATION_ID = "vpn.wireguard"
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,35 @@ def _firewall_has_explicit_facts(ir: Mapping[str, Any]) -> bool:
     return False
 
 
+def _wireguard_has_explicit_facts(ir: Mapping[str, Any]) -> bool:
+    operations = ir.get("operations", [])
+    if not isinstance(operations, list):
+        return False
+    for operation in operations:
+        if not isinstance(operation, Mapping):
+            continue
+        if str(operation.get("operation_id") or "") != WIREGUARD_OPERATION_ID:
+            continue
+        attributes = operation.get("attributes", {})
+        references = operation.get("secret_references", [])
+        if not isinstance(attributes, Mapping) or attributes.get("enabled") is not True:
+            return False
+        return (
+            bool(str(attributes.get("name") or "").strip())
+            and isinstance(attributes.get("addresses"), list)
+            and bool(attributes.get("addresses"))
+            and isinstance(attributes.get("listen_port"), int)
+            and not isinstance(attributes.get("listen_port"), bool)
+            and isinstance(attributes.get("mtu"), int)
+            and not isinstance(attributes.get("mtu"), bool)
+            and isinstance(attributes.get("peers"), list)
+            and bool(attributes.get("peers"))
+            and isinstance(references, list)
+            and len(references) == 1
+        )
+    return False
+
+
 def _command_ids(commands: list[Any], *, label: str, error_type: type[ValueError]) -> set[str]:
     ids = {
         str(item.get("command_id") or "")
@@ -140,12 +171,7 @@ def _merge_firewall_baseline(
     base_plan: Mapping[str, Any],
     firewall_plan: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Merge a pure generation-only firewall extension after topology commands.
-
-    Interface-list commands from the base renderer remain first. The firewall
-    renderer is invoked only when mandatory operator facts are explicit, and its
-    prior base-renderer blocker is removed exactly once.
-    """
+    """Merge a pure generation-only firewall extension after topology commands."""
 
     merged = dict(base_plan)
     base_commands = base_plan.get("commands", [])
@@ -203,18 +229,102 @@ def _merge_firewall_baseline(
     return merged
 
 
+def _attach_deferred_wireguard_templates(
+    *,
+    base_plan: Mapping[str, Any],
+    wireguard_plan: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Attach validated templates while deliberately retaining the WG blocker.
+
+    Product generation never binds the private key. The WireGuard extension is
+    therefore metadata/template output, not part of the normal executable
+    `commands` collection. The base blocker is narrowed to the missing secret
+    binding and transaction boundary instead of being removed.
+    """
+
+    merged = dict(base_plan)
+    templates = wireguard_plan.get("command_templates", [])
+    bindings = wireguard_plan.get("secret_bindings", {})
+    if not isinstance(templates, list) or not templates:
+        raise RouterOSWireGuardRenderError("WireGuard deferred plan requires command templates")
+    if not isinstance(bindings, Mapping) or len(bindings) != 1:
+        raise RouterOSWireGuardRenderError("WireGuard deferred plan requires exactly one unresolved secret binding")
+    if wireguard_plan.get("secrets_resolved") is not False:
+        raise RouterOSWireGuardRenderError("WireGuard deferred plan unexpectedly resolved a secret")
+
+    template_ids = _command_ids(templates, label="WireGuard template", error_type=RouterOSWireGuardRenderError)
+    normal_commands = merged.get("commands", [])
+    if not isinstance(normal_commands, list):
+        raise RouterOSWireGuardRenderError("base renderer commands must be a list")
+    normal_ids = _command_ids(normal_commands, label="base", error_type=RouterOSWireGuardRenderError)
+    overlap = sorted(template_ids & normal_ids)
+    if overlap:
+        raise RouterOSWireGuardRenderError(
+            "WireGuard template IDs collide with executable generation commands: " + ", ".join(overlap)
+        )
+
+    blockers = merged.get("blocked_operations", [])
+    if not isinstance(blockers, list):
+        raise RouterOSWireGuardRenderError("base renderer blockers must be a list")
+    matches = [
+        (index, item)
+        for index, item in enumerate(blockers)
+        if isinstance(item, Mapping)
+        and str(item.get("operation_id") or "") == WIREGUARD_OPERATION_ID
+    ]
+    if len(matches) != 1:
+        raise RouterOSWireGuardRenderError(
+            "deferred WireGuard attachment requires exactly one explicit base blocker"
+        )
+    blocker_index, _ = matches[0]
+    narrowed = list(blockers)
+    narrowed[blocker_index] = {
+        "operation_id": WIREGUARD_OPERATION_ID,
+        "reason": (
+            "WireGuard runtime facts are validated, but the private-key secret binding and "
+            "transactional apply boundary remain intentionally unavailable during generation"
+        ),
+        "required_inputs": ["wireguard.private_key_secret_binding", "transaction.authorized_apply_boundary"],
+    }
+    merged["blocked_operations"] = narrowed
+    merged["claim"] = "generation_partial"
+    merged["complete"] = False
+
+    existing = merged.get("deferred_generation_extensions", {})
+    if existing is None:
+        existing = {}
+    if not isinstance(existing, Mapping):
+        raise RouterOSWireGuardRenderError("deferred_generation_extensions must be an object")
+    extensions = dict(existing)
+    if "wireguard" in extensions:
+        raise RouterOSWireGuardRenderError("deferred WireGuard extension already exists")
+    extensions["wireguard"] = {
+        "schema_version": str(wireguard_plan.get("schema_version") or ""),
+        "scope": str(wireguard_plan.get("scope") or ""),
+        "interface_name": str(wireguard_plan.get("interface_name") or ""),
+        "listen_port": wireguard_plan.get("listen_port"),
+        "addresses": list(wireguard_plan.get("addresses", [])),
+        "peers": [dict(item) for item in wireguard_plan.get("peers", []) if isinstance(item, Mapping)],
+        "command_templates": [dict(item) for item in templates if isinstance(item, Mapping)],
+        "secret_bindings": {str(key): dict(value) for key, value in bindings.items() if isinstance(value, Mapping)},
+        "source": "explicit_operator_facts_unresolved_secret",
+        "secrets_resolved": False,
+        "transport_present": False,
+        "apply_available": False,
+        "write_authorized": False,
+    }
+    merged["deferred_generation_extensions"] = extensions
+    merged.pop("render_sha256", None)
+    merged["render_sha256"] = _canonical_sha256(merged)
+    return merged
+
+
 def _merge_state_bound_pcc(
     *,
     base_plan: Mapping[str, Any],
     pcc_plan: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Merge the CHR-verified PCC extension after live-state safety checks.
-
-    Existing generated commands stay first because they create interface lists,
-    routing tables, recursive probe routes, failover defaults and any explicit
-    firewall baseline. PCC policy routes and mangle rules are appended only
-    after those prerequisites exist.
-    """
+    """Merge the CHR-verified PCC extension after live-state safety checks."""
 
     merged = dict(base_plan)
     base_commands = base_plan.get("commands", [])
@@ -277,12 +387,12 @@ def generate_routeros_plan(
 ) -> RouterOSGenerationResult:
     """Gate pure RouterOS generation behind verified profile/IR/live-state readiness.
 
-    This boundary deliberately does not accept credentials, URLs or a transport.
-    Stateless base rendering runs first. A firewall baseline is generated only
-    when management sources and the WAN-service exception set were explicitly
-    supplied. If complete PCC path facts also exist, the PCC renderer is then
-    bound to already-verified normalized state. Unsafe live PCC state such as
-    FastTrack/dstnat fails generation closed.
+    This boundary deliberately does not accept credentials, URLs, a transport or
+    resolved secrets. Stateless base rendering runs first. Explicit firewall
+    facts may produce generation-only commands. Explicit WireGuard facts may
+    produce only deferred templates while the private-key binding remains
+    blocked. Complete PCC path facts may be bound to already-verified normalized
+    state. Unsafe live PCC state such as FastTrack/dstnat fails closed.
     """
 
     readiness_result = assess_render_readiness(
@@ -335,6 +445,20 @@ def generate_routeros_plan(
         except RouterOSFirewallRenderError as exc:
             return RouterOSGenerationResult(
                 errors=(f"firewall renderer: {exc}",),
+                warnings=readiness_result.warnings,
+                readiness=readiness,
+            )
+
+    if _wireguard_has_explicit_facts(ir):
+        try:
+            wireguard_plan = render_routeros_wireguard(ir=ir).as_dict()
+            plan = _attach_deferred_wireguard_templates(
+                base_plan=plan,
+                wireguard_plan=wireguard_plan,
+            )
+        except RouterOSWireGuardRenderError as exc:
+            return RouterOSGenerationResult(
+                errors=(f"wireguard renderer: {exc}",),
                 warnings=readiness_result.warnings,
                 readiness=readiness,
             )
