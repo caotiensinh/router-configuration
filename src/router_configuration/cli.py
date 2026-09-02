@@ -13,6 +13,7 @@ from .harness import ExecutionStage, HarnessEngine
 from .m02_state_engine import StateEngine
 from .m04_multiwan import MultiWanPlanner, WanLink
 from .preflight import RouterOSPreflightEvaluator
+from .profile_builder import GuidedProfileBuilder, GuidedProfileRequest, prompt_guided_request
 from .progress import ProgressTracker
 from .routeros_discovery import (
     RouterOSDiscoveryCollector,
@@ -101,6 +102,72 @@ def _parse_wan(value: str) -> WanLink:
 def command_multiwan(args: argparse.Namespace) -> int:
     policy = MultiWanPlanner().derive_capacity_weights(args.wan)
     payload = {"weights": dict(policy.weights), "total_weight": policy.total_weight}
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
+def command_profile_init(args: argparse.Namespace) -> int:
+    try:
+        if args.interactive:
+            if not sys.stdin.isatty():
+                raise RuntimeError("interactive profile builder requires a terminal")
+            request = prompt_guided_request()
+        else:
+            missing = [
+                name
+                for name, value in (
+                    ("--site-name", args.site_name),
+                    ("--device-id", args.device_id),
+                    ("--management-target", args.management_target),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(
+                    "non-interactive profile-init requires " + ", ".join(missing)
+                )
+            request = GuidedProfileRequest(
+                site_name=args.site_name,
+                device_id=args.device_id,
+                management_target=args.management_target,
+                model=args.model,
+                environment=args.environment,
+                wan_primary_interface=args.wan_primary_interface,
+                wan_primary_capacity_mbps=args.wan_primary_capacity,
+                wan_secondary_interface=args.wan_secondary_interface,
+                wan_secondary_capacity_mbps=args.wan_secondary_capacity,
+                core_interface=args.core_interface,
+                core_capacity_mbps=args.core_capacity,
+                recovery_method=args.recovery_method,
+                enable_wireguard=args.enable_wireguard,
+                wireguard_secret_ref=args.wireguard_secret_ref,
+                enable_qos=args.enable_qos,
+            )
+        profile = GuidedProfileBuilder().build(request)
+        validation = DeploymentProfileValidator().validate(profile)
+        _write_private_json(args.output, profile)
+    except Exception as exc:  # noqa: BLE001 - beginner CLI emits bounded error details
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "output": args.output,
+                },
+                sort_keys=True,
+            )
+        )
+        return 2
+
+    payload = {
+        "ok": True,
+        "output": args.output,
+        "allow_write": False,
+        "operator_mode": "guided",
+        "wan_weights": dict(validation.wan_weights),
+        "warnings": list(validation.warnings),
+        "next_command": f"routerctl profile-check --profile {args.output}",
+    }
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 
@@ -291,6 +358,33 @@ def build_parser() -> argparse.ArgumentParser:
     multiwan = subparsers.add_parser("multiwan", help="derive normalized WAN weights from capacity")
     multiwan.add_argument("--wan", action="append", type=_parse_wan, required=True)
     multiwan.set_defaults(func=command_multiwan)
+
+    profile_init = subparsers.add_parser(
+        "profile-init",
+        help="create a beginner-safe read-only deployment profile",
+    )
+    profile_init.add_argument("--output", required=True)
+    profile_init.add_argument("--interactive", action="store_true")
+    profile_init.add_argument("--site-name")
+    profile_init.add_argument("--device-id")
+    profile_init.add_argument("--management-target")
+    profile_init.add_argument("--model", default="CCR2116-12G-4S+")
+    profile_init.add_argument(
+        "--environment",
+        choices=["lab", "staging", "production"],
+        default="production",
+    )
+    profile_init.add_argument("--wan-primary-interface", default="sfp-sfpplus1")
+    profile_init.add_argument("--wan-primary-capacity", type=int, default=10000)
+    profile_init.add_argument("--wan-secondary-interface", default="ether1")
+    profile_init.add_argument("--wan-secondary-capacity", type=int, default=1000)
+    profile_init.add_argument("--core-interface", default="sfp-sfpplus2")
+    profile_init.add_argument("--core-capacity", type=int, default=10000)
+    profile_init.add_argument("--recovery-method")
+    profile_init.add_argument("--enable-wireguard", action="store_true")
+    profile_init.add_argument("--wireguard-secret-ref")
+    profile_init.add_argument("--enable-qos", action="store_true")
+    profile_init.set_defaults(func=command_profile_init)
 
     profile = subparsers.add_parser("profile-check", help="validate a guided deployment profile without changing a router")
     profile.add_argument("--profile", required=True)
