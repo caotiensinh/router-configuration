@@ -107,7 +107,7 @@ jobs:
       - name: Validate generated syntax with import dry-run and negative control
         run: |
           set -euo pipefail
-          python lab/chr/verify_render_dry_run.py \
+          python lab/chr/verify_render_dry_run_chunked.py \
             --admin-url http://127.0.0.1:9180 \
             --script evidence/chr-render-fixture.rsc \
             --output evidence/chr-render-dryrun.json
