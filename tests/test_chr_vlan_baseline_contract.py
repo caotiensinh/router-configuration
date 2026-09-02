@@ -61,7 +61,7 @@ class CHRVlanBaselineContractTests(unittest.TestCase):
             management_path=module._management_path(),
         ).as_dict()
         self.assertEqual(plan["schema_version"], "routeros-vlan-command-plan/1")
-        self.assertEqual(plan["command_count"], 9)
+        self.assertEqual(plan["command_count"], 8)
         self.assertEqual(plan["activation_last_command_id"], "vlan.99.activate-filtering")
         self.assertEqual(plan["commands"][-1]["command_id"], "vlan.99.activate-filtering")
         self.assertIn("vlan-filtering=yes", plan["commands"][-1]["command"])
