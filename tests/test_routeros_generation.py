@@ -18,6 +18,41 @@ def profile():
     return json.loads(PROFILE.read_text(encoding="utf-8"))
 
 
+def explicit_pcc_profile():
+    data = profile()
+    data["topology"]["wans"] = [
+        {
+            "name": "wan10g",
+            "interface": "sfp-sfpplus1",
+            "capacity_mbps": 10000,
+            "addressing": "static",
+            "address": "192.0.2.2/30",
+            "enabled": True,
+            "routing": {
+                "gateway": "192.0.2.1",
+                "table": "to-wan10g",
+                "failover_distance": 10,
+                "health_probe_targets": ["1.1.1.1", "8.8.8.8"],
+            },
+        },
+        {
+            "name": "wan1g",
+            "interface": "ether1",
+            "capacity_mbps": 1000,
+            "addressing": "static",
+            "address": "198.51.100.2/30",
+            "enabled": True,
+            "routing": {
+                "gateway": "198.51.100.1",
+                "table": "to-wan1g",
+                "failover_distance": 20,
+                "health_probe_targets": ["9.9.9.9", "208.67.222.222"],
+            },
+        },
+    ]
+    return data
+
+
 def ir(p=None):
     return SafeSubsetCompiler().compile(p or profile()).as_dict()
 
@@ -25,6 +60,13 @@ def ir(p=None):
 def evidence():
     raw = json.loads(RAW.read_text(encoding="utf-8"))
     return build_routeros_discovery_evidence(normalize_routeros_snapshot(raw))
+
+
+def evidence_with_state_mutation(mutator):
+    current = evidence()
+    state = copy.deepcopy(current["normalized_state"])
+    mutator(state)
+    return build_routeros_discovery_evidence(state)
 
 
 class RouterOSGenerationGateTests(unittest.TestCase):
@@ -44,6 +86,102 @@ class RouterOSGenerationGateTests(unittest.TestCase):
         self.assertFalse(plan["secrets_resolved"])
         self.assertFalse(plan["apply_available"])
         self.assertFalse(plan["write_authorized"])
+        self.assertTrue(
+            any(
+                item["operation_id"] == "routing.multiwan.capacity_weighted"
+                for item in plan["blocked_operations"]
+            )
+        )
+        self.assertNotIn("state_bound_extensions", plan)
+
+    def test_explicit_paths_merge_chr_verified_pcc_after_base_commands(self):
+        p = explicit_pcc_profile()
+        result = generate_routeros_plan(profile=p, ir=ir(p), evidence=evidence())
+        self.assertTrue(result.ok, result.errors)
+        plan = result.as_dict()["render_plan"]
+        self.assertIsNotNone(plan)
+        self.assertFalse(plan["complete"])
+        self.assertEqual(len(plan["commands"]), 38)
+        self.assertFalse(
+            any(
+                item["operation_id"] == "routing.multiwan.capacity_weighted"
+                for item in plan["blocked_operations"]
+            )
+        )
+        self.assertEqual(
+            {item["operation_id"] for item in plan["blocked_operations"]},
+            {"security.baseline", "vpn.wireguard", "qos.policy"},
+        )
+        extension = plan["state_bound_extensions"]["capacity_weighted_pcc"]
+        self.assertEqual(extension["command_count"], 21)
+        self.assertEqual(extension["source"], "verified_normalized_state")
+        self.assertEqual(len(extension["pcc_spec"]["buckets"]), 11)
+        self.assertFalse(extension["transport_present"])
+        self.assertFalse(extension["apply_available"])
+        self.assertFalse(extension["write_authorized"])
+
+        base_commands = plan["commands"][:17]
+        pcc_commands = plan["commands"][17:]
+        self.assertTrue(all(not item["command_id"].startswith("pcc.") for item in base_commands))
+        self.assertTrue(all(item["command_id"].startswith("pcc.") for item in pcc_commands))
+        self.assertEqual(
+            [item["section"] for item in pcc_commands[:8]],
+            ["pcc_policy_route"] * 8,
+        )
+        self.assertEqual(
+            sum(item["section"] == "firewall_mangle" for item in pcc_commands),
+            13,
+        )
+
+    def test_explicit_pcc_is_deterministic(self):
+        p = explicit_pcc_profile()
+        first = generate_routeros_plan(profile=p, ir=ir(p), evidence=evidence()).as_dict()
+        second = generate_routeros_plan(profile=p, ir=ir(p), evidence=evidence()).as_dict()
+        self.assertEqual(first["render_plan"], second["render_plan"])
+
+    def test_active_fasttrack_blocks_state_bound_generation(self):
+        p = explicit_pcc_profile()
+
+        def add_fasttrack(state):
+            state["firewall"]["filter"].append(
+                {
+                    ".id": "*FT1",
+                    "chain": "forward",
+                    "action": "fasttrack-connection",
+                    "disabled": False,
+                }
+            )
+
+        result = generate_routeros_plan(
+            profile=p,
+            ir=ir(p),
+            evidence=evidence_with_state_mutation(add_fasttrack),
+        )
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.render_plan)
+        self.assertTrue(any("FastTrack" in error for error in result.errors))
+
+    def test_active_dstnat_blocks_state_bound_generation(self):
+        p = explicit_pcc_profile()
+
+        def add_dstnat(state):
+            state["firewall"]["nat"].append(
+                {
+                    ".id": "*DN1",
+                    "chain": "dstnat",
+                    "action": "dst-nat",
+                    "disabled": False,
+                }
+            )
+
+        result = generate_routeros_plan(
+            profile=p,
+            ir=ir(p),
+            evidence=evidence_with_state_mutation(add_dstnat),
+        )
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.render_plan)
+        self.assertTrue(any("dstnat" in error.lower() for error in result.errors))
 
     def test_tampered_evidence_blocks_before_generation(self):
         p = profile()
