@@ -48,10 +48,62 @@ class CHRSecureBootstrapContractTests(unittest.TestCase):
         self.assertFalse(any("bootstrap_secure_acceptance" in item for item in imported))
 
     def test_source_declares_minimal_reader_policy(self):
+        self.assertEqual(
+            set(self.module.READER_POLICY.split(",")),
+            {"read", "api", "rest-api"},
+        )
+        dangerous = {
+            "write",
+            "policy",
+            "test",
+            "sensitive",
+            "sniff",
+            "reboot",
+            "password",
+            "ftp",
+            "ssh",
+            "telnet",
+            "winbox",
+            "web",
+            "romon",
+            "local",
+        }
+        self.assertFalse(set(self.module.READER_POLICY.split(",")) & dangerous)
         source = BOOTSTRAP.read_text(encoding="utf-8")
-        self.assertIn('"policy": "read,rest-api"', source)
-        self.assertNotIn('"policy": "read,write', source)
-        self.assertIn('production_writer_available', source)
+        self.assertIn("production_writer_available", source)
+
+    def test_effective_policy_verifier_rejects_permission_expansion(self):
+        class FakeAdmin:
+            def __init__(self, policy):
+                self.policy = policy
+
+            def request(self, method, path, payload=None):
+                if path == "user/group":
+                    return [{".id": "*1", "name": "routercfg-read", "policy": self.policy}]
+                if path == "user":
+                    return [{".id": "*2", "name": "routercfg-reader", "group": "routercfg-read"}]
+                raise AssertionError(path)
+
+        effective = self.module._verify_effective_reader_policy(
+            FakeAdmin("read,api,rest-api,!write,!policy")
+        )
+        self.assertEqual(set(effective), {"read", "api", "rest-api"})
+        with self.assertRaises(self.module.LabBootstrapError):
+            self.module._verify_effective_reader_policy(
+                FakeAdmin("read,api,rest-api,write")
+            )
+
+    def test_effective_policy_verifier_rejects_missing_api_compatibility_bit(self):
+        class FakeAdmin:
+            def request(self, method, path, payload=None):
+                if path == "user/group":
+                    return [{"name": "routercfg-read", "policy": "read,rest-api"}]
+                if path == "user":
+                    return [{"name": "routercfg-reader", "group": "routercfg-read"}]
+                raise AssertionError(path)
+
+        with self.assertRaises(self.module.LabBootstrapError):
+            self.module._verify_effective_reader_policy(FakeAdmin())
 
     def test_reader_password_uses_documented_routeros_charset(self):
         allowed = set(string.ascii_letters + string.digits + "*_")

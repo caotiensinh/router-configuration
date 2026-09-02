@@ -17,6 +17,31 @@ class LabBootstrapError(RuntimeError):
     pass
 
 
+# RouterOS 7.24.1 live CHR evidence shows that custom REST readers need the
+# generic API access bit in addition to the documented read + rest-api pair.
+# This remains a read-only identity: no write/policy/test/sensitive/sniff/etc.
+READER_POLICY = "read,api,rest-api"
+REQUIRED_READER_POLICIES = frozenset({"read", "api", "rest-api"})
+FORBIDDEN_READER_POLICIES = frozenset(
+    {
+        "write",
+        "policy",
+        "test",
+        "sensitive",
+        "sniff",
+        "reboot",
+        "password",
+        "ftp",
+        "ssh",
+        "telnet",
+        "winbox",
+        "web",
+        "romon",
+        "local",
+    }
+)
+
+
 class LoopbackRestAdmin:
     """Purpose-limited mutator for disposable CHR acceptance setup only.
 
@@ -122,6 +147,41 @@ def _find_rest_id_by_name(admin: LoopbackRestAdmin, path: str, name: str) -> str
     raise LabBootstrapError(f"RouterOS {path} entry not found by name: {name}")
 
 
+def _find_record_by_name(admin: LoopbackRestAdmin, path: str, name: str) -> Mapping[str, Any]:
+    records = admin.request("GET", path)
+    rows = records if isinstance(records, list) else [records]
+    for item in rows:
+        if isinstance(item, Mapping) and item.get("name") == name:
+            return item
+    raise LabBootstrapError(f"RouterOS {path} entry not found by name: {name}")
+
+
+def _verify_effective_reader_policy(admin: LoopbackRestAdmin) -> tuple[str, ...]:
+    group = _find_record_by_name(admin, "user/group", "routercfg-read")
+    raw_policy = str(group.get("policy") or "")
+    enabled = {
+        item.strip()
+        for item in raw_policy.split(",")
+        if item.strip() and not item.strip().startswith("!")
+    }
+    missing = REQUIRED_READER_POLICIES - enabled
+    forbidden = FORBIDDEN_READER_POLICIES & enabled
+    if missing:
+        raise LabBootstrapError(
+            "dedicated reader group is missing required policies: " + ",".join(sorted(missing))
+        )
+    if forbidden:
+        raise LabBootstrapError(
+            "dedicated reader group unexpectedly has forbidden policies: "
+            + ",".join(sorted(forbidden))
+        )
+
+    user = _find_record_by_name(admin, "user", "routercfg-reader")
+    if str(user.get("group") or "") != "routercfg-read":
+        raise LabBootstrapError("dedicated reader user is not bound to routercfg-read")
+    return tuple(sorted(enabled))
+
+
 def _find_signed_certificate_by_common_name(
     admin: LoopbackRestAdmin,
     common_name: str,
@@ -168,7 +228,7 @@ def bootstrap_secure_acceptance(
         "user/group",
         {
             "name": "routercfg-read",
-            "policy": "read,rest-api",
+            "policy": READER_POLICY,
         },
     )
     admin.request(
@@ -180,6 +240,7 @@ def bootstrap_secure_acceptance(
             "password": reader_password,
         },
     )
+    effective_reader_policy = _verify_effective_reader_policy(admin)
 
     ca_common_name = "Router Configuration CHR Lab CA"
     ca_template = admin.request(
@@ -320,7 +381,8 @@ def bootstrap_secure_acceptance(
         },
         "reader": {
             "username": "routercfg-reader",
-            "policy": "read,rest-api",
+            "policy": READER_POLICY,
+            "effective_policy": list(effective_reader_policy),
         },
         "https": {
             "url": https_url,
