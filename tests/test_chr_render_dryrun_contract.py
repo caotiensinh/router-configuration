@@ -7,6 +7,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "lab" / "chr" / "build_renderer_syntax_fixture.py"
 VERIFY = ROOT / "lab" / "chr" / "verify_render_dry_run.py"
+CHUNKED_VERIFY = ROOT / "lab" / "chr" / "verify_render_dry_run_chunked.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "chr-render-dryrun.yml"
 CLI = ROOT / "src" / "router_configuration" / "cli.py"
 
@@ -20,17 +21,36 @@ def load(path: Path, name: str):
 
 
 class CHRRenderDryRunContractTests(unittest.TestCase):
-    def test_syntax_fixture_exercises_all_current_command_templates(self):
+    def test_syntax_fixture_exercises_recursive_and_pcc_templates(self):
         module = load(BUILD, "build_renderer_syntax_fixture")
-        plan = module.build_syntax_fixture()
-        self.assertFalse(plan["complete"])
-        self.assertEqual(len(plan["blocked_operations"]), 1)
-        blocker = plan["blocked_operations"][0]
+        fixture = module.build_syntax_fixture()
+        self.assertEqual(fixture["schema_version"], "routeros-render-syntax-fixture/2")
+        self.assertEqual(fixture["command_count"], 38)
+        self.assertEqual(fixture["base_command_count"], 17)
+        self.assertEqual(fixture["pcc_command_count"], 21)
+        self.assertTrue(fixture["pcc_syntax_included"])
+        self.assertEqual(
+            fixture["known_production_deferred_blocker"],
+            "routing.multiwan.capacity_weighted",
+        )
+
+        base_plan = fixture["base_renderer_plan"]
+        self.assertFalse(base_plan["complete"])
+        self.assertEqual(len(base_plan["blocked_operations"]), 1)
+        blocker = base_plan["blocked_operations"][0]
         self.assertEqual(blocker["operation_id"], "routing.multiwan.capacity_weighted")
         self.assertIn("PCC", blocker["reason"])
         self.assertEqual(blocker["required_inputs"], [])
-        self.assertEqual(len(plan["commands"]), 17)
-        sections = {item["section"] for item in plan["commands"]}
+        self.assertEqual(len(base_plan["commands"]), 17)
+
+        pcc_plan = fixture["pcc_command_plan"]
+        self.assertEqual(pcc_plan["command_count"], 21)
+        self.assertEqual(pcc_plan["scope"], "generation_only")
+        self.assertFalse(pcc_plan["transport_present"])
+        self.assertFalse(pcc_plan["apply_available"])
+        self.assertFalse(pcc_plan["write_authorized"])
+
+        sections = {item["section"] for item in fixture["commands"]}
         self.assertEqual(
             sections,
             {
@@ -39,12 +59,14 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
                 "ip_address",
                 "routing_table",
                 "ip_route",
+                "pcc_policy_route",
+                "firewall_mangle",
             },
         )
-        self.assertEqual(plan["secret_references"], [])
-        self.assertFalse(plan["transport_present"])
-        self.assertFalse(plan["apply_available"])
-        self.assertFalse(plan["write_authorized"])
+        self.assertEqual(fixture["secret_references"], [])
+        self.assertFalse(fixture["transport_present"])
+        self.assertFalse(fixture["apply_available"])
+        self.assertFalse(fixture["write_authorized"])
 
     def test_lab_admin_refuses_non_loopback_or_https_target(self):
         module = load(VERIFY, "verify_render_dry_run")
@@ -107,7 +129,7 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
         self.assertEqual(read_contents.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
 
-    def test_validator_covers_every_failover_mutation_surface(self):
+    def test_validator_covers_every_recursive_and_pcc_mutation_surface(self):
         source = VERIFY.read_text(encoding="utf-8")
         for surface in (
             '"interface/list"',
@@ -119,6 +141,12 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
             self.assertIn(surface, source)
         self.assertIn('row.get("dynamic")', source)
         self.assertIn('"snapshot_surfaces"', source)
+
+        chunked_source = CHUNKED_VERIFY.read_text(encoding="utf-8")
+        self.assertIn('"ip/firewall/mangle"', chunked_source)
+        self.assertIn("_configuration_snapshot_with_pcc", chunked_source)
+        self.assertIn("_BASE_CONFIGURATION_SNAPSHOT", chunked_source)
+        self.assertIn('"firewall_mangle"', chunked_source)
 
     def test_validator_uses_temporary_file_verdict_and_documented_negative_control(self):
         source = VERIFY.read_text(encoding="utf-8")
