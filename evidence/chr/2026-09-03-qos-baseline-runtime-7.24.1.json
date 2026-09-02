@@ -1,0 +1,62 @@
+{
+  "schema_version": "routeros-qos-runtime-acceptance/1",
+  "acceptance": "PASS",
+  "source": {
+    "workflow_run_id": 33694535867,
+    "exact_head_sha": "ee38fcaa9b4d6c251eee57b8f126cb03c908b187",
+    "artifact_id": 9871296244,
+    "artifact_name": "chr-qos-baseline-ee38fcaa9b4d6c251eee57b8f126cb03c908b187",
+    "artifact_digest": "sha256:ec2e7e4376e7bd91837f337dce261c76da8ade9e7e14c7e96c00345fe60487df"
+  },
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "renderer": {
+    "schema_version": "routeros-qos-command-plan/1",
+    "plan_sha256": "db1ab261968f5515e4a3f5d8b22a73833e3cabaf789fdaec00e9db6dc3b8ea14",
+    "command_count": 5,
+    "classification": "existing_dscp_only",
+    "default_classification": "queue_tree_packet_mark_no_mark",
+    "default_mangle_generated": false,
+    "queue_kind": "fq-codel"
+  },
+  "runtime": {
+    "managed_mangle_count": 1,
+    "managed_queue_tree_count": 3,
+    "invalid_managed_objects": 0,
+    "disabled_managed_objects": 0,
+    "default_packet_mark": "no-mark",
+    "management_rest_reachable_after_apply": true
+  },
+  "dry_run": {
+    "verdict": "OK",
+    "captured_error": false
+  },
+  "apply": {
+    "verdict": "OK",
+    "http_status": 200
+  },
+  "rollback": {
+    "verdict": "OK",
+    "http_status": 200,
+    "configuration_baseline_sha256": "caab82604e4eb417dad5c57718732cfd4ee6355f994f8048cd7a2ec21f2c1b61",
+    "configuration_mutated_sha256": "430c2075de93505cd4ae013151fd55664546978ce2ed31e9bb50b815de5de16d",
+    "configuration_rollback_sha256": "caab82604e4eb417dad5c57718732cfd4ee6355f994f8048cd7a2ec21f2c1b61",
+    "rollback_digest_restored": true
+  },
+  "limits": {
+    "packet_flow_acceptance": false,
+    "production_writer_available": false,
+    "transport_exposed_to_product": false,
+    "write_authorized": false,
+    "physical_router_targeted": false
+  },
+  "progress_credit": {
+    "p09_points": 1,
+    "p12_points": 1,
+    "ledger_update_required_separately": true
+  },
+  "next_gate": "Integrate explicit QoS generation into the combined RouterOS generation plan, preserve fail-closed blockers and validate exact-main CI after merge."
+}
