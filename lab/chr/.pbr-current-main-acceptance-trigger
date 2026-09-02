@@ -1,0 +1,3 @@
+PBR current-main acceptance trigger.
+
+This marker binds the official disposable CHR acceptance workflow to the current-main integration lineage after the feature code and tests passed normal CI.
