@@ -36,7 +36,11 @@ class CHRCleanAdmissionTests(unittest.TestCase):
                 "version": evidence["platform"]["version"],
                 "architecture": evidence["platform"]["architecture"],
             },
-            "reader": {"username": "routercfg-reader", "policy": "read,rest-api"},
+            "reader": {
+                "username": "routercfg-reader",
+                "policy": "read,api,rest-api",
+                "effective_policy": ["api", "read", "rest-api"],
+            },
             "https": {"certificate_verification": True},
             "production_writer_available": False,
         }
@@ -77,10 +81,44 @@ class CHRCleanAdmissionTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["claim"], "ready_for_operator_attestation")
         self.assertTrue(result["fixture_markers_absent"])
+        self.assertTrue(result["reader_policy_verified"])
         self.assertTrue(result["eligible_for_operator_attestation"])
         self.assertFalse(result["automatic_target_matrix_admission"])
         self.assertFalse(result["renderer_enabled"])
         self.assertFalse(result["write_authorized"])
+
+    def test_reader_policy_expansion_blocks_clean_admission(self):
+        evidence = self._evidence()
+        bootstrap = self._bootstrap(evidence)
+        bootstrap["reader"]["effective_policy"].append("write")
+        result = module.evaluate_clean_admission(
+            evidence=evidence,
+            bootstrap=bootstrap,
+            machine_provenance=self._machine(evidence),
+            execution_manifest=self._manifest(),
+        )
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["reader_policy_verified"])
+        self.assertIn(
+            "clean admission effective reader policy is not the exact approved set",
+            result["errors"],
+        )
+
+    def test_declared_policy_mismatch_blocks_clean_admission(self):
+        evidence = self._evidence()
+        bootstrap = self._bootstrap(evidence)
+        bootstrap["reader"]["policy"] = "read,rest-api"
+        result = module.evaluate_clean_admission(
+            evidence=evidence,
+            bootstrap=bootstrap,
+            machine_provenance=self._machine(evidence),
+            execution_manifest=self._manifest(),
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "clean admission declared reader policy is not the exact approved set",
+            result["errors"],
+        )
 
     def test_population_marker_blocks_clean_admission(self):
         evidence = self._evidence()

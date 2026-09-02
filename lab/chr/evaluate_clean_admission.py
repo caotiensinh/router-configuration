@@ -10,6 +10,7 @@ from router_configuration.routeros_state_contract import verify_routeros_discove
 
 POPULATION_MARKER = "routercfg-disposable-live-acceptance"
 BOUNDARY_PROBE_MARKER = "routercfg-readonly-boundary-probe"
+CLEAN_READER_POLICIES = frozenset({"read", "api", "rest-api"})
 
 
 def _contains_marker(value: Any, marker: str) -> bool:
@@ -21,6 +22,14 @@ def _contains_marker(value: Any, marker: str) -> bool:
     if isinstance(value, (list, tuple)):
         return any(_contains_marker(item, marker) for item in value)
     return marker in str(value)
+
+
+def _policy_set(value: Any) -> set[str]:
+    if isinstance(value, str):
+        return {item.strip() for item in value.split(",") if item.strip()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return {str(item).strip() for item in value if str(item).strip()}
+    return set()
 
 
 def evaluate_clean_admission(
@@ -58,8 +67,15 @@ def evaluate_clean_admission(
     if bootstrap.get("ok") is not True:
         errors.append("secure prepared context did not report ok=true")
     reader = bootstrap.get("reader", {})
-    if not isinstance(reader, Mapping) or reader.get("policy") != "read,rest-api":
-        errors.append("clean admission reader policy must be exactly read,rest-api")
+    if not isinstance(reader, Mapping):
+        errors.append("clean admission reader summary is missing")
+    else:
+        declared_policy = _policy_set(reader.get("policy"))
+        effective_policy = _policy_set(reader.get("effective_policy"))
+        if declared_policy != CLEAN_READER_POLICIES:
+            errors.append("clean admission declared reader policy is not the exact approved set")
+        if effective_policy != CLEAN_READER_POLICIES:
+            errors.append("clean admission effective reader policy is not the exact approved set")
     https = bootstrap.get("https", {})
     if not isinstance(https, Mapping) or https.get("certificate_verification") is not True:
         errors.append("clean admission must use certificate-verified HTTPS")
@@ -121,6 +137,10 @@ def evaluate_clean_admission(
             _contains_marker(evidence.get("normalized_state", {}), POPULATION_MARKER)
             or _contains_marker(evidence.get("normalized_state", {}), BOUNDARY_PROBE_MARKER)
         ),
+        "reader_policy_verified": not errors
+        and isinstance(reader, Mapping)
+        and _policy_set(reader.get("policy")) == CLEAN_READER_POLICIES
+        and _policy_set(reader.get("effective_policy")) == CLEAN_READER_POLICIES,
         "acceptance_collection_write_operations_performed": False,
         "eligible_for_operator_attestation": not errors,
         "automatic_provenance_verification": False,
