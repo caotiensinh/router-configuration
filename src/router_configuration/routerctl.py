@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from .cli import main as legacy_main
+from .guided_release import build_guided_release_workspace
+from .profile_builder import GuidedProfileRequest
 from .routeros_generation import generate_routeros_plan
 
 
@@ -137,10 +139,72 @@ def command_routeros_render(argv: list[str]) -> int:
     return 0
 
 
+def command_guided_start(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="routerctl guided-start",
+        description=(
+            "Create a beginner-safe planning workspace in one command. "
+            "No router transport, credentials, secret resolution or apply path is created."
+        ),
+    )
+    parser.add_argument("--workspace", required=True)
+    parser.add_argument("--site-name", required=True)
+    parser.add_argument("--device-id", required=True)
+    parser.add_argument("--management-target", required=True)
+    parser.add_argument("--model", default="CCR2116-12G-4S+")
+    parser.add_argument("--environment", choices=["lab", "staging", "production"], default="production")
+    parser.add_argument("--wan-primary-interface", default="sfp-sfpplus1")
+    parser.add_argument("--wan-primary-capacity", type=int, default=10000)
+    parser.add_argument("--wan-secondary-interface", default="ether1")
+    parser.add_argument("--wan-secondary-capacity", type=int, default=1000)
+    parser.add_argument("--core-interface", default="sfp-sfpplus2")
+    parser.add_argument("--core-capacity", type=int, default=10000)
+    args = parser.parse_args(argv)
+
+    try:
+        result = build_guided_release_workspace(
+            request=GuidedProfileRequest(
+                site_name=args.site_name,
+                device_id=args.device_id,
+                management_target=args.management_target,
+                model=args.model,
+                environment=args.environment,
+                wan_primary_interface=args.wan_primary_interface,
+                wan_primary_capacity_mbps=args.wan_primary_capacity,
+                wan_secondary_interface=args.wan_secondary_interface,
+                wan_secondary_capacity_mbps=args.wan_secondary_capacity,
+                core_interface=args.core_interface,
+                core_capacity_mbps=args.core_capacity,
+            ),
+            workspace=args.workspace,
+        )
+    except Exception as exc:  # noqa: BLE001 - bounded local-only startup error
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "claim": "guided_workspace_failed",
+                    "error": exc.__class__.__name__,
+                    "workspace": args.workspace,
+                    "transport_present": False,
+                    "apply_available": False,
+                    "write_authorized": False,
+                },
+                sort_keys=True,
+            )
+        )
+        return 9
+
+    print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] == "routeros-render":
         return command_routeros_render(args[1:])
+    if args and args[0] == "guided-start":
+        return command_guided_start(args[1:])
     return int(legacy_main(args))
 
 
