@@ -33,6 +33,64 @@ class RenderReadinessResult:
         }
 
 
+def _is_enabled_flag(value: Any) -> bool:
+    if value is True:
+        return True
+    return str(value or "").strip().lower() in {"1", "true", "yes"}
+
+
+def _routing_table_safety_errors(
+    ir: Mapping[str, Any],
+    state: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Reject reuse of an existing non-FIB table referenced by Multi-WAN intent.
+
+    The renderer may create a missing dedicated table, but it must not silently
+    change the semantics of an existing table. This keeps generation fail-safe
+    and leaves any intentional table conversion to an explicit reviewed change.
+    """
+
+    tables = state.get("routing_tables", [])
+    if not isinstance(tables, list):
+        return ()
+    existing: dict[str, Mapping[str, Any]] = {}
+    for row in tables:
+        if not isinstance(row, Mapping):
+            continue
+        name = str(row.get("name") or "").strip()
+        if name:
+            existing[name] = row
+
+    errors: list[str] = []
+    operations = ir.get("operations", [])
+    if not isinstance(operations, list):
+        return ()
+    for operation in operations:
+        if not isinstance(operation, Mapping):
+            continue
+        if str(operation.get("resource") or "") != "path_distribution_policy":
+            continue
+        operation_id = str(operation.get("operation_id") or "<unknown>")
+        attributes = operation.get("attributes", {})
+        if not isinstance(attributes, Mapping):
+            continue
+        paths = attributes.get("paths")
+        if not isinstance(paths, Mapping):
+            continue
+        for wan_name, path in paths.items():
+            if not isinstance(path, Mapping):
+                continue
+            table = str(path.get("table") or "").strip()
+            if not table or table == "main":
+                continue
+            current = existing.get(table)
+            if current is not None and not _is_enabled_flag(current.get("fib")):
+                errors.append(
+                    f"{operation_id}: existing routing table {table!r} for WAN {str(wan_name)!r} is not FIB-enabled; refuse to alter existing table semantics"
+                )
+    return tuple(errors)
+
+
 def assess_render_readiness(
     *,
     profile: Mapping[str, Any],
@@ -82,6 +140,9 @@ def assess_render_readiness(
             ir_sha256=str(supplied_sha or "") or None,
             state_sha256=str(evidence.get("state_sha256") or "") or None,
         )
+
+    trusted_state = verification.state if isinstance(verification.state, Mapping) else {}
+    errors.extend(_routing_table_safety_errors(ir, trusted_state))
 
     preflight = RouterOSPreflightEvaluator().evaluate(profile, evidence)
     for finding in preflight.findings:
