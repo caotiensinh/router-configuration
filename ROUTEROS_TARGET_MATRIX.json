@@ -9,18 +9,25 @@
     "model": "CCR2116-12G-4S+",
     "architecture": "arm64"
   },
+  "synthetic_baseline": {
+    "channel": "stable",
+    "routeros_version": "7.24.1",
+    "release_date": "2026-08-24",
+    "source": "https://mikrotik.com/download/changelogs?channelFilter=stable&versionFilter=7.24"
+  },
   "targets": [
     {
       "id": "synthetic-ci-fixture",
       "kind": "synthetic_fixture",
       "model": "CCR2116-12G-4S+",
-      "routeros_version": "7.20.4 (stable)",
+      "routeros_version": "7.24.1 (stable)",
       "status": "verified_in_ci",
       "evidence": [
         "tests/fixtures/routeros_readonly_snapshot.json",
+        "tests/fixtures/routeros_normalized_golden.json",
         "tests/test_routeros_discovery.py",
         "tests/test_routeros_evidence.py",
-        "tests/test_cli.py"
+        "tests/test_routeros_http_integration.py"
       ]
     },
     {
