@@ -57,7 +57,7 @@ class RouterOSSafeSubsetRendererTests(unittest.TestCase):
         )
         routing_inputs = blocked["routing.multiwan.capacity_weighted"]["required_inputs"]
         self.assertIn("wan.wan10g.gateway", routing_inputs)
-        self.assertIn("wan.wan1g.health_probe_target", routing_inputs)
+        self.assertIn("wan.wan1g.health_probe_targets", routing_inputs)
         self.assertIn("wireguard.listen_port", blocked["vpn.wireguard"]["required_inputs"])
         self.assertIn("qos.upload_rate_mbps", blocked["qos.policy"]["required_inputs"])
 
