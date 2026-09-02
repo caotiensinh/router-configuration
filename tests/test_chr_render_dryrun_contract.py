@@ -50,26 +50,30 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
         second = {"interface_list_members": [], "interface_lists": [{"name": "a"}]}
         self.assertEqual(module._canonical_digest(first), module._canonical_digest(second))
 
-    def test_script_error_detection_handles_http_2xx_payload_errors(self):
-        module = load(VERIFY, "verify_render_dry_run_errors")
-        self.assertTrue(
-            module._response_has_script_error(
-                {"detail": "Script Error: bad command name this (line 1 column 1)"}
-            )
+    def test_execute_verdict_requires_explicit_machine_return(self):
+        module = load(VERIFY, "verify_render_dry_run_verdict")
+        self.assertEqual(module._extract_execute_verdict({"ret": "OK"}), (False, ""))
+        captured, detail = module._extract_execute_verdict(
+            {"ret": "ERROR|Script Error: bad command name this (line 1 column 1)"}
         )
-        self.assertTrue(module._response_has_script_error({"raw": "bad command name this"}))
-        self.assertFalse(module._response_has_script_error([]))
-        self.assertFalse(module._response_has_script_error({"result": "ok"}))
+        self.assertTrue(captured)
+        self.assertIn("bad command name this", detail)
+        for payload in ({"ret": "*1D"}, {"ret": ""}, {}, [], None):
+            with self.assertRaises(module.CHRRenderDryRunError):
+                module._extract_execute_verdict(payload)
 
-    def test_validator_uses_documented_negative_control_and_response_semantics(self):
+    def test_validator_uses_onerror_machine_verdict_and_documented_negative_control(self):
         source = VERIFY.read_text(encoding="utf-8")
         cli_source = CLI.read_text(encoding="utf-8")
         self.assertNotIn("verify_render_dry_run", cli_source)
-        self.assertIn('verbose=yes dry-run', source)
-        self.assertIn('_response_has_script_error', source)
+        self.assertIn("verbose=yes dry-run", source)
+        self.assertIn("onerror e in={", source)
+        self.assertIn(':return "ERROR|$e"', source)
+        self.assertIn(':return "OK"', source)
+        self.assertIn("_extract_execute_verdict", source)
         self.assertIn('_create_script_file(admin, invalid_name, "this\\n")', source)
-        self.assertIn('negative-control dry-run did not expose a recognizable RouterOS script error', source)
-        self.assertIn('configuration changed during import dry-run validation', source)
+        self.assertIn("negative-control RouterOS script unexpectedly passed dry-run", source)
+        self.assertIn("configuration changed during import dry-run validation", source)
         self.assertIn('"production_writer_available": False', source)
         self.assertIn('"write_authorized": False', source)
 

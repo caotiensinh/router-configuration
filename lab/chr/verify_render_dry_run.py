@@ -15,15 +15,6 @@ class CHRRenderDryRunError(RuntimeError):
     pass
 
 
-_SCRIPT_ERROR_MARKERS = (
-    "script error",
-    "bad command",
-    "syntax error",
-    "expected end of command",
-    "no such command",
-)
-
-
 class LoopbackCHRAdmin:
     """Lab-only RouterOS REST mutator restricted to disposable loopback CHR."""
 
@@ -111,13 +102,22 @@ def _rows(payload: Any) -> list[Mapping[str, Any]]:
     return []
 
 
-def _response_has_script_error(payload: Any) -> bool:
-    """Detect RouterOS import/script failure even if /rest/execute returns HTTP 2xx."""
+def _extract_execute_verdict(payload: Any) -> tuple[bool, str]:
+    """Return (is_error, detail) from a machine-readable /rest/execute :return value."""
 
-    if payload is None:
-        return False
-    text = json.dumps(payload, sort_keys=True, ensure_ascii=False).lower()
-    return any(marker in text for marker in _SCRIPT_ERROR_MARKERS)
+    if not isinstance(payload, Mapping):
+        raise CHRRenderDryRunError("RouterOS /rest/execute did not return an object")
+    ret = str(payload.get("ret") or "").strip()
+    if ret == "OK":
+        return False, ""
+    if ret.startswith("ERROR|"):
+        detail = ret[len("ERROR|"):].strip()
+        if not detail:
+            raise CHRRenderDryRunError("RouterOS dry-run returned an empty captured error")
+        return True, detail
+    raise CHRRenderDryRunError(
+        f"RouterOS dry-run returned an unexpected machine verdict: {ret[:200] or '<empty>'}"
+    )
 
 
 def _configuration_snapshot(admin: LoopbackCHRAdmin) -> dict[str, Any]:
@@ -187,33 +187,37 @@ def _execute_import_dry_run(
     file_name: str,
     expect_success: bool,
 ) -> dict[str, Any]:
-    script = f"import {file_name} verbose=yes dry-run"
+    # RouterOS 7.16+ can catch import syntax errors with `onerror e in={...}`.
+    # Force a deterministic :return value so REST does not expose an opaque
+    # console return such as an internal item id instead of the import verdict.
+    script = (
+        f'onerror e in={{ import {file_name} verbose=yes dry-run }} '
+        'do={ :return "ERROR|$e" }; :return "OK"'
+    )
     status, payload = admin.request(
         "POST",
         "execute",
         {"script": script},
         allow_http_error=True,
     )
-    response_has_script_error = _response_has_script_error(payload)
-    transport_success = status < 400
+    if status >= 400:
+        raise CHRRenderDryRunError(
+            f"RouterOS dry-run verdict wrapper failed with HTTP {status}: {str(payload)[:400]}"
+        )
 
-    if expect_success:
-        if not transport_success or response_has_script_error:
-            raise CHRRenderDryRunError(
-                "generated RouterOS script dry-run reported an error "
-                f"(HTTP {status}): {str(payload)[:400]}"
-            )
-    else:
-        if not response_has_script_error:
-            raise CHRRenderDryRunError(
-                "negative-control dry-run did not expose a recognizable RouterOS script error "
-                f"(HTTP {status}): {str(payload)[:400]}"
-            )
+    captured_error, detail = _extract_execute_verdict(payload)
+    if expect_success and captured_error:
+        raise CHRRenderDryRunError(
+            f"generated RouterOS script dry-run reported an error: {detail[:400]}"
+        )
+    if not expect_success and not captured_error:
+        raise CHRRenderDryRunError("negative-control RouterOS script unexpectedly passed dry-run")
 
     return {
         "http_status": status,
-        "response_has_script_error": response_has_script_error,
-        "response": payload,
+        "captured_error": captured_error,
+        "error_detail": detail,
+        "verdict": "ERROR" if captured_error else "OK",
     }
 
 
@@ -273,17 +277,14 @@ def verify_render_dry_run(
             "byte_length": len(script_contents.encode("utf-8")),
             "dry_run_passed": True,
             "http_status": valid_result.get("http_status") if valid_result else None,
-            "response_has_script_error": (
-                valid_result.get("response_has_script_error") if valid_result else None
-            ),
+            "verdict": valid_result.get("verdict") if valid_result else None,
         },
         "negative_control": {
             "fixture": "this",
             "dry_run_rejected": True,
             "http_status": negative_result.get("http_status") if negative_result else None,
-            "response_has_script_error": (
-                negative_result.get("response_has_script_error") if negative_result else None
-            ),
+            "verdict": negative_result.get("verdict") if negative_result else None,
+            "error_detail": negative_result.get("error_detail") if negative_result else None,
         },
         "configuration_before_sha256": before_digest,
         "configuration_after_sha256": after_digest,
