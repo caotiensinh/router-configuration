@@ -18,6 +18,14 @@ def evaluate(
     bootstrap: Mapping[str, Any],
     machine_provenance: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Evaluate the populated CHR validation phase only.
+
+    The populated phase intentionally mutates a disposable CHR to prove that
+    discovery, normalization and secret redaction work against real RouterOS
+    objects. It can never be used as read-only admission evidence. A successful
+    result only authorizes the next *clean* secure read-only CHR run.
+    """
+
     errors: list[str] = []
 
     integrity = verify_routeros_discovery_evidence(evidence)
@@ -62,12 +70,20 @@ def evaluate(
 
     return {
         "ok": not errors,
-        "claim": "ready_for_operator_attestation" if not errors else "technical_acceptance_failed",
+        "phase": "populated_validation",
+        "claim": (
+            "ready_for_clean_read_only_admission_run"
+            if not errors
+            else "populated_validation_failed"
+        ),
         "errors": errors,
         "routeros_version": evidence_platform.get("version") if isinstance(evidence_platform, Mapping) else None,
         "normalized_state_sha256": evidence.get("state_sha256"),
         "populated_counts": populated.get("populated_counts", {}),
         "secret_boundary_verified": populated.get("secret_boundary_verified", False),
+        "fixture_setup_writes_performed": True,
+        "acceptance_collection_write_operations": False,
+        "eligible_for_operator_attestation": False,
         "automatic_provenance_verification": False,
         "automatic_target_matrix_admission": False,
         "renderer_enabled": False,
@@ -77,7 +93,7 @@ def evaluate(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Evaluate disposable CHR technical acceptance before manual provenance attestation"
+        description="Evaluate populated disposable CHR validation before a clean read-only admission run"
     )
     parser.add_argument("--evidence", required=True)
     parser.add_argument("--bootstrap", required=True)
