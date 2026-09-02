@@ -22,6 +22,7 @@ from .routeros_discovery import (
 )
 from .routeros_evidence import build_routeros_discovery_evidence
 from .routeros_state_contract import verify_routeros_discovery_evidence
+from .safe_subset_ir import SafeSubsetCompiler
 
 
 def _load_json(path: str) -> Any:
@@ -193,6 +194,39 @@ def command_profile_check(args: argparse.Namespace) -> int:
         }
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0 if result.ok else 2
+
+
+def command_profile_compile_ir(args: argparse.Namespace) -> int:
+    try:
+        payload = SafeSubsetCompiler().compile(_load_json(args.profile)).as_dict()
+        if args.output:
+            _write_private_json(args.output, payload)
+    except Exception as exc:  # noqa: BLE001 - bounded compiler error for guided CLI
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "profile": args.profile,
+                },
+                sort_keys=True,
+            )
+        )
+        return 2
+
+    summary = {
+        "ok": True,
+        "schema_version": payload["schema_version"],
+        "device_id": payload["device_id"],
+        "operation_count": len(payload["operations"]),
+        "ir_sha256": payload["ir_sha256"],
+        "vendor_commands_present": payload["vendor_commands_present"],
+        "write_transport_present": payload["write_transport_present"],
+        "output": args.output,
+        "next_gate": "verified live discovery and preflight; RouterOS renderer remains disabled",
+    }
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
 
 
 def command_workflow(args: argparse.Namespace) -> int:
@@ -386,11 +420,25 @@ def build_parser() -> argparse.ArgumentParser:
     profile_init.add_argument("--enable-qos", action="store_true")
     profile_init.set_defaults(func=command_profile_init)
 
-    profile = subparsers.add_parser("profile-check", help="validate a guided deployment profile without changing a router")
+    profile = subparsers.add_parser(
+        "profile-check",
+        help="validate a guided deployment profile without changing a router",
+    )
     profile.add_argument("--profile", required=True)
     profile.set_defaults(func=command_profile_check)
 
-    workflow = subparsers.add_parser("workflow", help="show guided success/failure criteria for a harness stage")
+    compile_ir = subparsers.add_parser(
+        "profile-compile-ir",
+        help="compile a validated profile to vendor-neutral non-executable safe-subset IR",
+    )
+    compile_ir.add_argument("--profile", required=True)
+    compile_ir.add_argument("--output")
+    compile_ir.set_defaults(func=command_profile_compile_ir)
+
+    workflow = subparsers.add_parser(
+        "workflow",
+        help="show guided success/failure criteria for a harness stage",
+    )
     workflow.add_argument(
         "--stage",
         choices=[stage.value for stage in ExecutionStage],
@@ -398,7 +446,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     workflow.set_defaults(func=command_workflow)
 
-    progress = subparsers.add_parser("progress", help="report weighted project completion from PROJECT_PROGRESS.json")
+    progress = subparsers.add_parser(
+        "progress",
+        help="report weighted project completion from PROJECT_PROGRESS.json",
+    )
     progress.add_argument("--file", default="PROJECT_PROGRESS.json")
     progress.set_defaults(func=command_progress)
 
