@@ -1,0 +1,63 @@
+{
+  "schema_version": "routeros-live-smoke-evidence/1",
+  "classification": "live_chr_smoke_not_full_acceptance",
+  "source": {
+    "workflow_run_id": 33581768613,
+    "workflow_head_sha": "1d00993307443d8c7e6b832224dd02c8f8269757",
+    "job_id": 100097350679,
+    "artifact_id": 9828691931,
+    "artifact_name": "chr-live-smoke-diagnostics-1d00993307443d8c7e6b832224dd02c8f8269757",
+    "artifact_sha256": "3126429bd7c5f1b1dc5b7bb9922e29c3126922153493ce6b212d3bfb3d6fac78",
+    "official_chr_zip_sha256": "50345f0197164321f1c6c933cd2a92b94222e7df76311b22b46adc3eca7a1aa8"
+  },
+  "platform": {
+    "identity": "CHR",
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "observed_at": "2026-09-02T02:06:49.838857Z",
+  "normalized_state_sha256": "356719acd40c20c800584ff7a57616b035df3c11696079a9fefeb24de389b5d2",
+  "collection": {
+    "failed_surfaces": [],
+    "missing_surfaces": [],
+    "record_counts": {
+      "interfaces": 2,
+      "ip_addresses": 1,
+      "ip_routes": 2,
+      "routing_tables": 1,
+      "firewall_filter": 0,
+      "firewall_nat": 0,
+      "wireguard_interfaces": 0,
+      "wireguard_peers": 0,
+      "qos_simple_queues": 0,
+      "qos_queue_tree": 0
+    }
+  },
+  "capabilities": {
+    "rest_read_supported": true,
+    "identity": true,
+    "interfaces": true,
+    "routing": true,
+    "firewall": true,
+    "wireguard": true,
+    "qos": true,
+    "blockers": [],
+    "warnings": []
+  },
+  "safety_scope": {
+    "qemu_snapshot": true,
+    "loopback_host_forward_only": true,
+    "project_collection_method": "RouterOS REST GET allowlist",
+    "write_operations_performed": false,
+    "renderer_used": false,
+    "apply_used": false
+  },
+  "limitations": [
+    "This is a CI live-smoke result, not full CHR acceptance.",
+    "The smoke used the factory admin account with blank password inside an isolated QEMU job.",
+    "REST was reached over loopback HTTP; dedicated-reader and production-style TLS verification were not tested.",
+    "Fresh CHR had no firewall rules, NAT rules, WireGuard objects or QoS objects, so populated-object normalization for those surfaces remains covered by synthetic regression rather than this live smoke.",
+    "This evidence does not authorize RouterOS rendering, mutation, physical CCR2116 testing or production use."
+  ]
+}
