@@ -39,7 +39,6 @@ log() {
 }
 
 cleanup() {
-  set +e
   if [[ -n "${WAN10_SERVER_PID}" ]]; then sudo kill "${WAN10_SERVER_PID}" 2>/dev/null || true; fi
   if [[ -n "${WAN1_SERVER_PID}" ]]; then sudo kill "${WAN1_SERVER_PID}" 2>/dev/null || true; fi
   if [[ -f "${QEMU_PID_FILE}" ]]; then
@@ -200,6 +199,27 @@ log "rendering and applying 17 recursive + 21 PCC commands"
 python3 "${ROOT}/lab/chr/verify_packet_flow_behavior.py" prepare \
   --admin-url "${ADMIN_URL}" \
   --output "${EVIDENCE_DIR}/prepare.json"
+
+log "diagnosing RouterOS runtime validity of PCC and routing-mark rules"
+python3 "${ROOT}/lab/chr/diagnose_pcc_runtime.py" \
+  --admin-url "${ADMIN_URL}" \
+  --output "${EVIDENCE_DIR}/pcc-runtime-diagnostic.json"
+python3 - "${EVIDENCE_DIR}/pcc-runtime-diagnostic.json" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding='utf-8'))
+invalid = int(payload.get('managed_invalid_count') or 0)
+if invalid:
+    print(json.dumps({
+        'ok': False,
+        'reason': 'managed PCC rules are invalid at RouterOS runtime',
+        'managed_invalid_count': invalid,
+        'diagnostic_variants': payload.get('diagnostic_variants', []),
+    }, indent=2, sort_keys=True))
+    raise SystemExit(19)
+print(json.dumps({'ok': True, 'managed_invalid_count': 0}))
+PY
+
 python3 "${ROOT}/lab/chr/verify_packet_flow_behavior.py" wait-routes \
   --admin-url "${ADMIN_URL}" \
   --expected normal \
