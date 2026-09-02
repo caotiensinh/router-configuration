@@ -6,6 +6,11 @@ import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .transaction_backup_evidence import (
+    TransactionBackupEvidenceError,
+    validate_transaction_backup_evidence,
+)
+
 
 class TransactionEnvelopeError(ValueError):
     pass
@@ -84,10 +89,14 @@ def build_transaction_envelope(
     render_sha = _verify_render_plan(render_plan)
     state_sha = _sha256(pre_state_sha256, "pre_state_sha256")
 
-    if backup.get("ok") is not True or backup.get("readable") is not True:
-        raise TransactionEnvelopeError("backup must be successful and readable")
-    backup_ref = _ref(backup.get("artifact_ref"), "backup.artifact_ref")
-    backup_sha = _sha256(backup.get("sha256"), "backup.sha256")
+    try:
+        validate_transaction_backup_evidence(
+            backup,
+            expected_pre_state_sha256=state_sha,
+        )
+    except TransactionBackupEvidenceError as exc:
+        raise TransactionEnvelopeError("backup evidence verification failed") from exc
+    backup_binding = dict(backup)
 
     if approval.get("approved") is not True:
         raise TransactionEnvelopeError("approval.approved must be explicitly true")
@@ -115,11 +124,7 @@ def build_transaction_envelope(
     bindings = {
         "render_plan_sha256": render_sha,
         "pre_state_sha256": state_sha,
-        "backup": {
-            "artifact_ref": backup_ref,
-            "sha256": backup_sha,
-            "readable": True,
-        },
+        "backup": backup_binding,
         "approval": {
             "approved": True,
             "plan_sha256": approval_plan_sha,
