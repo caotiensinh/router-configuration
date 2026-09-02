@@ -1,0 +1,137 @@
+name: CHR Render Dry Run
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-render-dry-run:
+    if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'ci(chr-render):'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: router-config-chr-render-dryrun-main
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and headless QEMU
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+
+      - name: Download official MikroTik CHR image
+        run: |
+          set -euo pipefail
+          curl -4 --http1.1 -fL \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --retry 1 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o /tmp/chr.img.zip
+          unzip -p /tmp/chr.img.zip > /tmp/chr.img
+          test -s /tmp/chr.img
+          sha256sum /tmp/chr.img.zip > /tmp/chr-render-download.sha256
+
+      - name: Boot disposable three-interface CHR snapshot
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9180-:80 \
+            -device virtio-net-pci,netdev=net0,mac=52:54:00:12:34:01 \
+            -netdev user,id=net1 \
+            -device virtio-net-pci,netdev=net1,mac=52:54:00:12:34:02 \
+            -netdev user,id=net2 \
+            -device virtio-net-pci,netdev=net2,mac=52:54:00:12:34:03 \
+            -display none \
+            -serial file:/tmp/chr-render-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-render.pid
+
+      - name: Wait for CHR REST and verify three interfaces
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9180/rest/system/resource \
+              > /tmp/chr-render-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chr-render-serial.log >&2 || true
+            exit 1
+          fi
+          curl -fsS --user 'admin:' http://127.0.0.1:9180/rest/interface \
+            > /tmp/chr-render-interfaces.json
+          python - <<'PY'
+          import json
+          rows = json.load(open('/tmp/chr-render-interfaces.json', encoding='utf-8'))
+          names = {str(row.get('name')) for row in rows if isinstance(row, dict)}
+          required = {'ether1', 'ether2', 'ether3'}
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit(f'missing CHR syntax-fixture interfaces: {missing}')
+          print(json.dumps({'ok': True, 'interfaces': sorted(names)}))
+          PY
+
+      - name: Build generation-only RouterOS syntax fixture
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python lab/chr/build_renderer_syntax_fixture.py \
+            --script-output evidence/chr-render-fixture.rsc \
+            --plan-output evidence/chr-render-plan.json \
+            | tee evidence/chr-render-build-summary.json
+
+      - name: Validate generated syntax with import dry-run and negative control
+        run: |
+          set -euo pipefail
+          python lab/chr/verify_render_dry_run.py \
+            --admin-url http://127.0.0.1:9180 \
+            --script evidence/chr-render-fixture.rsc \
+            --output evidence/chr-render-dryrun.json
+
+      - name: Preserve render dry-run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-render-dryrun-${{ github.sha }}
+          path: |
+            evidence/chr-render-fixture.rsc
+            evidence/chr-render-plan.json
+            evidence/chr-render-build-summary.json
+            evidence/chr-render-dryrun.json
+            /tmp/chr-render-resource.json
+            /tmp/chr-render-interfaces.json
+            /tmp/chr-render-serial.log
+            /tmp/chr-render-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr-render.pid ]; then
+            kill "$(cat /tmp/chr-render.pid)" 2>/dev/null || true
+          fi
