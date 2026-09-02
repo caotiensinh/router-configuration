@@ -1,0 +1,62 @@
+{
+  "schema_version": "chr-firewall-baseline-summary/1",
+  "captured_at": "2026-09-02",
+  "source": {
+    "workflow_run_id": 33637290612,
+    "workflow_head_sha": "c637a27f32091812329259c78ce174f88fc8244b",
+    "artifact_id": 9849353283,
+    "artifact_digest": "sha256:8fe67ff01a2ef893f23788a6c5246c128598cb9ba6c24ef97036d83a8a90df98"
+  },
+  "routeros": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "acceptance": "PASS",
+  "fixture": {
+    "base_command_count": 4,
+    "firewall_command_count": 23,
+    "command_count": 27,
+    "management_fact_source": "live_chr_ether1_ip_address_state",
+    "management_network_kind": "disposable_qemu_user_network",
+    "synthetic_wan_service_source": "RFC5737_TEST_NET_2",
+    "synthetic_wan_service_port": 9443
+  },
+  "dry_run": {
+    "rollback_verdict": "OK",
+    "apply_verdict": "OK",
+    "configuration_unchanged": true
+  },
+  "runtime": {
+    "managed_filter_count": 17,
+    "managed_filter_invalid_count": 0,
+    "managed_filter_disabled_count": 0,
+    "input_jump_first": true,
+    "management_path_alive_after_apply": true,
+    "management_accept_core_only": true,
+    "management_source_antispoof_before_icmp": true,
+    "essential_ipv4_icmp_chain_valid": true,
+    "wan_input_default_deny": true,
+    "explicit_wan_service_bounded": true
+  },
+  "rollback": {
+    "verdict": "OK",
+    "configuration_baseline_sha256": "ef0699bb9c2dd7ad8ce1943e63a297325054fcdac67886a1199cc24ccffffbfd",
+    "configuration_mutated_sha256": "09d2f5eaa858d787f7ca8fc52747a983c1671abbfb81aa6a8332665519d3edb9",
+    "configuration_rollback_sha256": "ef0699bb9c2dd7ad8ce1943e63a297325054fcdac67886a1199cc24ccffffbfd",
+    "exact_baseline_digest_restored": true
+  },
+  "safety": {
+    "production_writer_available": false,
+    "transport_exposed_to_product": false,
+    "write_authorized": false,
+    "physical_router_targeted": false,
+    "production_credentials_used": false
+  },
+  "progress_credit": {
+    "p09_points": 1,
+    "p12_points": 1,
+    "ledger_update_required_separately": true
+  },
+  "next_gate": "WireGuard generation with unresolved secret references, explicit allowed-address policy, management-path protection, and RouterOS CHR validation."
+}
