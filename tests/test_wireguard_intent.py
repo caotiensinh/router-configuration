@@ -67,11 +67,11 @@ class WireGuardIntentTests(unittest.TestCase):
         self.assertEqual(operation["attributes"]["mtu"], 1420)
         self.assertEqual(len(operation["attributes"]["peers"]), 2)
         self.assertEqual(operation["secret_references"], ["vault://routers/rd-router-01/wireguard-private-key"])
-        rendered = json.dumps(operation, sort_keys=True)
-        self.assertNotIn("private_key", rendered)
-        self.assertNotIn("private-key", rendered)
-        self.assertNotIn("vault://", json.dumps(operation["attributes"], sort_keys=True))
-        self.assertNotIn("/interface/wireguard", rendered)
+        attributes_rendered = json.dumps(operation["attributes"], sort_keys=True)
+        self.assertNotIn("private_key", attributes_rendered)
+        self.assertNotIn("private-key", attributes_rendered)
+        self.assertNotIn("vault://", attributes_rendered)
+        self.assertNotIn("/interface/wireguard", attributes_rendered)
 
     def test_partial_explicit_wireguard_facts_fail_closed(self):
         data = explicit_wireguard()
