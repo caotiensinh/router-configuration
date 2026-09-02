@@ -84,6 +84,8 @@ class RouterOSFirewallRendererTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(first["schema_version"], "routeros-firewall-command-plan/1")
         self.assertEqual(first["scope"], "generation_only")
+        self.assertEqual(first["managed_icmp_chain"], "routercfg-icmp")
+        self.assertEqual(first["icmp_policy"], "essential_ipv4")
         self.assertFalse(first["transport_present"])
         self.assertFalse(first["apply_available"])
         self.assertFalse(first["write_authorized"])
@@ -101,7 +103,7 @@ class RouterOSFirewallRendererTests(unittest.TestCase):
         for required in (
             "connection-state=established,related",
             "action=drop connection-state=invalid",
-            "action=accept protocol=icmp",
+            'action=jump protocol=icmp jump-target="routercfg-icmp"',
             'in-interface-list="routercfg-WAN" src-address-list="routercfg-MGMT-SOURCES"',
             'in-interface-list="routercfg-CORE" src-address-list="routercfg-MGMT-SOURCES"',
             'in-interface-list="routercfg-WAN" protocol=tcp dst-port=9443',
@@ -112,6 +114,17 @@ class RouterOSFirewallRendererTests(unittest.TestCase):
             self.assertIn(required, source)
         self.assertNotIn("management_from_wan", source)
         self.assertNotIn("0.0.0.0/0", source)
+
+    def test_essential_ipv4_icmp_chain_is_bounded_and_drops_other_types(self):
+        plan = render_routeros_firewall(ir=firewall_ir()).as_dict()
+        source = "\n".join(item["command"] for item in plan["commands"])
+        for icmp_options in ("0:0", "3:0", "3:1", "3:4", "8:0", "11:0", "12:0"):
+            self.assertIn(f"icmp-options={icmp_options}", source)
+        self.assertIn("routercfg:managed:fw:icmp:099-drop-other", source)
+        self.assertNotIn(
+            'action=accept protocol=icmp comment="routercfg:managed:fw:chain:030-essential-icmp"',
+            source,
+        )
 
     def test_staging_uses_find_derived_anchor_not_unstable_item_number(self):
         plan = render_routeros_firewall(ir=firewall_ir()).as_dict()
