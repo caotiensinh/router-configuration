@@ -1,0 +1,42 @@
+{
+  "schema_version": "routeros-render-dryrun-evidence/1",
+  "recorded_at": "2026-09-02",
+  "source": {
+    "workflow_run": 33589890199,
+    "job_id": 100121569988,
+    "artifact_id": 9831429497,
+    "artifact_name": "chr-render-dryrun-83bb9ee99cd35c9d70c1023ebd06719f90368122",
+    "artifact_sha256": "84576583ad2f91dd9964f5c1ebd44a91d26869929640a41d21ef787ec75c9ab3",
+    "head_sha": "83bb9ee99cd35c9d70c1023ebd06719f90368122"
+  },
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "generated_script": {
+    "byte_length": 1218,
+    "sha256": "f6bbf38778b352aa04bf9f4905b198898a88ca3a38cb8dcd2dba521e0e0e9b83",
+    "dry_run_passed": true,
+    "http_status": 200,
+    "execute_ret_observed": "*1A",
+    "verdict": "OK"
+  },
+  "negative_control": {
+    "fixture": "this",
+    "dry_run_rejected": true,
+    "http_status": 200,
+    "execute_ret_observed": "*29",
+    "verdict": "ERROR",
+    "error_detail": "Script Error: found 1 error(s) in import file"
+  },
+  "configuration_before_sha256": "65aea990b862c461e1f1717d5e68b9e97173d7912c8ce87e7f09c75baf4861f6",
+  "configuration_after_sha256": "65aea990b862c461e1f1717d5e68b9e97173d7912c8ce87e7f09c75baf4861f6",
+  "configuration_changed": false,
+  "temporary_files_removed": true,
+  "verdict_channel": "temporary_routeros_file",
+  "lab_setup_write_operations_performed": true,
+  "production_writer_available": false,
+  "write_authorized": false,
+  "acceptance": "PASS"
+}
