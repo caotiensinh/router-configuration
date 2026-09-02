@@ -119,22 +119,58 @@ def _parse_verdict_contents(contents: str) -> tuple[bool, str]:
     )
 
 
-def _configuration_snapshot(admin: LoopbackCHRAdmin) -> dict[str, Any]:
-    """Capture only product configuration surfaces the current syntax fixture could mutate."""
+def _is_true(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes"}
 
+
+def _configuration_snapshot(admin: LoopbackCHRAdmin) -> dict[str, Any]:
+    """Capture every static configuration surface exercised by the syntax fixture."""
+
+    surface_specs = (
+        ("interface_lists", "interface/list", ("name", "comment")),
+        (
+            "interface_list_members",
+            "interface/list/member",
+            ("list", "interface", "comment", "disabled"),
+        ),
+        (
+            "ip_addresses",
+            "ip/address",
+            ("address", "network", "interface", "comment", "disabled"),
+        ),
+        (
+            "routing_tables",
+            "routing/table",
+            ("name", "fib", "comment", "disabled"),
+        ),
+        (
+            "ip_routes",
+            "ip/route",
+            (
+                "dst-address",
+                "gateway",
+                "routing-table",
+                "distance",
+                "scope",
+                "target-scope",
+                "check-gateway",
+                "comment",
+                "disabled",
+            ),
+        ),
+    )
     surfaces: dict[str, Any] = {}
-    for key, path in (
-        ("interface_lists", "interface/list"),
-        ("interface_list_members", "interface/list/member"),
-    ):
+    for key, path, fields in surface_specs:
         _, payload = admin.request("GET", path)
         normalized = []
         for row in _rows(payload):
+            if _is_true(row.get("dynamic")):
+                continue
             normalized.append(
                 {
-                    str(k): v
-                    for k, v in row.items()
-                    if k not in {".id", "dynamic", "invalid"}
+                    field: row[field]
+                    for field in fields
+                    if field in row
                 }
             )
         normalized.sort(key=lambda item: json.dumps(item, sort_keys=True, ensure_ascii=False))
@@ -350,6 +386,13 @@ def verify_render_dry_run(
         "configuration_before_sha256": before_digest,
         "configuration_after_sha256": after_digest,
         "configuration_changed": False,
+        "snapshot_surfaces": [
+            "interface/list",
+            "interface/list/member",
+            "ip/address",
+            "routing/table",
+            "ip/route",
+        ],
         "temporary_files_removed": cleanup_verified,
         "lab_setup_write_operations_performed": True,
         "production_writer_available": False,

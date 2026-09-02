@@ -23,11 +23,24 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
     def test_syntax_fixture_exercises_all_current_command_templates(self):
         module = load(BUILD, "build_renderer_syntax_fixture")
         plan = module.build_syntax_fixture()
-        self.assertTrue(plan["complete"])
-        self.assertEqual(plan["blocked_operations"], [])
-        self.assertEqual(len(plan["commands"]), 5)
+        self.assertFalse(plan["complete"])
+        self.assertEqual(len(plan["blocked_operations"]), 1)
+        blocker = plan["blocked_operations"][0]
+        self.assertEqual(blocker["operation_id"], "routing.multiwan.capacity_weighted")
+        self.assertIn("PCC", blocker["reason"])
+        self.assertEqual(blocker["required_inputs"], [])
+        self.assertEqual(len(plan["commands"]), 17)
         sections = {item["section"] for item in plan["commands"]}
-        self.assertEqual(sections, {"interface_list", "interface_list_member"})
+        self.assertEqual(
+            sections,
+            {
+                "interface_list",
+                "interface_list_member",
+                "ip_address",
+                "routing_table",
+                "ip_route",
+            },
+        )
         self.assertEqual(plan["secret_references"], [])
         self.assertFalse(plan["transport_present"])
         self.assertFalse(plan["apply_available"])
@@ -47,8 +60,20 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
 
     def test_configuration_digest_is_deterministic(self):
         module = load(VERIFY, "verify_render_dry_run_digest")
-        first = {"interface_lists": [{"name": "a"}], "interface_list_members": []}
-        second = {"interface_list_members": [], "interface_lists": [{"name": "a"}]}
+        first = {
+            "interface_lists": [{"name": "a"}],
+            "interface_list_members": [],
+            "ip_addresses": [],
+            "routing_tables": [{"name": "main", "fib": "true"}],
+            "ip_routes": [],
+        }
+        second = {
+            "ip_routes": [],
+            "routing_tables": [{"fib": "true", "name": "main"}],
+            "ip_addresses": [],
+            "interface_list_members": [],
+            "interface_lists": [{"name": "a"}],
+        }
         self.assertEqual(module._canonical_digest(first), module._canonical_digest(second))
 
     def test_verdict_file_parser_is_fail_closed(self):
@@ -81,6 +106,19 @@ class CHRRenderDryRunContractTests(unittest.TestCase):
         self.assertEqual(result, "OK")
         self.assertEqual(read_contents.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
+
+    def test_validator_covers_every_failover_mutation_surface(self):
+        source = VERIFY.read_text(encoding="utf-8")
+        for surface in (
+            '"interface/list"',
+            '"interface/list/member"',
+            '"ip/address"',
+            '"routing/table"',
+            '"ip/route"',
+        ):
+            self.assertIn(surface, source)
+        self.assertIn('row.get("dynamic")', source)
+        self.assertIn('"snapshot_surfaces"', source)
 
     def test_validator_uses_temporary_file_verdict_and_documented_negative_control(self):
         source = VERIFY.read_text(encoding="utf-8")

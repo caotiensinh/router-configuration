@@ -8,8 +8,11 @@ from router_configuration.routeros_renderer import RouterOSSafeSubsetRenderer
 from router_configuration.safe_subset_ir import IntentOperation, IntentRisk, SafeSubsetIR
 
 
+KNOWN_PCC_BLOCKER = "routing.multiwan.capacity_weighted"
+
+
 def build_syntax_fixture() -> dict[str, object]:
-    """Build a secret-free CHR-only IR that exercises every v0.1 command template."""
+    """Build a secret-free CHR-only IR that exercises every current command template."""
 
     ir = SafeSubsetIR(
         device_id="chr-render-syntax-lab",
@@ -22,7 +25,8 @@ def build_syntax_fixture() -> dict[str, object]:
                     "name": "lab-wan10g",
                     "interface": "ether1",
                     "capacity_mbps": 10000,
-                    "addressing": "lab",
+                    "addressing": "static",
+                    "address": "192.0.2.2/30",
                 },
                 risk=IntentRisk.MEDIUM,
                 requires=("interfaces",),
@@ -35,7 +39,8 @@ def build_syntax_fixture() -> dict[str, object]:
                     "name": "lab-wan1g",
                     "interface": "ether2",
                     "capacity_mbps": 1000,
-                    "addressing": "lab",
+                    "addressing": "static",
+                    "address": "198.51.100.2/30",
                 },
                 risk=IntentRisk.MEDIUM,
                 requires=("interfaces",),
@@ -48,13 +53,80 @@ def build_syntax_fixture() -> dict[str, object]:
                 risk=IntentRisk.MEDIUM,
                 requires=("interfaces",),
             ),
+            IntentOperation(
+                operation_id=KNOWN_PCC_BLOCKER,
+                feature="multiwan",
+                resource="path_distribution_policy",
+                attributes={
+                    "mode": "capacity_weighted",
+                    "weights": {"lab-wan10g": 10, "lab-wan1g": 1},
+                    "failover": True,
+                    "failback": "health_hysteresis",
+                    "paths": {
+                        "lab-wan10g": {
+                            "interface": "ether1",
+                            "addressing": "static",
+                            "address": "192.0.2.2/30",
+                            "gateway": "192.0.2.1",
+                            "table": "to-lab-wan10g",
+                            "failover_distance": 1,
+                            "health_probe_targets": ["1.1.1.1", "8.8.8.8"],
+                        },
+                        "lab-wan1g": {
+                            "interface": "ether2",
+                            "addressing": "static",
+                            "address": "198.51.100.2/30",
+                            "gateway": "198.51.100.1",
+                            "table": "to-lab-wan1g",
+                            "failover_distance": 2,
+                            "health_probe_targets": ["9.9.9.9", "208.67.222.222"],
+                        },
+                    },
+                },
+                risk=IntentRisk.HIGH,
+                requires=("interfaces", "routing"),
+            ),
         ),
     ).as_dict()
     plan = RouterOSSafeSubsetRenderer().render(ir).as_dict()
-    if plan.get("complete") is not True or plan.get("blocked_operations") != []:
-        raise RuntimeError("CHR syntax fixture must render a complete topology-only plan")
+
+    blockers = plan.get("blocked_operations", [])
+    blocker_ids = {
+        str(item.get("operation_id"))
+        for item in blockers
+        if isinstance(item, dict)
+    }
+    if blocker_ids != {KNOWN_PCC_BLOCKER} or len(blockers) != 1:
+        raise RuntimeError(
+            "CHR syntax fixture permits exactly one known PCC-deferred blocker"
+        )
+    blocker_reason = str(blockers[0].get("reason") or "")
+    if "PCC" not in blocker_reason:
+        raise RuntimeError("CHR syntax fixture blocker must be the explicit PCC deferral")
+
+    commands = plan.get("commands", [])
+    sections = {
+        str(item.get("section"))
+        for item in commands
+        if isinstance(item, dict)
+    }
+    required_sections = {
+        "interface_list",
+        "interface_list_member",
+        "ip_address",
+        "routing_table",
+        "ip_route",
+    }
+    if sections != required_sections or len(commands) != 17:
+        raise RuntimeError(
+            f"CHR syntax fixture command coverage mismatch: sections={sorted(sections)} count={len(commands)}"
+        )
+    if plan.get("secret_references") != []:
+        raise RuntimeError("CHR syntax fixture must remain secret-free")
     if plan.get("transport_present") is not False or plan.get("write_authorized") is not False:
         raise RuntimeError("CHR syntax fixture renderer violated the generation-only boundary")
+    if plan.get("apply_available") is not False:
+        raise RuntimeError("CHR syntax fixture must not expose an apply path")
     return plan
 
 
@@ -82,6 +154,7 @@ def main() -> int:
                 "render_sha256": plan.get("render_sha256"),
                 "script_output": str(script_output),
                 "plan_output": str(plan_output),
+                "known_deferred_blocker": KNOWN_PCC_BLOCKER,
                 "production_generation_gate_claimed": False,
                 "write_authorized": False,
             },
