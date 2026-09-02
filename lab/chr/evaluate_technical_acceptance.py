@@ -12,6 +12,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_populated_evidence import verify_populated_evidence  # noqa: E402
 
 
+_REQUIRED_READER_POLICY = frozenset({"read", "api", "rest-api"})
+
+
+def _reader_policy_errors(reader: Any) -> list[str]:
+    if not isinstance(reader, Mapping):
+        return ["secure bootstrap reader record is missing or invalid"]
+
+    declared = {
+        item.strip()
+        for item in str(reader.get("policy") or "").split(",")
+        if item.strip()
+    }
+    effective_raw = reader.get("effective_policy")
+    if not isinstance(effective_raw, list):
+        return ["secure bootstrap reader effective_policy must be recorded from RouterOS"]
+    effective = {str(item).strip() for item in effective_raw if str(item).strip()}
+
+    errors: list[str] = []
+    if declared != _REQUIRED_READER_POLICY:
+        errors.append("secure bootstrap declared reader policy must be exactly read,api,rest-api")
+    if effective != _REQUIRED_READER_POLICY:
+        errors.append("secure bootstrap effective reader policy must be exactly read,api,rest-api")
+    return errors
+
+
 def evaluate(
     *,
     evidence: Mapping[str, Any],
@@ -22,8 +47,9 @@ def evaluate(
 
     The populated phase intentionally mutates a disposable CHR to prove that
     discovery, normalization and secret redaction work against real RouterOS
-    objects. It can never be used as read-only admission evidence. A successful
-    result only authorizes the next *clean* secure read-only CHR run.
+    objects. It can never be used as read-only admission evidence or production
+    write authorization. A successful result records populated-surface technical
+    validation; operator provenance and later actuator gates remain separate.
     """
 
     errors: list[str] = []
@@ -38,9 +64,7 @@ def evaluate(
 
     if bootstrap.get("ok") is not True:
         errors.append("secure bootstrap did not report ok=true")
-    reader = bootstrap.get("reader", {})
-    if not isinstance(reader, Mapping) or reader.get("policy") != "read,rest-api":
-        errors.append("secure bootstrap reader policy must be exactly read,rest-api")
+    errors.extend(_reader_policy_errors(bootstrap.get("reader", {})))
     https = bootstrap.get("https", {})
     if not isinstance(https, Mapping) or https.get("certificate_verification") is not True:
         errors.append("secure bootstrap must verify the HTTPS certificate")
@@ -72,7 +96,7 @@ def evaluate(
         "ok": not errors,
         "phase": "populated_validation",
         "claim": (
-            "ready_for_clean_read_only_admission_run"
+            "populated_surface_validation_passed"
             if not errors
             else "populated_validation_failed"
         ),
@@ -81,6 +105,7 @@ def evaluate(
         "normalized_state_sha256": evidence.get("state_sha256"),
         "populated_counts": populated.get("populated_counts", {}),
         "secret_boundary_verified": populated.get("secret_boundary_verified", False),
+        "reader_policy_verified": not _reader_policy_errors(bootstrap.get("reader", {})),
         "fixture_setup_writes_performed": True,
         "acceptance_collection_write_operations": False,
         "eligible_for_operator_attestation": False,
@@ -93,7 +118,7 @@ def evaluate(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Evaluate populated disposable CHR validation before a clean read-only admission run"
+        description="Evaluate populated disposable CHR validation without authorizing production writes"
     )
     parser.add_argument("--evidence", required=True)
     parser.add_argument("--bootstrap", required=True)

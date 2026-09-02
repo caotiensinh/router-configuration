@@ -34,7 +34,11 @@ class CHRTechnicalAcceptanceTests(unittest.TestCase):
                 "version": evidence["platform"]["version"],
                 "architecture": evidence["platform"]["architecture"],
             },
-            "reader": {"username": "routercfg-reader", "policy": "read,rest-api"},
+            "reader": {
+                "username": "routercfg-reader",
+                "policy": "read,api,rest-api",
+                "effective_policy": ["api", "read", "rest-api"],
+            },
             "https": {"url": "https://127.0.0.1:9443", "certificate_verification": True},
             "production_writer_available": False,
         }
@@ -49,16 +53,17 @@ class CHRTechnicalAcceptanceTests(unittest.TestCase):
             "normalized_state_sha256": evidence["state_sha256"],
         }
 
-    def test_valid_populated_phase_only_authorizes_clean_read_only_run(self):
+    def test_valid_populated_phase_records_technical_validation_only(self):
         evidence = self._evidence()
         result = module.evaluate(
             evidence=evidence,
             bootstrap=self._bootstrap(evidence),
             machine_provenance=self._machine(evidence),
         )
-        self.assertTrue(result["ok"])
+        self.assertTrue(result["ok"], result["errors"])
         self.assertEqual(result["phase"], "populated_validation")
-        self.assertEqual(result["claim"], "ready_for_clean_read_only_admission_run")
+        self.assertEqual(result["claim"], "populated_surface_validation_passed")
+        self.assertTrue(result["reader_policy_verified"])
         self.assertTrue(result["fixture_setup_writes_performed"])
         self.assertFalse(result["acceptance_collection_write_operations"])
         self.assertFalse(result["eligible_for_operator_attestation"])
@@ -66,18 +71,50 @@ class CHRTechnicalAcceptanceTests(unittest.TestCase):
         self.assertFalse(result["write_authorized"])
         self.assertFalse(result["automatic_target_matrix_admission"])
 
-    def test_reader_policy_mismatch_is_blocking(self):
+    def test_declared_reader_privilege_expansion_is_blocking(self):
         evidence = self._evidence()
         bootstrap = self._bootstrap(evidence)
-        bootstrap["reader"]["policy"] = "read,write,rest-api"
+        bootstrap["reader"]["policy"] = "read,api,rest-api,write"
         result = module.evaluate(
             evidence=evidence,
             bootstrap=bootstrap,
             machine_provenance=self._machine(evidence),
         )
         self.assertFalse(result["ok"])
-        self.assertEqual(result["claim"], "populated_validation_failed")
-        self.assertIn("secure bootstrap reader policy must be exactly read,rest-api", result["errors"])
+        self.assertIn(
+            "secure bootstrap declared reader policy must be exactly read,api,rest-api",
+            result["errors"],
+        )
+
+    def test_effective_reader_privilege_expansion_is_blocking(self):
+        evidence = self._evidence()
+        bootstrap = self._bootstrap(evidence)
+        bootstrap["reader"]["effective_policy"].append("write")
+        result = module.evaluate(
+            evidence=evidence,
+            bootstrap=bootstrap,
+            machine_provenance=self._machine(evidence),
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "secure bootstrap effective reader policy must be exactly read,api,rest-api",
+            result["errors"],
+        )
+
+    def test_effective_policy_must_be_recorded(self):
+        evidence = self._evidence()
+        bootstrap = self._bootstrap(evidence)
+        bootstrap["reader"].pop("effective_policy")
+        result = module.evaluate(
+            evidence=evidence,
+            bootstrap=bootstrap,
+            machine_provenance=self._machine(evidence),
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "secure bootstrap reader effective_policy must be recorded from RouterOS",
+            result["errors"],
+        )
 
     def test_machine_provenance_cannot_claim_operator_attestation(self):
         evidence = self._evidence()
