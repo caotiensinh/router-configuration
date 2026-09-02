@@ -74,6 +74,45 @@ class CHRSecureBootstrapContractTests(unittest.TestCase):
         with self.assertRaises(self.module.LabBootstrapError):
             self.module._find_rest_id_by_name(FakeAdmin(), "ip/service", "www-ssl")
 
+    def test_signed_certificate_is_resolved_by_common_name_not_template_name(self):
+        class FakeAdmin:
+            def request(self, method, path, payload=None):
+                self.last = (method, path, payload)
+                return [
+                    {
+                        ".id": "*4",
+                        "name": "routercfg-https_0",
+                        "common-name": "127.0.0.1",
+                        "fingerprint": "abc123",
+                    },
+                    {
+                        ".id": "*5",
+                        "name": "routercfg-ca_0",
+                        "common-name": "Router Configuration CHR Lab CA",
+                        "fingerprint": "def456",
+                    },
+                ]
+
+        admin = FakeAdmin()
+        record = self.module._find_signed_certificate_by_common_name(admin, "127.0.0.1")
+        self.assertEqual(record["name"], "routercfg-https_0")
+        self.assertEqual(admin.last[:2], ("GET", "certificate"))
+
+    def test_unsigned_template_is_not_accepted_as_signed_certificate(self):
+        class FakeAdmin:
+            def request(self, method, path, payload=None):
+                return [
+                    {
+                        ".id": "*4",
+                        "name": "routercfg-https",
+                        "common-name": "127.0.0.1",
+                        "fingerprint": "",
+                    }
+                ]
+
+        with self.assertRaises(self.module.LabBootstrapError):
+            self.module._find_signed_certificate_by_common_name(FakeAdmin(), "127.0.0.1")
+
 
 if __name__ == "__main__":
     unittest.main()
