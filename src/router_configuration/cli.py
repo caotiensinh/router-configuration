@@ -20,6 +20,7 @@ from .routeros_discovery import (
     normalize_routeros_snapshot,
 )
 from .routeros_evidence import build_routeros_discovery_evidence
+from .routeros_state_contract import verify_routeros_discovery_evidence
 
 
 def _load_json(path: str) -> Any:
@@ -223,10 +224,56 @@ def command_routeros_discover(args: argparse.Namespace) -> int:
     return 0 if not blockers else 4
 
 
+def command_routeros_evidence_check(args: argparse.Namespace) -> int:
+    result = verify_routeros_discovery_evidence(_load_json(args.evidence))
+    print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
+    return 0 if result.ok else 6
+
+
+def _invalid_evidence_preflight_payload(errors: tuple[str, ...], warnings: tuple[str, ...]) -> dict[str, Any]:
+    findings = [
+        {
+            "code": "evidence.integrity",
+            "severity": "blocking",
+            "message": error,
+            "remediation": "Discard this evidence file and rerun routerctl routeros-discover before continuing.",
+        }
+        for error in errors
+    ]
+    findings.extend(
+        {
+            "code": "evidence.warning",
+            "severity": "warning",
+            "message": warning,
+            "remediation": "Review the discovery evidence before continuing.",
+        }
+        for warning in warnings
+    )
+    return {
+        "ok": False,
+        "blocking_count": len(errors),
+        "findings": findings,
+    }
+
+
 def command_routeros_preflight(args: argparse.Namespace) -> int:
+    evidence = _load_json(args.evidence)
+    verification = verify_routeros_discovery_evidence(evidence)
+    if not verification.ok:
+        print(
+            json.dumps(
+                _invalid_evidence_preflight_payload(
+                    verification.errors, verification.warnings
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 5
+
     result = RouterOSPreflightEvaluator().evaluate(
         _load_json(args.profile),
-        _load_json(args.evidence),
+        evidence,
     )
     print(json.dumps(result.as_dict(), indent=2, sort_keys=True))
     return 0 if result.ok else 5
@@ -294,9 +341,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     discover.set_defaults(func=command_routeros_discover)
 
+    evidence_check = subparsers.add_parser(
+        "routeros-evidence-check",
+        help="verify RouterOS discovery evidence schema, digest and summaries",
+    )
+    evidence_check.add_argument("--evidence", required=True)
+    evidence_check.set_defaults(func=command_routeros_evidence_check)
+
     preflight = subparsers.add_parser(
         "routeros-preflight",
-        help="compare a deployment profile with sanitized RouterOS discovery evidence",
+        help="compare a deployment profile with verified RouterOS discovery evidence",
     )
     preflight.add_argument("--profile", required=True)
     preflight.add_argument("--evidence", required=True)
