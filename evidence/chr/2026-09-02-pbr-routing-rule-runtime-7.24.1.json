@@ -1,0 +1,64 @@
+{
+  "schema_version": "router-config-chr-pbr-evidence/1",
+  "acceptance": "PASS",
+  "source": {
+    "workflow_run": 33650372800,
+    "head_sha": "141830e70ee4c20e811b9a871bda5c1c6af3a11f",
+    "artifact_id": 9854813099,
+    "artifact_name": "chr-pbr-baseline-141830e70ee4c20e811b9a871bda5c1c6af3a11f",
+    "artifact_digest": "sha256:39297ebb7c059d4fe6ca9fc6d7dd3647c4bbac6dbb25bd5e1242a6637bbc744a"
+  },
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "fixture": {
+    "kind": "lab_only_rfc5737_source_policy",
+    "source_cidr": "198.51.100.0/24",
+    "destination_cidr": "0.0.0.0/0",
+    "table": "routercfg-pbr-lab-table",
+    "command_count": 1
+  },
+  "runtime": {
+    "managed_rule_count": 1,
+    "invalid_managed_rules": 0,
+    "disabled_managed_rules": 0,
+    "source_cidr_exact": true,
+    "destination_cidr_exact": true,
+    "lookup_only_in_table_exact": true,
+    "table_reference_exact": true,
+    "mangle_routing_marks_used": false,
+    "management_rest_reachable_after_apply": true,
+    "route_selection_data_plane_claimed": false
+  },
+  "dry_run": {
+    "apply_verdict": "OK",
+    "rollback_verdict": "OK",
+    "configuration_unchanged": true
+  },
+  "rollback": {
+    "apply_verdict": "OK",
+    "rollback_verdict": "OK",
+    "configuration_original_sha256": "0037d8c1232bbd2986d865cc8f29208fa114c04d63a4e4d065bb9a23454de89b",
+    "configuration_setup_sha256": "8e7ccb3f9570d22cf9f8222556afb58445733d0fb6fda31ad97d0699c3831b3c",
+    "configuration_mutated_sha256": "ee7c65b6990c51d1869e7f6e206b2149d32cb0aa82fa6adbc7f5f3189c6f2678",
+    "configuration_rollback_sha256": "8e7ccb3f9570d22cf9f8222556afb58445733d0fb6fda31ad97d0699c3831b3c",
+    "configuration_cleanup_sha256": "0037d8c1232bbd2986d865cc8f29208fa114c04d63a4e4d065bb9a23454de89b",
+    "rollback_digest_restored": true,
+    "lab_setup_cleanup_restored": true,
+    "temporary_files_removed": true
+  },
+  "scope": {
+    "route_selection_data_plane_acceptance": false,
+    "production_writer_available": false,
+    "transport_exposed_to_product": false,
+    "write_authorized": false,
+    "physical_router_targeted": false
+  },
+  "progress_credit": {
+    "p09_points": 1,
+    "p12_points": 1,
+    "ledger_update_required_separately": true
+  }
+}
