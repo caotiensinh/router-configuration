@@ -1,0 +1,101 @@
+{
+  "schema_version": "chr-pcc-packet-flow-acceptance-evidence/1",
+  "recorded_date": "2026-09-02",
+  "verdict": "PASS",
+  "source": {
+    "head_sha": "915cc53998f4bec13823ecca9e6817f08a6040ec",
+    "workflow_run_id": 33632907819,
+    "workflow_name": "CHR Packet Flow Behavior",
+    "artifact_id": 9847577744,
+    "artifact_name": "chr-packet-flow-915cc53998f4bec13823ecca9e6817f08a6040ec",
+    "artifact_digest": "sha256:8382a4aee92346295bad4446696573aa454c8265879bb2fe1729984a4be7e323",
+    "ci_run_id": 33632907776
+  },
+  "platform": {
+    "routeros_version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)",
+    "disposable_chr": true
+  },
+  "render_and_apply": {
+    "generated_command_count": 38,
+    "recursive_command_count": 17,
+    "pcc_command_count": 21,
+    "pcc_mangle_count": 13,
+    "pcc_policy_route_count": 8,
+    "dry_run_verdict": "OK",
+    "apply_verdict": "OK"
+  },
+  "managed_pcc_runtime": {
+    "managed_rule_count": 13,
+    "managed_invalid_count": 0,
+    "all_managed_rules_enabled": true,
+    "connection_classifier_denominator": 11,
+    "wan10_bucket_count": 10,
+    "wan1_bucket_count": 1
+  },
+  "normal": {
+    "requested_flows": 220,
+    "successful_flows": 220,
+    "success_ratio": 1.0,
+    "wan10_flows": 195,
+    "wan1_flows": 25,
+    "wan10_share": 0.8863636363636364,
+    "wan1_share": 0.11363636363636363,
+    "acceptance": "PASS"
+  },
+  "wan10_failure": {
+    "requested_flows": 220,
+    "successful_flows": 220,
+    "success_ratio": 1.0,
+    "wan10_flows": 0,
+    "wan1_flows": 220,
+    "wan1_share": 1.0,
+    "route_failure_observed": true,
+    "acceptance": "PASS"
+  },
+  "recovery": {
+    "requested_flows": 220,
+    "successful_flows": 220,
+    "success_ratio": 1.0,
+    "wan10_flows": 199,
+    "wan1_flows": 21,
+    "wan10_share": 0.9045454545454545,
+    "wan1_share": 0.09545454545454546,
+    "route_recovery_observed": true,
+    "acceptance": "PASS"
+  },
+  "acceptance_criteria": {
+    "normal_requested_flows_min": 220,
+    "normal_success_ratio_min": 0.97,
+    "normal_wan10_share_min": 0.84,
+    "normal_wan10_share_max": 0.97,
+    "normal_wan1_must_receive_flows": true,
+    "failover_success_ratio_min": 0.95,
+    "failover_wan1_share_min": 0.98,
+    "recovery_success_ratio_min": 0.97,
+    "recovery_wan10_share_min": 0.84,
+    "recovery_wan10_share_max": 0.97
+  },
+  "observed_resolution": {
+    "previous_regression_run_id": 33617005667,
+    "previous_error": "generated RouterOS script dry-run reported an error: Script Error: found 2 error(s) in import file",
+    "correction_commit": "915cc53998f4bec13823ecca9e6817f08a6040ec",
+    "correction": "Restore RouterOS routing-table fib switch syntax while retaining existing-table reconciliation.",
+    "post_correction_observation": "The same 38-command CHR path dry-ran and applied successfully, all 13 managed PCC mangle rules reported invalid=false, and dataplane distribution/failover/recovery acceptance passed."
+  },
+  "diagnostic_note": {
+    "temporary_diagnostic_variant_count": 17,
+    "temporary_diagnostic_invalid_count": 17,
+    "scope": "Temporary scratch probes only; they are deleted after diagnosis and are not managed PCC acceptance objects.",
+    "acceptance_basis": "Managed rule runtime state plus measured packet-flow behavior."
+  },
+  "safety": {
+    "production_writer_available": false,
+    "write_authorized": false,
+    "physical_router_targeted": false,
+    "credentials_persisted": false,
+    "temporary_rules_removed": true,
+    "temporary_files_removed": true
+  }
+}
