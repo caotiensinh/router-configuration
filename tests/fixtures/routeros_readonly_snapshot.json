@@ -2,6 +2,7 @@
   "system_identity": {"name": "lab-ccr2116"},
   "system_resource": {"version": "7.20.4 (stable)", "board-name": "CCR2116-12G-4S+", "architecture-name": "arm64"},
   "interfaces": [
+    {".id": "*3", "name": "ether1", "type": "ether", "running": "true", "disabled": "false"},
     {".id": "*2", "name": "sfp-sfpplus2", "type": "ether", "running": "true", "disabled": "false"},
     {".id": "*1", "name": "sfp-sfpplus1", "type": "ether", "running": "true", "disabled": "false"}
   ],
