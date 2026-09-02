@@ -1,0 +1,40 @@
+{
+  "schema_version": "routeros-clean-readonly-summary/1",
+  "target": "chr-live-v7",
+  "routeros_version": "7.24.1 (stable)",
+  "architecture": "x86_64",
+  "workflow_sha": "004cf819dd4ff95988482a7d1b84c2dd6727e6b3",
+  "workflow_run_id": 33586254728,
+  "artifact_id": 9830230324,
+  "artifact_digest": "sha256:cb3c876983674693cc6ae4ae6d1c521d0af58cbe072cce3d47f69052436d0915",
+  "official_image_zip_sha256": "50345f0197164321f1c6c933cd2a92b94222e7df76311b22b46adc3eca7a1aa8",
+  "normalized_state_sha256": "4ac53a6b66e9bfeac1cc502db89242a23c3f13f487980476ddd66fe229203413",
+  "technical_admission": {
+    "ok": true,
+    "claim": "ready_for_operator_attestation",
+    "fresh_boot": true,
+    "snapshot_mode": true,
+    "https_certificate_verification": true,
+    "reader_declared_policy": ["read", "api", "rest-api"],
+    "reader_effective_policy": ["read", "api", "rest-api"],
+    "reader_policy_verified": true,
+    "collection_http_methods": ["GET"],
+    "acceptance_collection_write_operations_performed": false,
+    "mutation_requests_attempted": false,
+    "failed_surfaces": [],
+    "missing_surfaces": [],
+    "fixture_markers_absent": true,
+    "production_writer_available": false,
+    "renderer_enabled": false,
+    "write_authorized": false
+  },
+  "provenance": {
+    "machine_observation_only": true,
+    "operator_attested": false,
+    "automatic_target_matrix_admission": false
+  },
+  "remaining_acceptance": [
+    "operator provenance attestation and candidate review",
+    "populated-object live coverage for high-value RouterOS surfaces"
+  ]
+}

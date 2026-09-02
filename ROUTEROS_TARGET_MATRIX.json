@@ -34,16 +34,16 @@
       "id": "chr-live-v7",
       "kind": "routeros_chr",
       "routeros_version": "7.24.1 (stable)",
-      "status": "verified_live_smoke",
+      "status": "clean_readonly_candidate",
       "evidence": [
         "evidence/chr/2026-09-02-live-smoke-7.24.1.json",
-        "GitHub Actions run 33581768613 / job 100097350679 / artifact 9828691931"
+        "evidence/chr/2026-09-02-clean-readonly-7.24.1.json",
+        "GitHub Actions run 33581768613 / job 100097350679 / artifact 9828691931",
+        "GitHub Actions run 33586254728 / artifact 9830230324"
       ],
       "remaining_acceptance": [
-        "dedicated least-privilege REST reader",
-        "production-style HTTPS with TLS certificate verification",
-        "manual provenance attestation and candidate review",
-        "populated-object live coverage or reviewed capability-gap policy as applicable"
+        "operator provenance attestation and candidate review",
+        "populated-object live coverage for high-value RouterOS surfaces"
       ]
     },
     {
