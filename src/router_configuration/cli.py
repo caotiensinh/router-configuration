@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +13,12 @@ from .harness import ExecutionStage, HarnessEngine
 from .m02_state_engine import StateEngine
 from .m04_multiwan import MultiWanPlanner, WanLink
 from .progress import ProgressTracker
-from .routeros_discovery import normalize_routeros_snapshot
+from .routeros_discovery import (
+    RouterOSDiscoveryCollector,
+    RouterOSRestClient,
+    normalize_routeros_snapshot,
+)
+from .routeros_evidence import build_routeros_discovery_evidence
 
 
 def _load_json(path: str) -> Any:
@@ -22,6 +30,39 @@ def _redact(path: str, value: Any) -> Any:
     if any(token in lowered for token in ("password", "private_key", "psk", "token", "secret")):
         return "<redacted>"
     return value
+
+
+def _resolve_password(env_name: str) -> str:
+    value = os.environ.get(env_name)
+    if value:
+        return value
+    if not sys.stdin.isatty():
+        raise RuntimeError(
+            f"{env_name} is not set and password prompting is unavailable in non-interactive mode"
+        )
+    value = getpass.getpass("RouterOS password: ")
+    if not value:
+        raise RuntimeError("RouterOS password must not be empty")
+    return value
+
+
+def _write_private_json(path: str, payload: Any) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.tmp")
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    try:
+        temporary.chmod(0o600)
+    except OSError:
+        pass
+    temporary.replace(target)
+    try:
+        target.chmod(0o600)
+    except OSError:
+        pass
 
 
 def command_plan(args: argparse.Namespace) -> int:
@@ -124,6 +165,63 @@ def command_routeros_normalize(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_routeros_discover(args: argparse.Namespace) -> int:
+    if (args.allow_insecure_http or args.no_verify_tls) and not args.lab:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "insecure transport options require explicit --lab mode",
+                },
+                sort_keys=True,
+            )
+        )
+        return 2
+
+    try:
+        password = _resolve_password(args.password_env)
+        client = RouterOSRestClient(
+            base_url=args.url,
+            username=args.username,
+            password=password,
+            verify_tls=not args.no_verify_tls,
+            allow_insecure_transport=args.allow_insecure_http,
+            timeout_seconds=args.timeout,
+        )
+        report = RouterOSDiscoveryCollector(client).collect_report()
+        state = normalize_routeros_snapshot(report.data)
+        evidence = build_routeros_discovery_evidence(
+            state,
+            surface_errors=report.errors,
+        )
+        _write_private_json(args.output, evidence)
+    except Exception as exc:  # noqa: BLE001 - CLI emits safe error class only
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": exc.__class__.__name__,
+                    "output": args.output,
+                },
+                sort_keys=True,
+            )
+        )
+        return 3
+
+    blockers = evidence["capabilities"]["blockers"]
+    payload = {
+        "ok": not blockers,
+        "output": args.output,
+        "state_sha256": evidence["state_sha256"],
+        "platform": evidence["platform"],
+        "failed_surfaces": evidence["collection"]["failed_surfaces"],
+        "capability_blockers": blockers,
+        "capability_warnings": evidence["capabilities"]["warnings"],
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if not blockers else 4
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="routerctl")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -159,6 +257,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     normalize.add_argument("--fixture", required=True)
     normalize.set_defaults(func=command_routeros_normalize)
+
+    discover = subparsers.add_parser(
+        "routeros-discover",
+        help="collect sanitized read-only RouterOS state and evidence",
+    )
+    discover.add_argument("--url", required=True, help="base URL such as https://192.0.2.1")
+    discover.add_argument("--username", required=True)
+    discover.add_argument(
+        "--password-env",
+        default="ROUTEROS_PASSWORD",
+        help="environment variable containing the RouterOS password",
+    )
+    discover.add_argument("--output", required=True, help="sanitized evidence JSON path")
+    discover.add_argument("--timeout", type=float, default=10.0)
+    discover.add_argument("--lab", action="store_true", help="explicitly mark this run as a controlled lab")
+    discover.add_argument(
+        "--allow-insecure-http",
+        action="store_true",
+        help="lab only: permit plain HTTP transport",
+    )
+    discover.add_argument(
+        "--no-verify-tls",
+        action="store_true",
+        help="lab only: disable TLS certificate verification",
+    )
+    discover.set_defaults(func=command_routeros_discover)
 
     return parser
 
