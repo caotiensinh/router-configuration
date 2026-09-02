@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import ssl
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -59,7 +60,9 @@ class RouterOSRestClient:
         if parsed.scheme not in {"https", "http"}:
             raise ValueError("RouterOS REST base_url must use http or https")
         if parsed.scheme != "https" and not self.allow_insecure_transport:
-            raise ValueError("plain HTTP is disabled; use HTTPS or explicitly allow insecure lab transport")
+            raise ValueError(
+                "plain HTTP is disabled; use HTTPS or explicitly allow insecure lab transport"
+            )
         if not parsed.hostname:
             raise ValueError("RouterOS REST base_url must include a hostname")
         if not self.username:
@@ -93,6 +96,34 @@ class RouterOSRestClient:
             return json.loads(response.read().decode("utf-8"))
 
 
+@dataclass(frozen=True)
+class RouterOSDiscoveryReport:
+    data: dict[str, Any]
+    errors: dict[str, str]
+
+    @property
+    def successful_surfaces(self) -> tuple[str, ...]:
+        return tuple(sorted(self.data))
+
+    @property
+    def failed_surfaces(self) -> tuple[str, ...]:
+        return tuple(sorted(self.errors))
+
+
+def _safe_error_code(exc: Exception) -> str:
+    """Return a credential/URL-free error code suitable for evidence artifacts."""
+
+    if isinstance(exc, urllib.error.HTTPError):
+        return f"http_{exc.code}"
+    if isinstance(exc, urllib.error.URLError):
+        return "transport_error"
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    if isinstance(exc, json.JSONDecodeError):
+        return "invalid_json"
+    return exc.__class__.__name__
+
+
 class RouterOSDiscoveryCollector:
     """Collect only the approved RouterOS read surfaces."""
 
@@ -101,6 +132,16 @@ class RouterOSDiscoveryCollector:
 
     def collect(self) -> dict[str, Any]:
         return {surface: self._client.get_surface(surface) for surface in READ_SURFACES}
+
+    def collect_report(self) -> RouterOSDiscoveryReport:
+        data: dict[str, Any] = {}
+        errors: dict[str, str] = {}
+        for surface in READ_SURFACES:
+            try:
+                data[surface] = self._client.get_surface(surface)
+            except Exception as exc:  # noqa: BLE001 - boundary converts errors to safe codes
+                errors[surface] = _safe_error_code(exc)
+        return RouterOSDiscoveryReport(data=data, errors=errors)
 
 
 def _is_secret_key(key: str) -> bool:
@@ -140,7 +181,11 @@ def _records(value: Any) -> list[dict[str, Any]]:
         if not isinstance(item, Mapping):
             raise ValueError("RouterOS discovery list entries must be JSON objects")
         records.append(dict(_normalize_value(item)))
-    records.sort(key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":"), default=str))
+    records.sort(
+        key=lambda item: json.dumps(
+            item, sort_keys=True, separators=(",", ":"), default=str
+        )
+    )
     return records
 
 
