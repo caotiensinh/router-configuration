@@ -386,8 +386,9 @@ class RouterOSSafeSubsetRenderer:
     def _ensure_routing_table_command(self, *, command_id: str, operation_id: str, table: str, risk: int) -> RouterOSRenderCommand:
         table_q = _quote(table)
         command = (
-            f":if ([:len [/routing/table/find where name={table_q}]] = 0) do={{"
-            f"/routing/table/add name={table_q} fib" "}"
+            f":local rid [/routing/table/find where name={table_q}]; "
+            f":if ([:len $rid] = 0) do={{/routing/table/add name={table_q} fib=yes}} "
+            f"else={{/routing/table/set $rid fib=yes}}"
         )
         return RouterOSRenderCommand(command_id, operation_id, "routing_table", command, risk)
 
