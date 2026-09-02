@@ -41,12 +41,13 @@ jobs:
           python-version: "3.12"
       - name: Install project and QEMU
         run: |
+          set -euo pipefail
           python -m pip install -e .
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 unzip
       - name: Download official MikroTik CHR image
         run: |
-          set -eu
+          set -euo pipefail
           curl -4 --http1.1 -fL \
             --connect-timeout 15 \
             --max-time 180 \
@@ -60,7 +61,7 @@ jobs:
           sha256sum /tmp/chr.img.zip > /tmp/chr-download.sha256
       - name: Boot isolated CHR in QEMU snapshot mode
         run: |
-          set -eu
+          set -euo pipefail
           qemu-system-x86_64 \
             -accel tcg,thread=multi \
             -smp 1 \
@@ -75,7 +76,7 @@ jobs:
             -pidfile /tmp/chr.pid
       - name: Wait for live RouterOS REST
         run: |
-          set -eu
+          set -euo pipefail
           ready=0
           for attempt in $(seq 1 90); do
             if curl -fsS --max-time 2 --user 'admin:' \
@@ -94,13 +95,14 @@ jobs:
           cat /tmp/chr-resource.json
       - name: Run basic live read-only discovery
         run: |
+          set -euo pipefail
           mkdir -p evidence
           python lab/chr/run_ci_live_smoke.py \
             --url http://127.0.0.1:9180 \
             --output evidence/chr-ci-live.json
       - name: Bootstrap disposable secure acceptance context
         run: |
-          set -eu
+          set -euo pipefail
           python lab/chr/bootstrap_secure_acceptance.py \
             --admin-url http://127.0.0.1:9180 \
             --https-url https://127.0.0.1:9443 \
@@ -109,7 +111,7 @@ jobs:
             | tee evidence/chr-secure-bootstrap-summary.json
       - name: Verify dedicated reader cannot write
         run: |
-          set -eu
+          set -euo pipefail
           python lab/chr/verify_reader_write_denied.py \
             --url https://127.0.0.1:9443 \
             --ca-file evidence/chr-lab-ca.crt \
@@ -117,13 +119,13 @@ jobs:
             --output evidence/chr-reader-boundary.json
       - name: Populate disposable high-value RouterOS surfaces
         run: |
-          set -eu
+          set -euo pipefail
           python lab/chr/populate_acceptance_objects.py \
             --admin-url http://127.0.0.1:9180 \
             | tee evidence/chr-population-summary.json
       - name: Run populated dedicated-reader HTTPS discovery
         run: |
-          set -eu
+          set -euo pipefail
           ROUTEROS_PASSWORD="$(python -c 'import json; print(json.load(open("/tmp/chr-reader-credentials.json"))["password"])')"
           export ROUTEROS_PASSWORD
           export SSL_CERT_FILE="$GITHUB_WORKSPACE/evidence/chr-lab-ca.crt"
@@ -135,13 +137,13 @@ jobs:
             --evidence evidence/chr-ci-secure-populated.json
       - name: Verify populated surfaces and secret boundary
         run: |
-          set -eu
+          set -euo pipefail
           python lab/chr/verify_populated_evidence.py \
             --evidence evidence/chr-ci-secure-populated.json \
             | tee evidence/chr-populated-verification.json
       - name: Build machine-only CHR provenance record
         run: |
-          set -eu
+          set -euo pipefail
           python lab/chr/build_ci_provenance_record.py \
             --evidence evidence/chr-ci-secure-populated.json \
             --workflow-sha "$GITHUB_SHA" \
@@ -149,9 +151,9 @@ jobs:
             --image-sha256-file /tmp/chr-download.sha256 \
             --output evidence/chr-ci-machine-provenance.json
           cat evidence/chr-ci-machine-provenance.json
-      - name: Evaluate technical acceptance gate
+      - name: Evaluate populated validation gate
         run: |
-          set -eu
+          set -euo pipefail
           python lab/chr/evaluate_technical_acceptance.py \
             --evidence evidence/chr-ci-secure-populated.json \
             --bootstrap evidence/chr-secure-bootstrap-summary.json \
