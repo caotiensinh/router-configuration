@@ -1,0 +1,3 @@
+VLAN current acceptance trigger.
+
+This marker exists only to bind the official disposable CHR acceptance workflow to an exact branch head after normal CI passed on the preceding code/test head.
