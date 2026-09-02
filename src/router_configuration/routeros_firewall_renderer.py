@@ -15,10 +15,12 @@ WAN_INTERFACE_LIST = "routercfg-WAN"
 CORE_INTERFACE_LIST = "routercfg-CORE"
 MANAGEMENT_ADDRESS_LIST = "routercfg-MGMT-SOURCES"
 INPUT_CHAIN = "routercfg-input"
+ICMP_CHAIN = "routercfg-icmp"
 STAGING_GUARD_COMMENT = "routercfg:managed:fw-stage-guard"
 INPUT_JUMP_COMMENT = "routercfg:managed:fw:input-jump"
 ADDRESS_COMMENT_PREFIX = "routercfg:managed:fw:addr:"
 CHAIN_COMMENT_PREFIX = "routercfg:managed:fw:chain:"
+ICMP_COMMENT_PREFIX = "routercfg:managed:fw:icmp:"
 
 
 def _quote(value: str) -> str:
@@ -91,6 +93,8 @@ class RouterOSFirewallCommandPlan:
             "scope": "generation_only",
             "policy": "enterprise_baseline_ipv4_input_v0.1",
             "managed_chain": INPUT_CHAIN,
+            "managed_icmp_chain": ICMP_CHAIN,
+            "icmp_policy": "essential_ipv4",
             "required_interface_lists": [WAN_INTERFACE_LIST, CORE_INTERFACE_LIST],
             "management_sources": list(self.management_sources),
             "required_wan_services": [dict(item) for item in self.required_wan_services],
@@ -230,10 +234,10 @@ def _command(command_id: str, section: str, command: str) -> RouterOSFirewallCom
 def render_routeros_firewall(*, ir: Mapping[str, Any]) -> RouterOSFirewallCommandPlan:
     """Render a strict IPv4 router-input baseline without any write transport.
 
-    The plan uses a temporary fail-closed input guard, rebuilds a reserved custom
-    chain, inserts a jump before the guard, then removes the guard. This keeps
-    ordering deterministic without relying on unstable item numbers. The output
-    is still generation-only; no production apply path exists here.
+    The plan uses a temporary fail-closed input guard, rebuilds reserved custom
+    input/ICMP chains, inserts a jump before the guard, then removes the guard.
+    This keeps ordering deterministic without relying on unstable item numbers.
+    The output remains generation-only; no production apply path exists here.
     """
 
     _verify_ir(ir)
@@ -262,7 +266,10 @@ def render_routeros_firewall(*, ir: Mapping[str, Any]) -> RouterOSFirewallComman
         _command(
             "firewall.01.cleanup-chain",
             "firewall_filter",
-            f'/ip/firewall/filter/remove [find where chain={_quote(INPUT_CHAIN)}]',
+            (
+                f'/ip/firewall/filter/remove [find where chain={_quote(INPUT_CHAIN)}]; '
+                f'/ip/firewall/filter/remove [find where chain={_quote(ICMP_CHAIN)}]'
+            ),
         )
     )
     commands.append(
@@ -299,6 +306,35 @@ def render_routeros_firewall(*, ir: Mapping[str, Any]) -> RouterOSFirewallComman
                 )
             )
 
+    icmp_chain_q = _quote(ICMP_CHAIN)
+    essential_icmp = (
+        ("010-echo-reply", "0:0"),
+        ("020-network-unreachable", "3:0"),
+        ("030-host-unreachable", "3:1"),
+        ("040-fragmentation-required", "3:4"),
+        ("050-echo-request", "8:0"),
+        ("060-time-exceeded", "11:0"),
+        ("070-parameter-problem", "12:0"),
+    )
+    for index, (name, icmp_options) in enumerate(essential_icmp, start=1):
+        commands.append(
+            _command(
+                f"firewall.25.icmp.{index:03d}.{name}",
+                "firewall_filter",
+                (
+                    f'/ip/firewall/filter/add chain={icmp_chain_q} action=accept protocol=icmp '
+                    f'icmp-options={icmp_options} comment={_quote(ICMP_COMMENT_PREFIX + name)}'
+                ),
+            )
+        )
+    commands.append(
+        _command(
+            "firewall.25.icmp.099-drop-other",
+            "firewall_filter",
+            f'/ip/firewall/filter/add chain={icmp_chain_q} action=drop comment={_quote(ICMP_COMMENT_PREFIX + "099-drop-other")}',
+        )
+    )
+
     chain_q = _quote(INPUT_CHAIN)
     commands.extend(
         (
@@ -315,7 +351,10 @@ def render_routeros_firewall(*, ir: Mapping[str, Any]) -> RouterOSFirewallComman
             _command(
                 "firewall.30.rule.030-icmp",
                 "firewall_filter",
-                f'/ip/firewall/filter/add chain={chain_q} action=accept protocol=icmp comment={_quote(CHAIN_COMMENT_PREFIX + "030-essential-icmp")}',
+                (
+                    f'/ip/firewall/filter/add chain={chain_q} action=jump protocol=icmp '
+                    f'jump-target={icmp_chain_q} comment={_quote(CHAIN_COMMENT_PREFIX + "030-essential-icmp")}'
+                ),
             ),
             _command(
                 "firewall.30.rule.040-management-antispoof",
