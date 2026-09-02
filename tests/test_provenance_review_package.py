@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import copy
-
-import pytest
+import unittest
 
 from router_configuration.provenance_review_package import (
     ProvenanceReviewPackageError,
@@ -37,45 +36,50 @@ def _evidence() -> dict:
     }
 
 
-def test_package_binds_machine_evidence_without_self_attesting() -> None:
-    result = prepare_chr_provenance_review_package(
-        clean_readonly_summary=_evidence()
-    ).as_dict()
+class ProvenanceReviewPackageTests(unittest.TestCase):
+    def test_package_binds_machine_evidence_without_self_attesting(self):
+        result = prepare_chr_provenance_review_package(
+            clean_readonly_summary=_evidence()
+        ).as_dict()
 
-    assert result["target_id"] == "chr-live-v7"
-    assert result["routeros_version"] == "7.24.1 (stable)"
-    assert result["normalized_state_sha256"] == _evidence()["normalized_state_sha256"]
-    assert result["source_evidence"]["artifact_id"] == 9830230324
-    assert result["operator_attested"] is False
-    assert result["controlled_environment"] is False
-    assert result["candidate_review_complete"] is False
-    assert result["automatic_target_matrix_admission"] is False
-    assert result["write_authorized"] is False
+        self.assertEqual(result["target_id"], "chr-live-v7")
+        self.assertEqual(result["routeros_version"], "7.24.1 (stable)")
+        self.assertEqual(
+            result["normalized_state_sha256"], _evidence()["normalized_state_sha256"]
+        )
+        self.assertEqual(result["source_evidence"]["artifact_id"], 9830230324)
+        self.assertFalse(result["operator_attested"])
+        self.assertFalse(result["controlled_environment"])
+        self.assertFalse(result["candidate_review_complete"])
+        self.assertFalse(result["automatic_target_matrix_admission"])
+        self.assertFalse(result["write_authorized"])
 
+    def test_package_rejects_machine_evidence_that_claims_attestation(self):
+        evidence = _evidence()
+        evidence["provenance"]["operator_attested"] = True
+        with self.assertRaisesRegex(ProvenanceReviewPackageError, "must not already claim"):
+            prepare_chr_provenance_review_package(clean_readonly_summary=evidence)
 
-def test_package_rejects_machine_evidence_that_claims_attestation() -> None:
-    evidence = _evidence()
-    evidence["provenance"]["operator_attested"] = True
-    with pytest.raises(ProvenanceReviewPackageError, match="must not already claim"):
-        prepare_chr_provenance_review_package(clean_readonly_summary=evidence)
+    def test_package_rejects_any_write_or_writer_signal(self):
+        for field in (
+            "acceptance_collection_write_operations_performed",
+            "mutation_requests_attempted",
+            "production_writer_available",
+            "renderer_enabled",
+            "write_authorized",
+        ):
+            with self.subTest(field=field):
+                evidence = copy.deepcopy(_evidence())
+                evidence["technical_admission"][field] = True
+                with self.assertRaisesRegex(ProvenanceReviewPackageError, field):
+                    prepare_chr_provenance_review_package(clean_readonly_summary=evidence)
 
-
-def test_package_rejects_any_write_or_writer_signal() -> None:
-    for field in (
-        "acceptance_collection_write_operations_performed",
-        "mutation_requests_attempted",
-        "production_writer_available",
-        "renderer_enabled",
-        "write_authorized",
-    ):
-        evidence = copy.deepcopy(_evidence())
-        evidence["technical_admission"][field] = True
-        with pytest.raises(ProvenanceReviewPackageError, match=field):
+    def test_package_rejects_tampered_digest_shape(self):
+        evidence = _evidence()
+        evidence["normalized_state_sha256"] = "not-a-digest"
+        with self.assertRaisesRegex(ProvenanceReviewPackageError, "lowercase SHA-256"):
             prepare_chr_provenance_review_package(clean_readonly_summary=evidence)
 
 
-def test_package_rejects_tampered_digest_shape() -> None:
-    evidence = _evidence()
-    evidence["normalized_state_sha256"] = "not-a-digest"
-    with pytest.raises(ProvenanceReviewPackageError, match="lowercase SHA-256"):
-        prepare_chr_provenance_review_package(clean_readonly_summary=evidence)
+if __name__ == "__main__":
+    unittest.main()
