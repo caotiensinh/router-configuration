@@ -1,0 +1,142 @@
+name: CHR QoS Parent-Default Runtime
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-qos-parent-default-runtime:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.head_commit.message, 'ci(chr-qos-runtime):') ||
+      startsWith(github.event.head_commit.message, 'test(chr-qos-runtime):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: router-config-chr-qos-parent-default-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and headless QEMU
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Prepare official MikroTik CHR image
+        run: |
+          set -euo pipefail
+          archive="/tmp/chr-${CHR_VERSION}.img.zip"
+          if [ ! -s "$archive" ]; then
+            curl -4 --http1.1 -fL \
+              --connect-timeout 15 \
+              --max-time 180 \
+              --retry 1 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+              -o "$archive"
+          fi
+          test -s "$archive"
+          unzip -t "$archive"
+          unzip -p "$archive" > /tmp/chr-qos-parent-default.img
+          test -s /tmp/chr-qos-parent-default.img
+          sha256sum "$archive" > /tmp/chr-qos-parent-default-download.sha256
+
+      - name: Persist CHR archive cache
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Boot disposable two-interface CHR snapshot
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr-qos-parent-default.img,format=raw,if=virtio \
+            -netdev user,id=mgmt,hostfwd=tcp:127.0.0.1:9781-:80 \
+            -device virtio-net-pci,netdev=mgmt,mac=52:54:00:12:51:01 \
+            -netdev user,id=wan \
+            -device virtio-net-pci,netdev=wan,mac=52:54:00:12:51:02 \
+            -display none \
+            -serial file:/tmp/chr-qos-parent-default-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-qos-parent-default.pid
+
+      - name: Wait for disposable CHR REST and verify interfaces
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/chr-qos-parent-default-runtime
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9781/rest/system/resource \
+              > evidence/chr-qos-parent-default-runtime/chr-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chr-qos-parent-default-serial.log >&2 || true
+            exit 1
+          fi
+          curl -fsS --user 'admin:' http://127.0.0.1:9781/rest/interface \
+            > evidence/chr-qos-parent-default-runtime/chr-interfaces.json
+          python - <<'PY'
+          import json
+          rows = json.load(open('evidence/chr-qos-parent-default-runtime/chr-interfaces.json', encoding='utf-8'))
+          names = {str(row.get('name')) for row in rows if isinstance(row, dict)}
+          missing = sorted({'ether1', 'ether2'} - names)
+          if missing:
+              raise SystemExit(f'missing QoS runtime interfaces: {missing}')
+          PY
+
+      - name: Validate production QoS renderer runtime and exact rollback
+        run: |
+          set -euo pipefail
+          python lab/chr/verify_qos_parent_default_runtime.py \
+            --admin-url http://127.0.0.1:9781 \
+            --output evidence/chr-qos-parent-default-runtime/result.json
+
+      - name: Preserve sanitized QoS runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-qos-parent-default-runtime-${{ github.sha }}
+          path: |
+            evidence/chr-qos-parent-default-runtime/result.json
+            evidence/chr-qos-parent-default-runtime/chr-resource.json
+            evidence/chr-qos-parent-default-runtime/chr-interfaces.json
+            /tmp/chr-qos-parent-default-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr-qos-parent-default.pid ]; then
+            kill "$(cat /tmp/chr-qos-parent-default.pid)" 2>/dev/null || true
+          fi
