@@ -1,0 +1,61 @@
+name: CHR QoS Recovery Debug Matrix
+
+on:
+  push:
+    paths:
+      - "lab/chr/debug_qos_recovery_paths.py"
+      - "lab/chr/run_qos_recovery_debug_lane.sh"
+      - "tests/test_chr_qos_recovery_debug_contract.py"
+      - ".github/workflows/chr-qos-recovery-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-qos-recovery-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - explicit-default-global-hierarchy
+          - interface-prerouting-dscp-hierarchy
+          - global-siblings-no-mark
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+      EVIDENCE_DIR: ${{ github.workspace }}/evidence/chr-qos-recovery-debug
+      FLOW_COUNT: "80"
+      FLOW_TIMEOUT: "0.30"
+      DEBUG_LANE: ${{ matrix.lane }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install disposable CHR recovery dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2
+          sudo -n true
+      - name: Restore official MikroTik CHR archive cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+      - name: Run fallback QoS recovery lane
+        run: bash lab/chr/run_qos_recovery_debug_lane.sh
+      - name: Preserve sanitized fallback evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-qos-recovery-${{ matrix.lane }}-${{ github.sha }}
+          path: |
+            evidence/chr-qos-recovery-debug/*.json
+            evidence/chr-qos-recovery-debug/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
