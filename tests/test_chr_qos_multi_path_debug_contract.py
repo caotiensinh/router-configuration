@@ -37,8 +37,8 @@ class CHRQoSMultiPathDebugContractTests(unittest.TestCase):
         self.assertIn("tcpdump", source)
         self.assertIn("tos 0xb8", source)
         self.assertIn("--dscp 46", source)
-        self.assertIn('"routeros_behavior_claimed": False', source)
-        self.assertIn('"production_packet_flow_acceptance": False', source)
+        self.assertIn("'routeros_behavior_claimed': False", source)
+        self.assertIn("'production_packet_flow_acceptance': False", source)
 
     def test_workflow_runs_matrix_fail_fast_false_on_official_chr(self):
         source = WORKFLOW.read_text(encoding="utf-8")
