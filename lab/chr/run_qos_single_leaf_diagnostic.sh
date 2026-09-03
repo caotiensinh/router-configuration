@@ -10,6 +10,8 @@ EVIDENCE_DIR="${EVIDENCE_DIR:-${ROOT}/evidence/chr-qos-single-leaf}"
 FLOW_COUNT="${FLOW_COUNT:-80}"
 FLOW_TIMEOUT="${FLOW_TIMEOUT:-0.30}"
 DIAGNOSTIC_MODE="${DIAGNOSTIC_MODE:-full}"
+COUNTER_SETTLE_ATTEMPTS="${COUNTER_SETTLE_ATTEMPTS:-20}"
+COUNTER_SETTLE_INTERVAL="${COUNTER_SETTLE_INTERVAL:-0.25}"
 SERVICE_IP="203.0.113.100"
 SERVICE_PORT="5000"
 
@@ -108,6 +110,63 @@ send_probe() {
     --output "${output}"
 }
 
+wait_for_counter_visibility() {
+  local install_file="$1"
+  local before_file="$2"
+  local after_file="$3"
+  local settle_file="$4"
+  local attempt=0
+  local visible=0
+
+  while (( attempt < COUNTER_SETTLE_ATTEMPTS )); do
+    attempt=$((attempt + 1))
+    python3 "${DIAG}" counters \
+      --admin-url "${ADMIN_URL}" \
+      --install "${install_file}" \
+      --output "${after_file}"
+    if python3 - "${before_file}" "${after_file}" <<'PY'
+import json, sys
+before = json.load(open(sys.argv[1], encoding='utf-8'))
+after = json.load(open(sys.argv[2], encoding='utf-8'))
+mangle_delta = int(after['mangle_packets']) - int(before['mangle_packets'])
+leaf_delta = int(after['leaf_packets']) - int(before['leaf_packets'])
+raise SystemExit(0 if mangle_delta > 0 and leaf_delta > 0 else 1)
+PY
+    then
+      visible=1
+      break
+    fi
+    sleep "${COUNTER_SETTLE_INTERVAL}"
+  done
+
+  python3 - \
+    "${before_file}" "${after_file}" "${settle_file}" \
+    "${attempt}" "${COUNTER_SETTLE_ATTEMPTS}" "${COUNTER_SETTLE_INTERVAL}" "${visible}" <<'PY'
+import json, sys
+from pathlib import Path
+before = json.load(open(sys.argv[1], encoding='utf-8'))
+after = json.load(open(sys.argv[2], encoding='utf-8'))
+attempt = int(sys.argv[4])
+max_attempts = int(sys.argv[5])
+interval = float(sys.argv[6])
+visible = sys.argv[7] == '1'
+payload = {
+    'ok': True,
+    'counter_visibility_observed': visible,
+    'attempts_used': attempt,
+    'max_attempts': max_attempts,
+    'interval_seconds': interval,
+    'bounded_window_seconds': max_attempts * interval,
+    'mangle_packet_delta': int(after['mangle_packets']) - int(before['mangle_packets']),
+    'leaf_packet_delta': int(after['leaf_packets']) - int(before['leaf_packets']),
+    'acceptance_relaxed': False,
+    'counter_source': 'queue_tree_print_stats',
+}
+Path(sys.argv[3]).write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+print(json.dumps(payload, indent=2, sort_keys=True))
+PY
+}
+
 log "creating isolated WAN/CORE dataplane"
 create_bridge_with_tap "${BR_WAN}" "${TAP_WAN}"
 create_bridge_with_tap "${BR_CORE}" "${TAP_CORE}"
@@ -197,10 +256,11 @@ run_phase() {
     --install "${EVIDENCE_DIR}/${slug}-install.json" \
     --output "${EVIDENCE_DIR}/${slug}-before.json"
   send_probe "${dscp}" "${source_port}" "${EVIDENCE_DIR}/${slug}-flow.json"
-  python3 "${DIAG}" counters \
-    --admin-url "${ADMIN_URL}" \
-    --install "${EVIDENCE_DIR}/${slug}-install.json" \
-    --output "${EVIDENCE_DIR}/${slug}-after.json"
+  wait_for_counter_visibility \
+    "${EVIDENCE_DIR}/${slug}-install.json" \
+    "${EVIDENCE_DIR}/${slug}-before.json" \
+    "${EVIDENCE_DIR}/${slug}-after.json" \
+    "${EVIDENCE_DIR}/${slug}-counter-settle.json"
   python3 "${DIAG}" evaluate \
     --mode "${mode}" \
     --before "${EVIDENCE_DIR}/${slug}-before.json" \
@@ -219,7 +279,6 @@ if [[ "${DIAGNOSTIC_MODE}" == "prerouting-default-only" ]]; then
     "${EVIDENCE_DIR}/summary.json" <<'PY'
 import json, sys
 from pathlib import Path
-
 result = json.load(open(sys.argv[1], encoding='utf-8'))
 if result.get('acceptance') != 'PASS' or result.get('diagnostic_packet_flow_acceptance') is not True:
     raise SystemExit('prerouting default-only single-leaf diagnostic did not pass')
@@ -230,6 +289,7 @@ summary = {
     'default_small_pass': True,
     'mark_chain': 'prerouting',
     'ingress_interface': 'ether3',
+    'counter_visibility_bounded': True,
     'production_renderer_modified': False,
     'production_packet_flow_acceptance': False,
     'aggregate_shaping_claimed': False,
@@ -263,7 +323,6 @@ python3 - \
   "${EVIDENCE_DIR}/summary.json" <<'PY'
 import json, sys
 from pathlib import Path
-
 labels = (
     'default_default_small',
     'ef_default_small',
@@ -283,6 +342,7 @@ summary = {
     'fq_codel_pass': True,
     'default_mark_to_leaf_pass': True,
     'ef_mark_to_leaf_pass': True,
+    'counter_visibility_bounded': True,
     'production_renderer_modified': False,
     'production_packet_flow_acceptance': False,
     'aggregate_shaping_claimed': False,
