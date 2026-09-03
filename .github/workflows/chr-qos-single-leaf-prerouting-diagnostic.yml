@@ -1,0 +1,70 @@
+name: CHR QoS Single-Leaf Prerouting Diagnostic
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-qos-single-leaf-prerouting:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.head_commit.message, 'test(chr-qos-pre):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: router-config-chr-qos-prerouting-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+      EVIDENCE_DIR: ${{ github.workspace }}/evidence/chr-qos-single-leaf
+      FLOW_COUNT: "80"
+      FLOW_TIMEOUT: "0.30"
+      DIAGNOSTIC_MODE: prerouting-default-only
+      DIAG_OVERRIDE: ${{ github.workspace }}/lab/chr/diagnose_qos_single_leaf_prerouting.py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and prerouting timing lab dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2
+          sudo -n true
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Run prerouting default-only mark-to-global-leaf timing probe
+        run: |
+          set -euo pipefail
+          bash lab/chr/run_qos_single_leaf_diagnostic.sh
+
+      - name: Persist verified CHR archive cache
+        if: success() && steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Preserve sanitized prerouting timing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-qos-single-leaf-prerouting-${{ github.sha }}
+          path: |
+            evidence/chr-qos-single-leaf/*.json
+            evidence/chr-qos-single-leaf/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
