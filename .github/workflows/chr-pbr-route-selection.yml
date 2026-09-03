@@ -1,0 +1,138 @@
+name: CHR PBR Route Selection
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-pbr-route-selection:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'ci(chr-pbr-flow):') || startsWith(github.event.head_commit.message, 'test(chr-pbr-flow):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: router-config-chr-pbr-flow-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and packet-flow lab dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2 iputils-ping
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Download official MikroTik CHR archive on cache miss
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          archive="/tmp/chr-${CHR_VERSION}.img.zip"
+          curl -4 --http1.1 -fL \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --retry 1 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o "$archive"
+          test -s "$archive"
+          unzip -t "$archive" >/dev/null
+
+      - name: Persist verified CHR archive cache
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Prove source-based PBR route selection on disposable CHR
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+          FLOW_COUNT: "30"
+        run: |
+          set -euo pipefail
+          bash lab/chr/run_pbr_route_selection_acceptance.sh
+
+      - name: Validate sanitized PBR route-selection artifact
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("evidence/chr-pbr-route-selection/acceptance.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          assert payload["ok"] is True
+          assert payload["acceptance"] == "PASS"
+          assert payload["workflow_sha"] == os.environ["GITHUB_SHA"]
+          assert payload["platform"]["version"].startswith("7.24.1")
+          assert payload["route_selection_data_plane_acceptance"] is True
+          assert payload["negative_control_acceptance"] is True
+          assert payload["renderer"]["production_renderer_used"] is True
+          assert payload["renderer"]["command_count"] == 1
+          assert payload["renderer"]["mangle_routing_marks"] is False
+
+          negative = payload["packet_flow"]["without_pbr_negative_control"]
+          positive = payload["packet_flow"]["with_pbr_selected_table"]
+          assert negative["requested_flows"] == 30
+          assert negative["successful_flows"] == 0
+          assert negative["blocked_without_policy"] is True
+          assert positive["requested_flows"] == 30
+          assert positive["successful_flows"] == 30
+          assert positive["observed_tags"] == {"PBR": 30}
+
+          assert payload["rule_rollback_digest_restored"] is True
+          assert payload["lab_setup_cleanup_restored"] is True
+          assert payload["temporary_files_removed"] is True
+          assert payload["management_rest_reachable_after_flow"] is True
+          assert payload["production_writer_available"] is False
+          assert payload["transport_exposed_to_product"] is False
+          assert payload["write_authorized"] is False
+          assert payload["physical_router_targeted"] is False
+
+          rendered = json.dumps(payload, sort_keys=True).lower()
+          for forbidden in ("private_key", "password", "token", ".backup", "preshared-key"):
+              assert forbidden not in rendered, forbidden
+          print(json.dumps({
+              "acceptance": payload["acceptance"],
+              "workflow_sha": payload["workflow_sha"],
+              "negative_successes": negative["successful_flows"],
+              "positive_successes": positive["successful_flows"],
+              "positive_tags": positive["observed_tags"],
+              "rollback_digest_restored": payload["rule_rollback_digest_restored"],
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Preserve sanitized PBR route-selection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-pbr-route-selection-${{ github.sha }}
+          path: |
+            evidence/chr-pbr-route-selection/acceptance.json
+            evidence/chr-pbr-route-selection/prepared.json
+            evidence/chr-pbr-route-selection/applied.json
+            evidence/chr-pbr-route-selection/flow-without-pbr.json
+            evidence/chr-pbr-route-selection/flow-with-pbr.json
+            evidence/chr-pbr-route-selection/chr-resource.json
+            evidence/chr-pbr-route-selection/chr-interfaces.json
+            evidence/chr-pbr-route-selection/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
