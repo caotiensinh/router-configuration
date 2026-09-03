@@ -48,6 +48,27 @@ jobs:
         run: |
           set -euo pipefail
           bash lab/chr/run_qos_global_siblings_acceptance.sh
+      - name: Bind exact workflow SHA into acceptance evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence_dir = Path(os.environ["EVIDENCE_DIR"])
+          sha = os.environ["GITHUB_SHA"].strip()
+          if len(sha) != 40:
+              raise SystemExit("GITHUB_SHA must be an exact 40-character commit SHA")
+          for name in ("prepare.json", "evaluation.json", "acceptance.json"):
+              path = evidence_dir / name
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              payload["workflow_sha"] = sha
+              path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          acceptance = json.loads((evidence_dir / "acceptance.json").read_text(encoding="utf-8"))
+          if acceptance.get("workflow_sha") != sha or acceptance.get("acceptance") != "PASS":
+              raise SystemExit("exact-head acceptance evidence binding failed")
+          PY
       - name: Persist verified CHR archive cache
         if: success() && steps.chr-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

@@ -32,10 +32,14 @@ def test_qos_global_sibling_runner_drives_dscp0_and_dscp46_and_exact_rollback():
     assert "diagnose_qos" not in source
 
 
-def test_qos_global_sibling_workflow_runs_on_production_renderer_changes():
+def test_qos_global_sibling_workflow_runs_on_production_renderer_changes_and_binds_exact_head():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert 'src/router_configuration/routeros_qos_renderer.py' in source
     assert "run_qos_global_siblings_acceptance.sh" in source
+    assert "Bind exact workflow SHA into acceptance evidence" in source
+    assert 'payload["workflow_sha"] = sha' in source
+    assert 'acceptance.get("workflow_sha") != sha' in source
+    assert "GITHUB_SHA" in source
     assert "actions/upload-artifact@v4" in source
     assert 'CHR_VERSION: "7.24.1"' in source
 
