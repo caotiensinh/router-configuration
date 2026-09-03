@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from .render_readiness import assess_render_readiness
 from .routeros_firewall_renderer import RouterOSFirewallRenderError, render_routeros_firewall
 from .routeros_pcc_renderer import RouterOSPccRenderError, render_routeros_pcc
+from .routeros_qos_renderer import RouterOSQoSRenderError, render_routeros_qos
 from .routeros_renderer import RouterOSRenderError, RouterOSSafeSubsetRenderer
 from .routeros_wireguard_renderer import RouterOSWireGuardRenderError, render_routeros_wireguard
 
@@ -15,6 +16,7 @@ from .routeros_wireguard_renderer import RouterOSWireGuardRenderError, render_ro
 PCC_OPERATION_ID = "routing.multiwan.capacity_weighted"
 FIREWALL_OPERATION_ID = "security.baseline"
 WIREGUARD_OPERATION_ID = "vpn.wireguard"
+QOS_OPERATION_ID = "qos.policy"
 
 
 @dataclass(frozen=True)
@@ -77,12 +79,7 @@ def _pcc_has_explicit_paths(ir: Mapping[str, Any]) -> bool:
 
 
 def _firewall_has_explicit_facts(ir: Mapping[str, Any]) -> bool:
-    """Return true only when the operator supplied both mandatory firewall fact sets.
-
-    An explicit empty required_wan_services list is meaningful: it says no WAN
-    service exception is requested. Missing keys remain a blocker and are never
-    silently interpreted as safe defaults.
-    """
+    """Return true only when the operator supplied both mandatory firewall fact sets."""
 
     operations = ir.get("operations", [])
     if not isinstance(operations, list):
@@ -132,6 +129,33 @@ def _wireguard_has_explicit_facts(ir: Mapping[str, Any]) -> bool:
             and len(references) == 1
         )
     return False
+
+
+def _qos_has_explicit_facts(ir: Mapping[str, Any]) -> bool:
+    operations = ir.get("operations", [])
+    if not isinstance(operations, list):
+        return False
+    qos_seen = False
+    wan_seen = False
+    for operation in operations:
+        if not isinstance(operation, Mapping):
+            continue
+        resource = str(operation.get("resource") or "")
+        attributes = operation.get("attributes", {})
+        if not isinstance(attributes, Mapping):
+            continue
+        if str(operation.get("operation_id") or "") == QOS_OPERATION_ID:
+            qos_seen = str(attributes.get("policy") or "") == "latency_sensitive_first"
+        if resource == "wan_role":
+            capacity = attributes.get("capacity_mbps")
+            wan_seen = wan_seen or (
+                bool(str(attributes.get("name") or "").strip())
+                and bool(str(attributes.get("interface") or "").strip())
+                and isinstance(capacity, int)
+                and not isinstance(capacity, bool)
+                and capacity > 0
+            )
+    return qos_seen and wan_seen
 
 
 def _command_ids(commands: list[Any], *, label: str, error_type: type[ValueError]) -> set[str]:
@@ -234,13 +258,7 @@ def _attach_deferred_wireguard_templates(
     base_plan: Mapping[str, Any],
     wireguard_plan: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Attach validated templates while deliberately retaining the WG blocker.
-
-    Product generation never binds the private key. The WireGuard extension is
-    therefore metadata/template output, not part of the normal executable
-    `commands` collection. The base blocker is narrowed to the missing secret
-    binding and transaction boundary instead of being removed.
-    """
+    """Attach validated templates while deliberately retaining the WG blocker."""
 
     merged = dict(base_plan)
     templates = wireguard_plan.get("command_templates", [])
@@ -319,6 +337,69 @@ def _attach_deferred_wireguard_templates(
     return merged
 
 
+def _merge_qos_policy(
+    *,
+    base_plan: Mapping[str, Any],
+    qos_plan: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Merge the CHR-targeted parent-default QoS formulation into generation output."""
+
+    merged = dict(base_plan)
+    base_commands = base_plan.get("commands", [])
+    qos_commands = qos_plan.get("commands", [])
+    if not isinstance(base_commands, list) or not isinstance(qos_commands, list) or not qos_commands:
+        raise RouterOSQoSRenderError("base/QoS command collections must be non-empty lists")
+
+    base_ids = _command_ids(base_commands, label="base", error_type=RouterOSQoSRenderError)
+    qos_ids = _command_ids(qos_commands, label="QoS", error_type=RouterOSQoSRenderError)
+    overlap = sorted(base_ids & qos_ids)
+    if overlap:
+        raise RouterOSQoSRenderError(
+            "QoS command IDs collide with base renderer: " + ", ".join(overlap)
+        )
+
+    remaining_blockers = _remove_exact_blocker(
+        base_plan=base_plan,
+        operation_id=QOS_OPERATION_ID,
+        label="QoS",
+        error_type=RouterOSQoSRenderError,
+    )
+    merged_commands = [*base_commands, *qos_commands]
+    merged["commands"] = merged_commands
+    merged["blocked_operations"] = remaining_blockers
+    merged["claim"] = "generation_complete" if not remaining_blockers else "generation_partial"
+    merged["complete"] = not remaining_blockers
+    merged["vendor_commands_present"] = bool(merged_commands)
+
+    existing_extensions = merged.get("generation_extensions", {})
+    if existing_extensions is None:
+        existing_extensions = {}
+    if not isinstance(existing_extensions, Mapping):
+        raise RouterOSQoSRenderError("generation_extensions must be an object")
+    extensions = dict(existing_extensions)
+    if "qos" in extensions:
+        raise RouterOSQoSRenderError("QoS generation extension already exists")
+    extensions["qos"] = {
+        "schema_version": str(qos_plan.get("schema_version") or ""),
+        "command_count": len(qos_commands),
+        "policy": str(qos_plan.get("policy") or ""),
+        "strategy": str(qos_plan.get("strategy") or ""),
+        "policy_contract": dict(qos_plan.get("policy_contract", {}))
+        if isinstance(qos_plan.get("policy_contract"), Mapping)
+        else {},
+        "targets": [dict(item) for item in qos_plan.get("targets", []) if isinstance(item, Mapping)],
+        "source": "verified_ir_topology_and_product_policy",
+        "default_traffic_marked": False,
+        "transport_present": False,
+        "apply_available": False,
+        "write_authorized": False,
+    }
+    merged["generation_extensions"] = extensions
+    merged.pop("render_sha256", None)
+    merged["render_sha256"] = _canonical_sha256(merged)
+    return merged
+
+
 def _merge_state_bound_pcc(
     *,
     base_plan: Mapping[str, Any],
@@ -391,8 +472,9 @@ def generate_routeros_plan(
     resolved secrets. Stateless base rendering runs first. Explicit firewall
     facts may produce generation-only commands. Explicit WireGuard facts may
     produce only deferred templates while the private-key binding remains
-    blocked. Complete PCC path facts may be bound to already-verified normalized
-    state. Unsafe live PCC state such as FastTrack/dstnat fails closed.
+    blocked. QoS binds the product policy to already-compiled WAN topology facts.
+    Complete PCC path facts may be bound to already-verified normalized state.
+    Unsafe live PCC state such as FastTrack/dstnat fails closed.
     """
 
     readiness_result = assess_render_readiness(
@@ -459,6 +541,17 @@ def generate_routeros_plan(
         except RouterOSWireGuardRenderError as exc:
             return RouterOSGenerationResult(
                 errors=(f"wireguard renderer: {exc}",),
+                warnings=readiness_result.warnings,
+                readiness=readiness,
+            )
+
+    if _qos_has_explicit_facts(ir):
+        try:
+            qos_plan = render_routeros_qos(ir=ir).as_dict()
+            plan = _merge_qos_policy(base_plan=plan, qos_plan=qos_plan)
+        except RouterOSQoSRenderError as exc:
+            return RouterOSGenerationResult(
+                errors=(f"qos renderer: {exc}",),
                 warnings=readiness_result.warnings,
                 readiness=readiness,
             )
