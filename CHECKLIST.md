@@ -11,11 +11,15 @@
 
 ## Current measured status
 
-**83% complete / 17% remaining.**
+**87% complete / 13% remaining.**
 
-Change from the previous 82% checkpoint: **+1 P10 point for disposable CHR transaction runtime admission proven on exact `main` before the first mutation-capable runtime call**. PR #14 established repository-safe backup evidence binding without earning a standalone weighted point. PR #15 merged as `7cbf66bddd7294c4b65cae866a5dca3e92598013`; exact-main Python CI passed in run `33696304595`, and official RouterOS CHR 7.24.1 transaction acceptance passed in run `33696304538`, artifact `9871930098`, digest `sha256:481b933033310231fbf6ce84c3c374214908760e56d09e405f31de1afc1a9d9f`. Direct artifact inspection confirmed that transaction admission completed before mutation, the bound pre-state digest matched the runtime baseline and restored rollback digest, controlled failure and exact rollback were observed, and the lifecycle conservatively stopped at `rollback_observed`. This credit does **not** claim independent recovery verification, production backup/apply readiness, operator attestation, a production writer, physical-router mutation or `write_authorized=true`.
+Change from the previous 83% checkpoint: **+4 weighted points across accepted QoS and transaction-runtime gates**. QoS global sibling Queue Tree rendering earns +1 P09 and +1 P12 after PR #17 merged as `e5c6f3c2cf87b356dd66d73b3b3a8380bd64c000`; exact-main Python CI passed in run `33714864826`, and official RouterOS CHR 7.24.1 packet-flow acceptance passed in run `33714864851`, artifact `9878150512`, digest `sha256:ffdf7880d5bf335b286240051967eb30fc21973f69e0850b392ca400177b5a3f`. Direct evidence shows DSCP0 80/80 traversing the unmarked default sibling leaf and DSCP46 80/80 traversing the marked priority sibling leaf, with no default catch-all mangle rule and exact owned rollback restoration. This does **not** claim aggregate WAN shaping, bandwidth guarantees or measured latency improvement.
 
-Change from the previous 79% checkpoint: **+3 points backed by two independent accepted workstreams on exact `main`**. The guided release slice adds the generation-only `routerctl guided-start` entry point and beginner deployment guide without credentials, discovery transport, apply capability or a production writer; PR #9 merged as `fd19ebe32dbc375637a91389ec4f2dc85ba92516` after exact-head Python 3.11/3.12/3.13 CI, and the merge commit also passed exact-main CI. The management-safe VLAN slice adds deterministic RouterOS bridge/VLAN rendering from live switching prerequisites, activates VLAN filtering last, preserves out-of-band `ether1` management, and passed official RouterOS CHR 7.24.1 dry-run, runtime validity, management survival and owned-only exact rollback. Exact CHR head `a0a32a869eaa28e7e7f4366797a88e9ecc4fe933` passed run `33656978581`; artifact `9857136311` has digest `sha256:148d4f5ccf9f4e39ab85273690eefa75c0ffcbb9d79ad0dea1abeab3c95913d8`. Sanitized evidence is retained in `evidence/chr/2026-09-02-vlan-baseline-runtime-7.24.1.json`. PR #10 merged as `59981898b564726552554be787284a512a435ac5`, which passed exact-main Python 3.11/3.12/3.13 CI in run `33657549509`. These gates earn +1 P15, +1 P09 and +1 P12. They do **not** claim in-band VLAN data-plane acceptance, production writer readiness, physical CCR2116 behavior or any production mutation capability.
+P10 earns +2 further points for two independent disposable-CHR transaction gates. PR #18 proves fresh-session rollback recovery verification and lifecycle transition to `rolled_back`; exact-head CI run `33718603023` and CHR recovery run `33718603041` passed with artifact `9879476571`, digest `sha256:d9005c7fe25c56c58b955dc359f1325065aac406dee125617f254253b1d330d5`. PR #19 merged as `2eaaa005ce56d19a5ed01f4a64f385e7ef6b6583` and proves fresh-session post-apply verification on the admitted success path; exact-main CI run `33719518370` and CHR post-apply run `33719518415` passed with artifact `9879726318`, digest `sha256:586d71f53fea6a252e5483bbe3cfa66e57ed25e3bf6b2a18caca4810b6ace199`. These credits do **not** claim management-path survival during mutation, production backup/apply readiness, operator attestation, a production writer, a physical-router target or `write_authorized=true`.
+
+Change from the previous 82% checkpoint: **+1 P10 point for disposable CHR transaction runtime admission proven on exact `main` before the first mutation-capable runtime call**. PR #14 established repository-safe backup evidence binding without earning a standalone weighted point. PR #15 merged as `7cbf66bddd7294c4b65cae866a5dca3e92598013`; exact-main Python CI passed in run `33696304595`, and official RouterOS CHR 7.24.1 transaction acceptance passed in run `33696304538`, artifact `9871930098`, digest `sha256:481b933033310231fbf6ce84c3c374214908760e56d09e405f31de1afc1a9d9f`. Direct artifact inspection confirmed that transaction admission completed before mutation, the bound pre-state digest matched the runtime baseline and restored rollback digest, controlled failure and exact rollback were observed, and the lifecycle conservatively stopped at `rollback_observed` at that checkpoint.
+
+Change from the previous 79% checkpoint: **+3 points backed by two independent accepted workstreams on exact `main`**. The guided release slice adds the generation-only `routerctl guided-start` entry point and beginner deployment guide without credentials, discovery transport, apply capability or a production writer; PR #9 merged as `fd19ebe32dbc375637a91389ec4f2dc85ba92516`. The management-safe VLAN slice passed official RouterOS CHR 7.24.1 dry-run, runtime validity, management survival and owned-only exact rollback; PR #10 merged as `59981898b564726552554be787284a512a435ac5`. These gates earned +1 P15, +1 P09 and +1 P12.
 
 | ID | Workstream | Weight | Earned | Status | Next acceptance gate |
 | --- | --- | ---: | ---: | --- | --- |
@@ -27,10 +31,10 @@ Change from the previous 79% checkpoint: **+3 points backed by two independent a
 | P06 | Compiler / secret boundary | 4 | 4 | DONE | Further RouterOS command coverage is tracked under P09 |
 | P07 | RouterOS read-only discovery | 12 | 10 | PARTIAL | operator provenance attestation + candidate review |
 | P08 | RouterOS normalization | 6 | 6 | DONE | — |
-| P09 | RouterOS renderer | 13 | 10 | PARTIAL | QoS renderer/runtime coverage; production apply remains separately gated |
-| P10 | Backup/preflight/apply/verify/rollback | 15 | 6 | PARTIAL | independent post-apply verification, management-path survival and recovery verification on the admitted disposable CHR path; production apply remains disabled |
+| P09 | RouterOS renderer | 13 | 11 | PARTIAL | close remaining v1 renderer capability gaps; production apply remains separately gated |
+| P10 | Backup/preflight/apply/verify/rollback | 15 | 8 | PARTIAL | prove management-path survival during apply; production writer/apply remain disabled |
 | P11 | Dual-WAN / failover | 5 | 5 | DONE | — |
-| P12 | Security/VLAN/PBR/VPN/QoS | 8 | 5 | PARTIAL | QoS; WireGuard handshake, PBR route-selection and in-band VLAN data-plane remain separately unclaimed |
+| P12 | Security/VLAN/PBR/VPN/QoS | 8 | 6 | PARTIAL | WireGuard handshake, PBR route-selection and in-band VLAN data-plane remain separately unclaimed |
 | P13 | CHR integration/failure lab | 5 | 5 | DONE | — |
 | P14 | CI/regression/golden evidence | 2 | 2 | DONE | — |
 | P15 | v1 release/beginner deployment docs | 1 | 1 | DONE | Final v1 release still depends on remaining P07/P09/P10/P12 hard gates |
@@ -65,14 +69,17 @@ Change from the previous 79% checkpoint: **+3 points backed by two independent a
 - [x] WireGuard CHR evidence confirms `private_key_recorded=false`, `private_key_serialized=false`, no PSK, no product writer and no product write transport.
 - [x] Management-safe PBR `/routing rule` generation passed CHR dry-run, runtime validity, management-path survival and exact rollback-to-baseline verification.
 - [x] Management-safe VLAN generation passed CHR dry-run, runtime object validity, VLAN-filtering-last activation, OOB management survival and exact rollback-to-baseline verification.
+- [x] RouterOS QoS global sibling Queue Tree rendering passed CHR 7.24.1 packet-flow acceptance for unmarked default traffic and DSCP46 priority traffic with exact owned rollback.
 - [x] Disposable CHR transaction runtime admission binds the exact render plan, pre-state digest and repository-safe backup evidence before mutation, with no production writer, physical-router target or production write authorization.
+- [x] Disposable CHR rollback recovery is independently verified from a fresh REST session and advances the lifecycle to `rolled_back`.
+- [x] Disposable CHR successful post-apply state is independently re-read from a fresh REST session and matches the observed apply state digest.
 - [ ] PBR route-selection data-plane behavior is independently proven where required by the v1 acceptance scope.
 - [ ] WireGuard peer-to-peer handshake and encrypted packet transfer are independently proven where required by the v1 acceptance scope.
 - [ ] Full CHR acceptance uses a dedicated least-privilege REST reader.
 - [ ] Full CHR acceptance uses HTTPS with certificate verification.
 - [ ] Full CHR evidence passes explicit provenance attestation/candidate review.
 - [ ] Populated NAT/QoS objects are reviewed on live CHR or covered by an explicit accepted capability-gap policy.
-- [ ] RouterOS renderer has accepted coverage for every planned v1 operation, including QoS.
+- [ ] RouterOS renderer has accepted coverage for every planned v1 operation.
 - [ ] Production apply requires real backup evidence.
 - [ ] Default-route/firewall/management changes require verified management reachability in the production transaction path.
 - [ ] Post-apply verification covers WAN, DNS, routing, VPN and management reachability as applicable.
