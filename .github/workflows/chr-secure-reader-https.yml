@@ -1,0 +1,315 @@
+name: CHR Secure Reader HTTPS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/router_configuration/routeros_discovery.py"
+      - "lab/chr/bootstrap_secure_acceptance.py"
+      - "lab/chr/verify_reader_write_denied.py"
+      - "lab/chr/populate_acceptance_objects.py"
+      - "lab/chr/verify_populated_evidence.py"
+      - "lab/chr/build_ci_provenance_record.py"
+      - "lab/chr/evaluate_technical_acceptance.py"
+      - "tests/test_chr_secure_reader_https_contract.py"
+      - ".github/workflows/chr-secure-reader-https.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  chr-secure-reader-https:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    concurrency:
+      group: router-config-chr-secure-reader-https-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+      ADMIN_URL: http://127.0.0.1:9180
+      HTTPS_URL: https://127.0.0.1:9443
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and CHR dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CHR_ARCHIVE }}
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Download official MikroTik CHR image on cache miss
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -4 --http1.1 -fL \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --retry 1 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o "${CHR_ARCHIVE}"
+
+      - name: Validate and persist CHR archive
+        run: |
+          set -euo pipefail
+          test -s "${CHR_ARCHIVE}"
+          unzip -t "${CHR_ARCHIVE}" >/dev/null
+          unzip -p "${CHR_ARCHIVE}" > /tmp/chr-secure-reader.img
+          sha256sum "${CHR_ARCHIVE}" > /tmp/chr-download.sha256
+
+      - name: Persist verified CHR archive cache
+        if: success() && steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CHR_ARCHIVE }}
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Boot isolated CHR snapshot
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr-secure-reader.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9180-:80,hostfwd=tcp:127.0.0.1:9443-:443 \
+            -device virtio-net-pci,netdev=net0 \
+            -display none \
+            -serial file:/tmp/chr-secure-reader.log \
+            -daemonize \
+            -pidfile /tmp/chr-secure-reader.pid
+
+      - name: Wait for disposable RouterOS REST
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/chr-secure-reader-https
+          ready=0
+          for _ in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              "${ADMIN_URL}/rest/system/resource" \
+              > evidence/chr-secure-reader-https/chr-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "${ready}" -ne 1 ]; then
+            cat /tmp/chr-secure-reader.log >&2 || true
+            exit 3
+          fi
+
+      - name: Bootstrap dedicated reader and verified HTTPS service
+        run: |
+          set -euo pipefail
+          python lab/chr/bootstrap_secure_acceptance.py \
+            --admin-url "${ADMIN_URL}" \
+            --https-url "${HTTPS_URL}" \
+            --ca-output evidence/chr-secure-reader-https/lab-ca.crt \
+            --credentials-output /tmp/routercfg-reader.json \
+            > evidence/chr-secure-reader-https/bootstrap.json
+
+      - name: Prove untrusted TLS fails closed
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import ssl
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          url = "https://127.0.0.1:9443/rest/system/resource"
+          verified_failure = False
+          error_class = None
+          try:
+              urllib.request.urlopen(url, timeout=5, context=ssl.create_default_context()).read()
+          except urllib.error.URLError as exc:
+              reason = exc.reason
+              error_class = reason.__class__.__name__
+              verified_failure = isinstance(reason, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(reason)
+          except ssl.SSLError as exc:
+              error_class = exc.__class__.__name__
+              verified_failure = isinstance(exc, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(exc)
+          payload = {
+              "ok": verified_failure,
+              "acceptance": "UNTRUSTED_CA_REJECTED" if verified_failure else "FAIL",
+              "error_class": error_class,
+              "tls_verification_bypass_used": False,
+              "workflow_sha": "${{ github.sha }}",
+          }
+          Path("evidence/chr-secure-reader-https/tls-negative.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          if not verified_failure:
+              raise SystemExit("default trust unexpectedly accepted the lab RouterOS certificate")
+          PY
+
+      - name: Prove reader can read but cannot mutate
+        run: |
+          set -euo pipefail
+          python lab/chr/verify_reader_write_denied.py \
+            --url "${HTTPS_URL}" \
+            --ca-file evidence/chr-secure-reader-https/lab-ca.crt \
+            --credentials-file /tmp/routercfg-reader.json \
+            --output evidence/chr-secure-reader-https/reader-boundary.json
+
+      - name: Populate disposable read surfaces using lab admin only
+        run: |
+          set -euo pipefail
+          python lab/chr/populate_acceptance_objects.py \
+            --admin-url "${ADMIN_URL}" \
+            > evidence/chr-secure-reader-https/population.json
+
+      - name: Collect all production read surfaces through verified HTTPS reader
+        run: |
+          set -euo pipefail
+          ROUTEROS_PASSWORD="$(python -c 'import json; print(json.load(open("/tmp/routercfg-reader.json"))["password"])')"
+          export ROUTEROS_PASSWORD
+          export SSL_CERT_FILE="$GITHUB_WORKSPACE/evidence/chr-secure-reader-https/lab-ca.crt"
+          routerctl routeros-discover \
+            --url "${HTTPS_URL}" \
+            --username routercfg-reader \
+            --output evidence/chr-secure-reader-https/discovery.json
+          routerctl routeros-evidence-check \
+            --evidence evidence/chr-secure-reader-https/discovery.json
+          python lab/chr/verify_populated_evidence.py \
+            --evidence evidence/chr-secure-reader-https/discovery.json \
+            > evidence/chr-secure-reader-https/populated-verification.json
+
+      - name: Bind machine provenance to exact workflow head
+        run: |
+          set -euo pipefail
+          python lab/chr/build_ci_provenance_record.py \
+            --evidence evidence/chr-secure-reader-https/discovery.json \
+            --workflow-sha "$GITHUB_SHA" \
+            --image-url "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            --image-sha256-file /tmp/chr-download.sha256 \
+            --output evidence/chr-secure-reader-https/machine-provenance.json
+          python lab/chr/evaluate_technical_acceptance.py \
+            --evidence evidence/chr-secure-reader-https/discovery.json \
+            --bootstrap evidence/chr-secure-reader-https/bootstrap.json \
+            --machine-provenance evidence/chr-secure-reader-https/machine-provenance.json \
+            --output evidence/chr-secure-reader-https/technical-acceptance.json
+
+      - name: Build sanitized secure-reader acceptance
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from router_configuration.routeros_discovery import READ_SURFACES
+
+          root = Path("evidence/chr-secure-reader-https")
+          bootstrap = json.loads((root / "bootstrap.json").read_text())
+          boundary = json.loads((root / "reader-boundary.json").read_text())
+          discovery = json.loads((root / "discovery.json").read_text())
+          negative = json.loads((root / "tls-negative.json").read_text())
+          technical = json.loads((root / "technical-acceptance.json").read_text())
+          machine = json.loads((root / "machine-provenance.json").read_text())
+
+          failed = discovery["collection"]["failed_surfaces"]
+          successful = discovery["collection"]["successful_surfaces"]
+          expected = sorted(READ_SURFACES)
+          assert failed == []
+          assert sorted(successful) == expected
+          assert bootstrap["reader"]["effective_policy"] == ["api", "read", "rest-api"]
+          assert bootstrap["https"]["certificate_verification"] is True
+          assert boundary["read_verified"] is True
+          assert boundary["write_authorized"] is False
+          assert boundary["write_denial_verified_by_readback"] is True
+          assert negative["ok"] is True
+          assert negative["tls_verification_bypass_used"] is False
+          assert technical["ok"] is True
+          assert technical["reader_policy_verified"] is True
+          assert technical["acceptance_collection_write_operations"] is False
+          assert machine["workflow_sha"] == "${{ github.sha }}"
+          assert machine["operator_attested"] is False
+
+          result = {
+              "ok": True,
+              "acceptance": "PASS",
+              "workflow_sha": "${{ github.sha }}",
+              "routeros_version": technical["routeros_version"],
+              "dedicated_reader": {
+                  "username": bootstrap["reader"]["username"],
+                  "effective_policy": bootstrap["reader"]["effective_policy"],
+                  "all_read_surfaces_verified": True,
+                  "surface_count": len(expected),
+                  "write_denied": True,
+                  "write_authorized": False,
+              },
+              "https": {
+                  "certificate_verification": True,
+                  "untrusted_ca_rejected": True,
+                  "tls_verification_bypass_used": False,
+              },
+              "machine_provenance_bound": True,
+              "operator_attested": False,
+              "production_writer_available": False,
+              "transport_exposed_to_product": False,
+              "write_authorized": False,
+              "physical_router_targeted": False,
+          }
+          (root / "acceptance.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+          PY
+
+      - name: Scan evidence for credential leakage
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          root = Path("evidence/chr-secure-reader-https")
+          text = "\n".join(
+              p.read_text(encoding="utf-8", errors="replace")
+              for p in root.glob("*.json")
+          )
+          assert "ROUTEROS_PASSWORD" not in text
+          assert not re.search(r'(?i)"password"\s*:\s*"(?!<redacted>)', text)
+          assert "/tmp/routercfg-reader.json" in text  # path metadata is allowed; contents are not uploaded
+          PY
+
+      - name: Delete ephemeral credentials
+        if: always()
+        run: rm -f /tmp/routercfg-reader.json
+
+      - name: Preserve sanitized acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-secure-reader-https-${{ github.sha }}
+          path: |
+            evidence/chr-secure-reader-https/bootstrap.json
+            evidence/chr-secure-reader-https/tls-negative.json
+            evidence/chr-secure-reader-https/reader-boundary.json
+            evidence/chr-secure-reader-https/population.json
+            evidence/chr-secure-reader-https/discovery.json
+            evidence/chr-secure-reader-https/populated-verification.json
+            evidence/chr-secure-reader-https/machine-provenance.json
+            evidence/chr-secure-reader-https/technical-acceptance.json
+            evidence/chr-secure-reader-https/acceptance.json
+            evidence/chr-secure-reader-https/chr-resource.json
+            /tmp/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr-secure-reader.pid ]; then
+            kill "$(cat /tmp/chr-secure-reader.pid)" 2>/dev/null || true
+          fi
