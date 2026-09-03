@@ -6,6 +6,7 @@ on:
     paths:
       - "src/router_configuration/routeros_wireguard_renderer.py"
       - "lab/chr/verify_wireguard_handshake.py"
+      - "lab/chr/diagnose_wireguard_handshake.py"
       - "lab/chr/run_wireguard_handshake_acceptance.sh"
       - "lab/chr/udp_tag_server.py"
       - "lab/chr/udp_flow_probe.py"
@@ -144,7 +145,6 @@ jobs:
           )
           hits = [item for item in forbidden_literals if item in text]
           assert not hits, hits
-          # No field may serialize a 44-char base64 private key; public keys are represented only as SHA-256 fingerprints.
           assert not re.search(r'(?i)private[^\n]{0,24}[=:]\s*"?[A-Za-z0-9+/]{43}="?', text)
           PY
 
@@ -156,6 +156,8 @@ jobs:
           path: |
             evidence/chr-wireguard-handshake/configured.json
             evidence/chr-wireguard-handshake/flow.json
+            evidence/chr-wireguard-handshake/diagnostic-pre-flow.json
+            evidence/chr-wireguard-handshake/diagnostic-post-flow.json
             evidence/chr-wireguard-handshake/acceptance.json
             evidence/chr-wireguard-handshake/cleanup.json
             evidence/chr-wireguard-handshake/chr-a-resource.json

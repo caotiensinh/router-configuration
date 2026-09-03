@@ -118,6 +118,7 @@ wait_rest "${ADMIN_A_URL}" /tmp/chr-wg-a.log "${EVIDENCE_DIR}/chr-a-resource.jso
 wait_rest "${ADMIN_B_URL}" /tmp/chr-wg-b.log "${EVIDENCE_DIR}/chr-b-resource.json"
 
 V="${ROOT}/lab/chr/verify_wireguard_handshake.py"
+D="${ROOT}/lab/chr/diagnose_wireguard_handshake.py"
 python3 "${V}" configure \
   --admin-a-url "${ADMIN_A_URL}" \
   --admin-b-url "${ADMIN_B_URL}" \
@@ -127,8 +128,17 @@ python3 "${V}" configure \
 sudo ip netns exec "${NS_B}" python3 "${ROOT}/lab/chr/udp_tag_server.py" \
   --bind 10.60.2.2 --port "${SERVICE_PORT}" --tag WG > /tmp/wg-server.log 2>&1 &
 SERVER_PID=$!
-sleep 2
 
+# Allow the configured persistent keepalive interval to elapse once, then record
+# peer state before any measured LAN traffic. This is diagnostic evidence only.
+sleep 7
+python3 "${D}" \
+  --admin-a-url "${ADMIN_A_URL}" \
+  --admin-b-url "${ADMIN_B_URL}" \
+  --phase pre-flow \
+  --output "${EVIDENCE_DIR}/diagnostic-pre-flow.json"
+
+set +e
 sudo ip netns exec "${NS_A}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
   --bind 10.60.1.2 \
   --destination 10.60.2.2 \
@@ -137,17 +147,47 @@ sudo ip netns exec "${NS_A}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
   --count "${FLOW_COUNT}" \
   --timeout 0.60 \
   --output "${EVIDENCE_DIR}/flow.json"
+flow_rc=$?
+set -e
 
 sleep 2
-python3 "${V}" evaluate \
+python3 "${D}" \
   --admin-a-url "${ADMIN_A_URL}" \
   --admin-b-url "${ADMIN_B_URL}" \
-  --configured "${EVIDENCE_DIR}/configured.json" \
-  --flow "${EVIDENCE_DIR}/flow.json" \
-  --output "${EVIDENCE_DIR}/acceptance.json"
+  --phase post-flow \
+  --output "${EVIDENCE_DIR}/diagnostic-post-flow.json"
 
+acceptance_rc=0
+if [[ "${flow_rc}" -eq 0 ]]; then
+  set +e
+  python3 "${V}" evaluate \
+    --admin-a-url "${ADMIN_A_URL}" \
+    --admin-b-url "${ADMIN_B_URL}" \
+    --configured "${EVIDENCE_DIR}/configured.json" \
+    --flow "${EVIDENCE_DIR}/flow.json" \
+    --output "${EVIDENCE_DIR}/acceptance.json"
+  acceptance_rc=$?
+  set -e
+fi
+
+set +e
 python3 "${V}" cleanup \
   --admin-a-url "${ADMIN_A_URL}" \
   --admin-b-url "${ADMIN_B_URL}" \
   --configured "${EVIDENCE_DIR}/configured.json" \
   --output "${EVIDENCE_DIR}/cleanup.json"
+cleanup_rc=$?
+set -e
+
+if [[ "${cleanup_rc}" -ne 0 ]]; then
+  echo "WireGuard CHR cleanup failed with rc=${cleanup_rc}" >&2
+  exit "${cleanup_rc}"
+fi
+if [[ "${flow_rc}" -ne 0 ]]; then
+  echo "WireGuard measured LAN flow failed with rc=${flow_rc}; peer diagnostics and cleanup were preserved" >&2
+  exit "${flow_rc}"
+fi
+if [[ "${acceptance_rc}" -ne 0 ]]; then
+  echo "WireGuard acceptance evaluation failed with rc=${acceptance_rc}" >&2
+  exit "${acceptance_rc}"
+fi
