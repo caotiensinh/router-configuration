@@ -14,7 +14,7 @@ class RouterOSQoSRenderError(ValueError):
 QOS_OPERATION_ID = "qos.policy"
 SUPPORTED_POLICY = "latency_sensitive_first"
 QUEUE_TYPE = "routercfg-qos-fq"
-STRATEGY = "parent_htb_fq_codel_leaves_only_marked_priority_child"
+STRATEGY = "parent_fq_codel_default_only_marked_priority_child"
 LATENCY_DSCP = 46
 LATENCY_PRIORITY = 1
 DEFAULT_PRIORITY = 8
@@ -23,12 +23,7 @@ _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+/-]{0,63}$")
 
 
 def _canonical_sha256(payload: Mapping[str, Any]) -> str:
-    canonical = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    ).encode("utf-8")
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
 
 
@@ -74,13 +69,7 @@ class RouterOSQoSCommand:
     risk: int
 
     def as_dict(self) -> dict[str, Any]:
-        return {
-            "command_id": self.command_id,
-            "operation_id": self.operation_id,
-            "section": self.section,
-            "command": self.command,
-            "risk": self.risk,
-        }
+        return {"command_id": self.command_id, "operation_id": self.operation_id, "section": self.section, "command": self.command, "risk": self.risk}
 
 
 @dataclass(frozen=True)
@@ -126,9 +115,8 @@ class RouterOSQoSRenderPlan:
             "policy_contract": {
                 "latency_dscp": LATENCY_DSCP,
                 "priority": LATENCY_PRIORITY,
-                "default_priority": DEFAULT_PRIORITY,
                 "reserve_percent": RESERVE_PERCENT,
-                "default_classification": "packet_mark_no_mark_leaf",
+                "default_classification": "remaining_unmarked",
             },
             "queue_type": {"name": QUEUE_TYPE, "kind": "fq-codel"},
             "targets": [item.as_dict() for item in self.targets],
@@ -143,9 +131,7 @@ class RouterOSQoSRenderPlan:
         return payload
 
 
-def _extract_policy_and_targets(
-    ir: Mapping[str, Any],
-) -> tuple[Mapping[str, Any], list[Mapping[str, Any]], str]:
+def _extract_policy_and_targets(ir: Mapping[str, Any]) -> tuple[Mapping[str, Any], list[Mapping[str, Any]], str]:
     if ir.get("schema_version") != "config-safe-subset-ir/1":
         raise RouterOSQoSRenderError("unsupported safe-subset IR schema")
     if ir.get("vendor_commands_present") is not False:
@@ -156,22 +142,10 @@ def _extract_policy_and_targets(
     operations = ir.get("operations")
     if not isinstance(operations, list):
         raise RouterOSQoSRenderError("safe-subset IR operations must be a list")
-
-    qos_matches = [
-        item
-        for item in operations
-        if isinstance(item, Mapping)
-        and str(item.get("operation_id") or "") == QOS_OPERATION_ID
-        and str(item.get("resource") or "") == "traffic_policy"
-    ]
+    qos_matches = [item for item in operations if isinstance(item, Mapping) and str(item.get("operation_id") or "") == QOS_OPERATION_ID and str(item.get("resource") or "") == "traffic_policy"]
     if len(qos_matches) != 1:
         raise RouterOSQoSRenderError("QoS renderer requires exactly one qos.policy traffic_policy operation")
-
-    wan_roles = [
-        item
-        for item in operations
-        if isinstance(item, Mapping) and str(item.get("resource") or "") == "wan_role"
-    ]
+    wan_roles = [item for item in operations if isinstance(item, Mapping) and str(item.get("resource") or "") == "wan_role"]
     if not wan_roles:
         raise RouterOSQoSRenderError("QoS renderer requires at least one compiled WAN topology role")
     return qos_matches[0], wan_roles, source_sha
@@ -204,34 +178,27 @@ def render_routeros_qos(*, ir: Mapping[str, Any]) -> RouterOSQoSRenderPlan:
         seen_names.add(name)
         seen_interfaces.add(interface)
         token = _token(name)
-        targets.append(
-            RouterOSQoSTarget(
-                name=name,
-                interface=interface,
-                capacity_mbps=capacity,
-                reserve_mbps=max(1, (capacity * RESERVE_PERCENT) // 100),
-                packet_mark=f"routercfg-qos-{token}-ef",
-                parent_queue=f"routercfg-qos-{token}-parent",
-                default_queue=f"routercfg-qos-{token}-default",
-                priority_queue=f"routercfg-qos-{token}-ef",
-                comment=f"routercfg:managed:qos:{token}:ef",
-            )
-        )
+        targets.append(RouterOSQoSTarget(
+            name=name,
+            interface=interface,
+            capacity_mbps=capacity,
+            reserve_mbps=max(1, (capacity * RESERVE_PERCENT) // 100),
+            packet_mark=f"routercfg-qos-{token}-ef",
+            parent_queue=f"routercfg-qos-{token}-parent",
+            default_queue=f"routercfg-qos-{token}-default",
+            priority_queue=f"routercfg-qos-{token}-ef",
+            comment=f"routercfg:managed:qos:{token}:ef",
+        ))
 
     targets.sort(key=lambda item: item.name)
     queue_name_q = _quote(QUEUE_TYPE)
-    commands: list[RouterOSQoSCommand] = [
-        RouterOSQoSCommand(
-            command_id="qos.00.queue-type.fq-codel",
-            operation_id=QOS_OPERATION_ID,
-            section="queue_type",
-            command=(
-                f":if ([:len [/queue/type/find where name={queue_name_q}]] = 0) do={{"
-                f"/queue/type/add name={queue_name_q} kind=fq-codel" "}"
-            ),
-            risk=risk,
-        )
-    ]
+    commands: list[RouterOSQoSCommand] = [RouterOSQoSCommand(
+        command_id="qos.00.queue-type.fq-codel",
+        operation_id=QOS_OPERATION_ID,
+        section="queue_type",
+        command=f":if ([:len [/queue/type/find where name={queue_name_q}]] = 0) do={{/queue/type/add name={queue_name_q} kind=fq-codel}}",
+        risk=risk,
+    )]
 
     for index, target in enumerate(targets, start=1):
         interface_q = _quote(target.interface)
@@ -243,75 +210,29 @@ def render_routeros_qos(*, ir: Mapping[str, Any]) -> RouterOSQoSRenderPlan:
         max_limit = f"{target.capacity_mbps}M"
         reserve = f"{target.reserve_mbps}M"
 
-        commands.append(
-            RouterOSQoSCommand(
-                command_id=f"qos.{index:02d}.mark-ef",
-                operation_id=QOS_OPERATION_ID,
-                section="firewall_mangle",
-                command=(
-                    f":local rid [/ip/firewall/mangle/find where comment={comment_q}]; "
-                    f":if ([:len $rid] = 0) do={{/ip/firewall/mangle/add chain=forward "
-                    f"out-interface={interface_q} dscp={LATENCY_DSCP} packet-mark=no-mark "
-                    f"action=mark-packet new-packet-mark={mark_q} passthrough=no "
-                    f"comment={comment_q} disabled=no}} else={{/ip/firewall/mangle/set $rid "
-                    f"chain=forward out-interface={interface_q} dscp={LATENCY_DSCP} "
-                    f"packet-mark=no-mark action=mark-packet new-packet-mark={mark_q} "
-                    f"passthrough=no disabled=no}}"
-                ),
-                risk=risk,
-            )
-        )
-        commands.append(
-            RouterOSQoSCommand(
-                command_id=f"qos.{index:02d}.parent",
-                operation_id=QOS_OPERATION_ID,
-                section="queue_tree",
-                command=(
-                    f":local rid [/queue/tree/find where name={parent_q}]; "
-                    f":if ([:len $rid] = 0) do={{/queue/tree/add name={parent_q} parent={interface_q} "
-                    f"max-limit={max_limit} disabled=no}} "
-                    f"else={{/queue/tree/set $rid parent={interface_q} max-limit={max_limit} disabled=no}}"
-                ),
-                risk=risk,
-            )
-        )
-        commands.append(
-            RouterOSQoSCommand(
-                command_id=f"qos.{index:02d}.default",
-                operation_id=QOS_OPERATION_ID,
-                section="queue_tree",
-                command=(
-                    f":local rid [/queue/tree/find where name={default_q}]; "
-                    f":if ([:len $rid] = 0) do={{/queue/tree/add name={default_q} parent={parent_q} "
-                    f"packet-mark=no-mark queue={queue_name_q} priority={DEFAULT_PRIORITY} "
-                    f"max-limit={max_limit} disabled=no}} "
-                    f"else={{/queue/tree/set $rid parent={parent_q} packet-mark=no-mark "
-                    f"queue={queue_name_q} priority={DEFAULT_PRIORITY} max-limit={max_limit} disabled=no}}"
-                ),
-                risk=risk,
-            )
-        )
-        commands.append(
-            RouterOSQoSCommand(
-                command_id=f"qos.{index:02d}.priority-ef",
-                operation_id=QOS_OPERATION_ID,
-                section="queue_tree",
-                command=(
-                    f":local rid [/queue/tree/find where name={priority_q}]; "
-                    f":if ([:len $rid] = 0) do={{/queue/tree/add name={priority_q} parent={parent_q} "
-                    f"packet-mark={mark_q} queue={queue_name_q} priority={LATENCY_PRIORITY} "
-                    f"limit-at={reserve} max-limit={max_limit} disabled=no}} "
-                    f"else={{/queue/tree/set $rid parent={parent_q} packet-mark={mark_q} "
-                    f"queue={queue_name_q} priority={LATENCY_PRIORITY} limit-at={reserve} "
-                    f"max-limit={max_limit} disabled=no}}"
-                ),
-                risk=risk,
-            )
-        )
+        commands.append(RouterOSQoSCommand(
+            command_id=f"qos.{index:02d}.mark-ef",
+            operation_id=QOS_OPERATION_ID,
+            section="firewall_mangle",
+            command=(f":local rid [/ip/firewall/mangle/find where comment={comment_q}]; :if ([:len $rid] = 0) do={{/ip/firewall/mangle/add chain=forward out-interface={interface_q} dscp={LATENCY_DSCP} packet-mark=no-mark action=mark-packet new-packet-mark={mark_q} passthrough=no comment={comment_q} disabled=no}} else={{/ip/firewall/mangle/set $rid chain=forward out-interface={interface_q} dscp={LATENCY_DSCP} packet-mark=no-mark action=mark-packet new-packet-mark={mark_q} passthrough=no disabled=no}}"),
+            risk=risk,
+        ))
+        commands.append(RouterOSQoSCommand(
+            command_id=f"qos.{index:02d}.parent-default",
+            operation_id=QOS_OPERATION_ID,
+            section="queue_tree",
+            command=(
+                f":local parentRid [/queue/tree/find where name={parent_q}]; :if ([:len $parentRid] = 0) do={{/queue/tree/add name={parent_q} parent={interface_q} queue={queue_name_q} max-limit={max_limit} disabled=no}} else={{/queue/tree/set $parentRid parent={interface_q} queue={queue_name_q} max-limit={max_limit} disabled=no}}; "
+                f":local defaultRid [/queue/tree/find where name={default_q}]; :if ([:len $defaultRid] = 0) do={{/queue/tree/add name={default_q} parent={parent_q} packet-mark=no-mark queue={queue_name_q} priority={DEFAULT_PRIORITY} max-limit={max_limit} disabled=no}} else={{/queue/tree/set $defaultRid parent={parent_q} packet-mark=no-mark queue={queue_name_q} priority={DEFAULT_PRIORITY} max-limit={max_limit} disabled=no}}"
+            ),
+            risk=risk,
+        ))
+        commands.append(RouterOSQoSCommand(
+            command_id=f"qos.{index:02d}.priority-ef",
+            operation_id=QOS_OPERATION_ID,
+            section="queue_tree",
+            command=(f":local rid [/queue/tree/find where name={priority_q}]; :if ([:len $rid] = 0) do={{/queue/tree/add name={priority_q} parent={parent_q} packet-mark={mark_q} queue={queue_name_q} priority={LATENCY_PRIORITY} limit-at={reserve} max-limit={max_limit} disabled=no}} else={{/queue/tree/set $rid parent={parent_q} packet-mark={mark_q} queue={queue_name_q} priority={LATENCY_PRIORITY} limit-at={reserve} max-limit={max_limit} disabled=no}}"),
+            risk=risk,
+        ))
 
-    return RouterOSQoSRenderPlan(
-        source_ir_sha256=source_sha,
-        policy=policy,
-        targets=tuple(targets),
-        commands=tuple(commands),
-    )
+    return RouterOSQoSRenderPlan(source_ir_sha256=source_sha, policy=policy, targets=tuple(targets), commands=tuple(commands))
