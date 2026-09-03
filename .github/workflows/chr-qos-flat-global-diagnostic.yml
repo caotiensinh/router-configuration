@@ -44,7 +44,15 @@ jobs:
           path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
           key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
 
-      - name: Run flat-global default-small and FQ-CoDel dataplane diagnostic
+      - name: Select no-limit single-variable diagnostic
+        run: |
+          set -euo pipefail
+          grep -q 'diagnose_qos_flat_global.py' lab/chr/run_qos_flat_global_diagnostic.sh
+          sed -i 's/diagnose_qos_flat_global\.py/diagnose_qos_flat_global_no_limit.py/' \
+            lab/chr/run_qos_flat_global_diagnostic.sh
+          grep -q 'diagnose_qos_flat_global_no_limit.py' lab/chr/run_qos_flat_global_diagnostic.sh
+
+      - name: Run flat-global no-limit default-small and FQ-CoDel dataplane diagnostic
         run: |
           set -euo pipefail
           bash lab/chr/run_qos_flat_global_diagnostic.sh
