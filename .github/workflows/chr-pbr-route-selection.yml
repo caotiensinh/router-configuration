@@ -7,6 +7,7 @@ on:
       - "src/router_configuration/routeros_pbr_renderer.py"
       - "src/router_configuration/routeros_generation.py"
       - "lab/chr/verify_pbr_route_selection.py"
+      - "lab/chr/diagnose_pbr_fib.py"
       - "lab/chr/run_pbr_route_selection_acceptance.sh"
       - "lab/chr/udp_tag_server.py"
       - "lab/chr/udp_flow_probe.py"
@@ -131,6 +132,7 @@ jobs:
           path: |
             evidence/chr-pbr-route-selection/prepare.json
             evidence/chr-pbr-route-selection/apply.json
+            evidence/chr-pbr-route-selection/fib-diagnostic.json
             evidence/chr-pbr-route-selection/rollback.json
             evidence/chr-pbr-route-selection/flow-baseline-main.json
             evidence/chr-pbr-route-selection/flow-policy-pbr.json
