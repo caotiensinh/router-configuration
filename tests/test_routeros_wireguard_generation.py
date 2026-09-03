@@ -105,7 +105,10 @@ class RouterOSWireGuardGenerationTests(unittest.TestCase):
         self.assertIn("intentionally unavailable", blocker["reason"])
         self.assertIn("routing.multiwan.capacity_weighted", blockers)
         self.assertIn("security.baseline", blockers)
-        self.assertIn("qos.policy", blockers)
+        self.assertNotIn("qos.policy", blockers)
+        qos = plan["generation_extensions"]["qos"]
+        self.assertEqual(qos["policy"], "latency_sensitive_first")
+        self.assertFalse(qos["default_traffic_marked"])
 
     def test_incomplete_reference_wireguard_remains_original_blocker_without_templates(self):
         data = profile()
@@ -117,6 +120,7 @@ class RouterOSWireGuardGenerationTests(unittest.TestCase):
         self.assertIn("wireguard.addresses", blocker["required_inputs"])
         self.assertIn("wireguard.listen_port", blocker["required_inputs"])
         self.assertIn("wireguard.peers", blocker["required_inputs"])
+        self.assertIn("qos", plan["generation_extensions"])
 
     def test_deferred_wireguard_generation_is_deterministic(self):
         data = explicit_wireguard_profile()
