@@ -9,6 +9,7 @@ ADMIN_URL="${ADMIN_URL:-http://127.0.0.1:9892}"
 EVIDENCE_DIR="${EVIDENCE_DIR:-${ROOT}/evidence/chr-qos-single-leaf}"
 FLOW_COUNT="${FLOW_COUNT:-80}"
 FLOW_TIMEOUT="${FLOW_TIMEOUT:-0.30}"
+DIAGNOSTIC_MODE="${DIAGNOSTIC_MODE:-full}"
 SERVICE_IP="203.0.113.100"
 SERVICE_PORT="5000"
 
@@ -170,7 +171,7 @@ print(json.dumps({'ok': True, 'interfaces': sorted(names)}))
 PY
 
 PREPARE="${ROOT}/lab/chr/verify_qos_packet_flow_v2.py"
-DIAG="${ROOT}/lab/chr/diagnose_qos_single_leaf.py"
+DIAG="${DIAG_OVERRIDE:-${ROOT}/lab/chr/diagnose_qos_single_leaf.py}"
 
 log "preparing lab routing plus production renderer facts"
 python3 "${PREPARE}" prepare \
@@ -210,6 +211,44 @@ run_phase() {
     --admin-url "${ADMIN_URL}" \
     --output "${EVIDENCE_DIR}/${slug}-cleanup.json"
 }
+
+if [[ "${DIAGNOSTIC_MODE}" == "prerouting-default-only" ]]; then
+  run_phase default default-small prerouting-default-small 0 42000
+  python3 - \
+    "${EVIDENCE_DIR}/prerouting-default-small-acceptance.json" \
+    "${EVIDENCE_DIR}/summary.json" <<'PY'
+import json, sys
+from pathlib import Path
+
+result = json.load(open(sys.argv[1], encoding='utf-8'))
+if result.get('acceptance') != 'PASS' or result.get('diagnostic_packet_flow_acceptance') is not True:
+    raise SystemExit('prerouting default-only single-leaf diagnostic did not pass')
+summary = {
+    'ok': True,
+    'acceptance': 'PASS',
+    'scope': 'prerouting_default_only_single_global_leaf_timing_probe',
+    'default_small_pass': True,
+    'mark_chain': 'prerouting',
+    'ingress_interface': 'ether3',
+    'production_renderer_modified': False,
+    'production_packet_flow_acceptance': False,
+    'aggregate_shaping_claimed': False,
+    'latency_performance_claimed': False,
+    'bandwidth_guarantee_claimed': False,
+    'production_writer_available': False,
+    'physical_router_targeted': False,
+}
+Path(sys.argv[2]).write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+print(json.dumps(summary, indent=2, sort_keys=True))
+PY
+  log "PASS: prerouting default mark traversed one isolated global leaf"
+  exit 0
+fi
+
+if [[ "${DIAGNOSTIC_MODE}" != "full" ]]; then
+  echo "unsupported DIAGNOSTIC_MODE=${DIAGNOSTIC_MODE}" >&2
+  exit 4
+fi
 
 run_phase default default-small default-default-small 0 42000
 run_phase ef default-small ef-default-small 46 44000
