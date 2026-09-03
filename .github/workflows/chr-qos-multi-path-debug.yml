@@ -1,0 +1,94 @@
+name: CHR QoS Multi-Path Debug Matrix
+
+on:
+  push:
+    paths:
+      - "lab/chr/debug_qos_multi_path.py"
+      - "lab/chr/run_qos_multi_path_lane.sh"
+      - "lab/chr/run_qos_wire_dscp_observation.sh"
+      - "tests/test_chr_qos_multi_path_debug_contract.py"
+      - ".github/workflows/chr-qos-multi-path-debug.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wire-dscp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVIDENCE_DIR: ${{ github.workspace }}/evidence/qos-wire-dscp
+      FLOW_COUNT: "40"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install wire observation dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends iproute2 tcpdump
+          sudo -n true
+      - name: Observe generated DSCP46 on Linux wire
+        run: bash lab/chr/run_qos_wire_dscp_observation.sh
+      - name: Preserve sanitized wire evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qos-wire-dscp-${{ github.sha }}
+          path: |
+            evidence/qos-wire-dscp/flow.json
+            evidence/qos-wire-dscp/summary.json
+            evidence/qos-wire-dscp/tcpdump.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  chr-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - dscp-observe
+          - interface-parent-forward
+          - port-classifier-global
+          - connection-mark-global
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+      EVIDENCE_DIR: ${{ github.workspace }}/evidence/chr-qos-debug
+      FLOW_COUNT: "80"
+      FLOW_TIMEOUT: "0.30"
+      DEBUG_LANE: ${{ matrix.lane }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install disposable CHR debug dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2
+          sudo -n true
+      - name: Restore official MikroTik CHR archive cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+      - name: Run independent CHR debug lane
+        run: bash lab/chr/run_qos_multi_path_lane.sh
+      - name: Preserve sanitized CHR debug evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-qos-debug-${{ matrix.lane }}-${{ github.sha }}
+          path: |
+            evidence/chr-qos-debug/*.json
+            evidence/chr-qos-debug/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
