@@ -77,7 +77,27 @@ done
 [[ "${ready}" -eq 1 ]] || { cat /tmp/chr-vlan-dp.log >&2 || true; exit 3; }
 V="${ROOT}/lab/chr/verify_vlan_data_plane.py"
 python3 "${V}" prepare --admin-url "${ADMIN_URL}" --workflow-sha "${WORKFLOW_SHA}" --output "${EVIDENCE_DIR}/prepared.json"
-sleep 1
+
+# Converge ARP/FDB state outside the measured acceptance window. The measured
+# flow below remains strict 30/30 (or FLOW_COUNT/FLOW_COUNT); this warm-up does
+# not lower the acceptance threshold or count toward PASS.
+: > "${EVIDENCE_DIR}/warmup.txt"
+warm=0
+for attempt in $(seq 1 5); do
+  echo "attempt=${attempt}" >> "${EVIDENCE_DIR}/warmup.txt"
+  if sudo ip netns exec "${NS_TRUNK}" ping -c 1 -W 1 10.20.0.3 >> "${EVIDENCE_DIR}/warmup.txt" 2>&1; then
+    warm=1
+    break
+  fi
+  sleep 1
+done
+if [[ "${warm}" -ne 1 ]]; then
+  echo "Tagged VLAN20 path did not converge during warm-up" >&2
+  cat "${EVIDENCE_DIR}/warmup.txt" >&2 || true
+  exit 18
+fi
+sudo ip netns exec "${NS_TRUNK}" ip neigh show dev vlt20 >> "${EVIDENCE_DIR}/warmup.txt"
+
 sudo ip netns exec "${NS_TRUNK}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
   --bind 10.20.0.2 --destination 10.20.0.3 --destination-port "${SERVICE_PORT}" \
   --source-port-start 32000 --count "${FLOW_COUNT}" --timeout 0.40 --output "${EVIDENCE_DIR}/flow-tagged.json"
