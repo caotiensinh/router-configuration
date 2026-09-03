@@ -14,9 +14,10 @@ class RouterOSQoSRenderError(ValueError):
 QOS_OPERATION_ID = "qos.policy"
 SUPPORTED_POLICY = "latency_sensitive_first"
 QUEUE_TYPE = "routercfg-qos-fq"
-STRATEGY = "parent_fq_codel_default_only_marked_priority_child"
+STRATEGY = "parent_htb_fq_codel_leaves_only_marked_priority_child"
 LATENCY_DSCP = 46
 LATENCY_PRIORITY = 1
+DEFAULT_PRIORITY = 8
 RESERVE_PERCENT = 10
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+/-]{0,63}$")
 
@@ -90,6 +91,7 @@ class RouterOSQoSTarget:
     reserve_mbps: int
     packet_mark: str
     parent_queue: str
+    default_queue: str
     priority_queue: str
     comment: str
 
@@ -101,6 +103,7 @@ class RouterOSQoSTarget:
             "reserve_mbps": self.reserve_mbps,
             "packet_mark": self.packet_mark,
             "parent_queue": self.parent_queue,
+            "default_queue": self.default_queue,
             "priority_queue": self.priority_queue,
             "comment": self.comment,
         }
@@ -123,8 +126,9 @@ class RouterOSQoSRenderPlan:
             "policy_contract": {
                 "latency_dscp": LATENCY_DSCP,
                 "priority": LATENCY_PRIORITY,
+                "default_priority": DEFAULT_PRIORITY,
                 "reserve_percent": RESERVE_PERCENT,
-                "default_classification": "remaining_unmarked",
+                "default_classification": "packet_mark_no_mark_leaf",
             },
             "queue_type": {"name": QUEUE_TYPE, "kind": "fq-codel"},
             "targets": [item.as_dict() for item in self.targets],
@@ -208,6 +212,7 @@ def render_routeros_qos(*, ir: Mapping[str, Any]) -> RouterOSQoSRenderPlan:
                 reserve_mbps=max(1, (capacity * RESERVE_PERCENT) // 100),
                 packet_mark=f"routercfg-qos-{token}-ef",
                 parent_queue=f"routercfg-qos-{token}-parent",
+                default_queue=f"routercfg-qos-{token}-default",
                 priority_queue=f"routercfg-qos-{token}-ef",
                 comment=f"routercfg:managed:qos:{token}:ef",
             )
@@ -233,7 +238,8 @@ def render_routeros_qos(*, ir: Mapping[str, Any]) -> RouterOSQoSRenderPlan:
         mark_q = _quote(target.packet_mark)
         comment_q = _quote(target.comment)
         parent_q = _quote(target.parent_queue)
-        child_q = _quote(target.priority_queue)
+        default_q = _quote(target.default_queue)
+        priority_q = _quote(target.priority_queue)
         max_limit = f"{target.capacity_mbps}M"
         reserve = f"{target.reserve_mbps}M"
 
@@ -263,9 +269,24 @@ def render_routeros_qos(*, ir: Mapping[str, Any]) -> RouterOSQoSRenderPlan:
                 command=(
                     f":local rid [/queue/tree/find where name={parent_q}]; "
                     f":if ([:len $rid] = 0) do={{/queue/tree/add name={parent_q} parent={interface_q} "
-                    f"queue={queue_name_q} max-limit={max_limit} disabled=no}} "
-                    f"else={{/queue/tree/set $rid parent={interface_q} queue={queue_name_q} "
-                    f"max-limit={max_limit} disabled=no}}"
+                    f"max-limit={max_limit} disabled=no}} "
+                    f"else={{/queue/tree/set $rid parent={interface_q} max-limit={max_limit} disabled=no}}"
+                ),
+                risk=risk,
+            )
+        )
+        commands.append(
+            RouterOSQoSCommand(
+                command_id=f"qos.{index:02d}.default",
+                operation_id=QOS_OPERATION_ID,
+                section="queue_tree",
+                command=(
+                    f":local rid [/queue/tree/find where name={default_q}]; "
+                    f":if ([:len $rid] = 0) do={{/queue/tree/add name={default_q} parent={parent_q} "
+                    f"packet-mark=no-mark queue={queue_name_q} priority={DEFAULT_PRIORITY} "
+                    f"max-limit={max_limit} disabled=no}} "
+                    f"else={{/queue/tree/set $rid parent={parent_q} packet-mark=no-mark "
+                    f"queue={queue_name_q} priority={DEFAULT_PRIORITY} max-limit={max_limit} disabled=no}}"
                 ),
                 risk=risk,
             )
@@ -276,8 +297,8 @@ def render_routeros_qos(*, ir: Mapping[str, Any]) -> RouterOSQoSRenderPlan:
                 operation_id=QOS_OPERATION_ID,
                 section="queue_tree",
                 command=(
-                    f":local rid [/queue/tree/find where name={child_q}]; "
-                    f":if ([:len $rid] = 0) do={{/queue/tree/add name={child_q} parent={parent_q} "
+                    f":local rid [/queue/tree/find where name={priority_q}]; "
+                    f":if ([:len $rid] = 0) do={{/queue/tree/add name={priority_q} parent={parent_q} "
                     f"packet-mark={mark_q} queue={queue_name_q} priority={LATENCY_PRIORITY} "
                     f"limit-at={reserve} max-limit={max_limit} disabled=no}} "
                     f"else={{/queue/tree/set $rid parent={parent_q} packet-mark={mark_q} "
