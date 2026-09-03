@@ -163,6 +163,15 @@ python3 "${V}" apply \
   --admin-url "${ADMIN_URL}" \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --output "${EVIDENCE_DIR}/apply.json"
+
+# Capture RouterOS FIB resolution before the policy measurement. This phase is
+# intentionally diagnostic: it does not infer route selection from config
+# syntax and it does not weaken the subsequent packet-flow acceptance gate.
+python3 "${ROOT}/lab/chr/diagnose_pbr_fib.py" \
+  --admin-url "${ADMIN_URL}" \
+  --workflow-sha "${WORKFLOW_SHA}" \
+  --output "${EVIDENCE_DIR}/fib-diagnostic.json"
+
 probe 24000 "${EVIDENCE_DIR}/flow-policy-pbr.json"
 python3 "${V}" rollback \
   --admin-url "${ADMIN_URL}" \
