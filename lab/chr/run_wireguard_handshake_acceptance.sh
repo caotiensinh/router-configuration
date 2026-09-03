@@ -10,12 +10,10 @@ FLOW_COUNT="${FLOW_COUNT:-30}"
 ADMIN_A_URL="${ADMIN_A_URL:-http://127.0.0.1:10080}"
 ADMIN_B_URL="${ADMIN_B_URL:-http://127.0.0.1:10081}"
 SERVICE_PORT=5000
+WG_UNDERLAY_SOCKET_PORT="${WG_UNDERLAY_SOCKET_PORT:-12020}"
 
-BR_UNDER=brwg-under
 BR_A_LAN=brwg-alan
 BR_B_LAN=brwg-blan
-TAP_A_U=tap-wg-au
-TAP_B_U=tap-wg-bu
 TAP_A_L=tap-wg-al
 TAP_B_L=tap-wg-bl
 NS_A=rc-wg-host-a
@@ -30,7 +28,7 @@ cleanup() {
   [[ -f "${PID_B}" ]] && kill "$(cat "${PID_B}")" 2>/dev/null || true
   sudo ip netns del "${NS_A}" 2>/dev/null || true
   sudo ip netns del "${NS_B}" 2>/dev/null || true
-  for dev in "${TAP_A_U}" "${TAP_B_U}" "${TAP_A_L}" "${TAP_B_L}" "${BR_UNDER}" "${BR_A_LAN}" "${BR_B_LAN}"; do
+  for dev in "${TAP_A_L}" "${TAP_B_L}" "${BR_A_LAN}" "${BR_B_LAN}"; do
     sudo ip link del "${dev}" 2>/dev/null || true
   done
 }
@@ -56,10 +54,6 @@ bridge_tap() {
   sudo ip link set "${tap}" master "${bridge}"
   sudo ip link set "${tap}" up
 }
-bridge_tap "${BR_UNDER}" "${TAP_A_U}"
-sudo ip tuntap add dev "${TAP_B_U}" mode tap user "$(id -un)"
-sudo ip link set "${TAP_B_U}" master "${BR_UNDER}"
-sudo ip link set "${TAP_B_U}" up
 bridge_tap "${BR_A_LAN}" "${TAP_A_L}"
 bridge_tap "${BR_B_LAN}" "${TAP_B_L}"
 
@@ -83,11 +77,17 @@ sudo ip netns exec "${NS_B}" ip link set wgb-ns up
 sudo ip netns exec "${NS_B}" ip addr add 10.60.2.2/24 dev wgb-ns
 sudo ip netns exec "${NS_B}" ip route add 10.60.1.0/24 via 10.60.2.1
 
+# The first two iterations used Linux TAPs joined by a host bridge for the
+# CHR-to-CHR WireGuard underlay. Both peers transmitted keepalives but neither
+# observed authenticated RX or a handshake. This acceptance topology therefore
+# removes that host switching layer entirely: QEMU's point-to-point socket
+# backend connects the two underlay NICs directly while the LAN test path still
+# uses independent namespaces and TAP bridges.
 qemu-system-x86_64 \
   -accel tcg,thread=multi -smp 1 -m 256 -snapshot \
   -drive file=/tmp/chr-wg-a.img,format=raw,if=virtio \
   -netdev user,id=mgmta,hostfwd=tcp:127.0.0.1:10080-:80 -device virtio-net-pci,netdev=mgmta \
-  -netdev tap,id=ua,ifname="${TAP_A_U}",script=no,downscript=no -device virtio-net-pci,netdev=ua \
+  -netdev socket,id=ua,listen=127.0.0.1:"${WG_UNDERLAY_SOCKET_PORT}" -device virtio-net-pci,netdev=ua \
   -netdev tap,id=la,ifname="${TAP_A_L}",script=no,downscript=no -device virtio-net-pci,netdev=la \
   -display none -serial file:/tmp/chr-wg-a.log -daemonize -pidfile "${PID_A}"
 
@@ -95,7 +95,7 @@ qemu-system-x86_64 \
   -accel tcg,thread=multi -smp 1 -m 256 -snapshot \
   -drive file=/tmp/chr-wg-b.img,format=raw,if=virtio \
   -netdev user,id=mgmtb,hostfwd=tcp:127.0.0.1:10081-:80 -device virtio-net-pci,netdev=mgmtb \
-  -netdev tap,id=ub,ifname="${TAP_B_U}",script=no,downscript=no -device virtio-net-pci,netdev=ub \
+  -netdev socket,id=ub,connect=127.0.0.1:"${WG_UNDERLAY_SOCKET_PORT}" -device virtio-net-pci,netdev=ub \
   -netdev tap,id=lb,ifname="${TAP_B_L}",script=no,downscript=no -device virtio-net-pci,netdev=lb \
   -display none -serial file:/tmp/chr-wg-b.log -daemonize -pidfile "${PID_B}"
 
