@@ -23,7 +23,7 @@ jobs:
       EVIDENCE_DIR: ${{ github.workspace }}/evidence/chr-qos-single-leaf
       FLOW_COUNT: "80"
       FLOW_TIMEOUT: "0.30"
-      DIAGNOSTIC_MODE: prerouting-default-only
+      DIAGNOSTIC_MODE: full
       DIAG_OVERRIDE: ${{ github.workspace }}/lab/chr/diagnose_qos_single_leaf_prerouting.py
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
           path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
           key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
 
-      - name: Run prerouting default-only mark-to-global-leaf timing probe
+      - name: Run full prerouting mark-to-global-leaf timing matrix
         run: |
           set -euo pipefail
           bash lab/chr/run_qos_single_leaf_diagnostic.sh
