@@ -170,13 +170,15 @@ if missing:
 print(json.dumps({'ok': True, 'interfaces': sorted(names)}))
 PY
 
+VERIFIER="${ROOT}/lab/chr/verify_qos_packet_flow_v2.py"
+
 log "applying lab routing plus production QoS renderer output"
-python3 "${ROOT}/lab/chr/verify_qos_packet_flow.py" prepare \
+python3 "${VERIFIER}" prepare \
   --admin-url "${ADMIN_URL}" \
   --output "${EVIDENCE_DIR}/prepare.json"
 
 log "capturing clean QoS counters"
-python3 "${ROOT}/lab/chr/verify_qos_packet_flow.py" counters \
+python3 "${VERIFIER}" counters \
   --admin-url "${ADMIN_URL}" \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --output "${EVIDENCE_DIR}/counters-before.json"
@@ -191,7 +193,7 @@ sudo ip netns exec "${NS_CORE}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
   --timeout "${FLOW_TIMEOUT}" \
   --dscp 0 \
   --output "${EVIDENCE_DIR}/flows-default.json"
-python3 "${ROOT}/lab/chr/verify_qos_packet_flow.py" counters \
+python3 "${VERIFIER}" counters \
   --admin-url "${ADMIN_URL}" \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --output "${EVIDENCE_DIR}/counters-after-default.json"
@@ -206,13 +208,13 @@ sudo ip netns exec "${NS_CORE}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
   --timeout "${FLOW_TIMEOUT}" \
   --dscp 46 \
   --output "${EVIDENCE_DIR}/flows-ef.json"
-python3 "${ROOT}/lab/chr/verify_qos_packet_flow.py" counters \
+python3 "${VERIFIER}" counters \
   --admin-url "${ADMIN_URL}" \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --output "${EVIDENCE_DIR}/counters-after-ef.json"
 
 log "evaluating classification and queue traversal"
-python3 "${ROOT}/lab/chr/verify_qos_packet_flow.py" evaluate \
+python3 "${VERIFIER}" evaluate \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --before "${EVIDENCE_DIR}/counters-before.json" \
   --after-default "${EVIDENCE_DIR}/counters-after-default.json" \
@@ -222,7 +224,7 @@ python3 "${ROOT}/lab/chr/verify_qos_packet_flow.py" evaluate \
   --output "${EVIDENCE_DIR}/evaluation.json"
 
 log "rolling back only owned QoS/lab objects and verifying exact baseline"
-python3 "${ROOT}/lab/chr/verify_qos_packet_flow.py" finalize \
+python3 "${VERIFIER}" finalize \
   --admin-url "${ADMIN_URL}" \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --evaluation "${EVIDENCE_DIR}/evaluation.json" \
