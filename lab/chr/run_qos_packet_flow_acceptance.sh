@@ -104,6 +104,20 @@ create_veth_into_ns() {
   sudo ip netns exec "${ns}" ip link set "${ns_if}" up
 }
 
+send_ef_probe() {
+  local start_port="$1"
+  local output="$2"
+  sudo ip netns exec "${NS_CORE}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
+    --bind 10.10.10.2 \
+    --destination "${SERVICE_IP}" \
+    --destination-port "${SERVICE_PORT}" \
+    --source-port-start "${start_port}" \
+    --count "${FLOW_COUNT}" \
+    --timeout "${FLOW_TIMEOUT}" \
+    --dscp 46 \
+    --output "${output}"
+}
+
 log "creating isolated WAN/CORE dataplane"
 create_bridge_with_tap "${BR_WAN}" "${TAP_WAN}"
 create_bridge_with_tap "${BR_CORE}" "${TAP_CORE}"
@@ -171,6 +185,7 @@ print(json.dumps({'ok': True, 'interfaces': sorted(names)}))
 PY
 
 VERIFIER="${ROOT}/lab/chr/verify_qos_packet_flow_v2.py"
+DIAG="${ROOT}/lab/chr/diagnose_qos_queue_tree_path.py"
 
 log "applying lab routing plus production QoS renderer output"
 python3 "${VERIFIER}" prepare \
@@ -199,21 +214,45 @@ python3 "${VERIFIER}" counters \
   --output "${EVIDENCE_DIR}/counters-after-default.json"
 
 log "sending latency-class DSCP46 traffic"
-sudo ip netns exec "${NS_CORE}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
-  --bind 10.10.10.2 \
-  --destination "${SERVICE_IP}" \
-  --destination-port "${SERVICE_PORT}" \
-  --source-port-start 24000 \
-  --count "${FLOW_COUNT}" \
-  --timeout "${FLOW_TIMEOUT}" \
-  --dscp 46 \
-  --output "${EVIDENCE_DIR}/flows-ef.json"
+send_ef_probe 24000 "${EVIDENCE_DIR}/flows-ef.json"
 python3 "${VERIFIER}" counters \
   --admin-url "${ADMIN_URL}" \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --output "${EVIDENCE_DIR}/counters-after-ef.json"
 
-log "evaluating classification and queue traversal"
+log "capturing FastPath/FastTrack environment before queue-path A/B diagnostic"
+python3 "${DIAG}" inspect \
+  --admin-url "${ADMIN_URL}" \
+  --output "${EVIDENCE_DIR}/queue-path-environment.json"
+
+log "testing a single EF leaf directly parented to ether2 with builtin default-small"
+python3 "${DIAG}" install \
+  --admin-url "${ADMIN_URL}" \
+  --prepare "${EVIDENCE_DIR}/prepare.json" \
+  --mode interface \
+  --output "${EVIDENCE_DIR}/queue-path-interface-install.json"
+send_ef_probe 26000 "${EVIDENCE_DIR}/flows-diag-interface.json"
+python3 "${DIAG}" stats \
+  --admin-url "${ADMIN_URL}" \
+  --name routercfg-qos-diag-interface \
+  --output "${EVIDENCE_DIR}/queue-path-interface-stats.json"
+
+log "testing the same marked EF flow through a global leaf with builtin default-small"
+python3 "${DIAG}" install \
+  --admin-url "${ADMIN_URL}" \
+  --prepare "${EVIDENCE_DIR}/prepare.json" \
+  --mode global \
+  --output "${EVIDENCE_DIR}/queue-path-global-install.json"
+send_ef_probe 28000 "${EVIDENCE_DIR}/flows-diag-global.json"
+python3 "${DIAG}" stats \
+  --admin-url "${ADMIN_URL}" \
+  --name routercfg-qos-diag-global \
+  --output "${EVIDENCE_DIR}/queue-path-global-stats.json"
+python3 "${DIAG}" cleanup \
+  --admin-url "${ADMIN_URL}" \
+  --output "${EVIDENCE_DIR}/queue-path-cleanup.json"
+
+log "evaluating production classification and queue traversal"
 python3 "${VERIFIER}" evaluate \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --before "${EVIDENCE_DIR}/counters-before.json" \
