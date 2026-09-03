@@ -104,6 +104,20 @@ create_veth_into_ns() {
   sudo ip netns exec "${ns}" ip link set "${ns_if}" up
 }
 
+send_default_probe() {
+  local start_port="$1"
+  local output="$2"
+  sudo ip netns exec "${NS_CORE}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
+    --bind 10.10.10.2 \
+    --destination "${SERVICE_IP}" \
+    --destination-port "${SERVICE_PORT}" \
+    --source-port-start "${start_port}" \
+    --count "${FLOW_COUNT}" \
+    --timeout "${FLOW_TIMEOUT}" \
+    --dscp 0 \
+    --output "${output}"
+}
+
 send_ef_probe() {
   local start_port="$1"
   local output="$2"
@@ -186,6 +200,7 @@ PY
 
 VERIFIER="${ROOT}/lab/chr/verify_qos_packet_flow_v2.py"
 DIAG="${ROOT}/lab/chr/diagnose_qos_queue_tree_path.py"
+GLOBAL_DIAG="${ROOT}/lab/chr/diagnose_qos_global_hierarchy.py"
 
 log "applying lab routing plus production QoS renderer output"
 python3 "${VERIFIER}" prepare \
@@ -199,15 +214,7 @@ python3 "${VERIFIER}" counters \
   --output "${EVIDENCE_DIR}/counters-before.json"
 
 log "sending unmarked/default DSCP0 traffic"
-sudo ip netns exec "${NS_CORE}" python3 "${ROOT}/lab/chr/udp_flow_probe.py" \
-  --bind 10.10.10.2 \
-  --destination "${SERVICE_IP}" \
-  --destination-port "${SERVICE_PORT}" \
-  --source-port-start 22000 \
-  --count "${FLOW_COUNT}" \
-  --timeout "${FLOW_TIMEOUT}" \
-  --dscp 0 \
-  --output "${EVIDENCE_DIR}/flows-default.json"
+send_default_probe 22000 "${EVIDENCE_DIR}/flows-default.json"
 python3 "${VERIFIER}" counters \
   --admin-url "${ADMIN_URL}" \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
@@ -252,7 +259,37 @@ python3 "${DIAG}" cleanup \
   --admin-url "${ADMIN_URL}" \
   --output "${EVIDENCE_DIR}/queue-path-cleanup.json"
 
-log "evaluating production classification and queue traversal"
+log "testing full global parent with per-WAN default and EF packet marks"
+python3 "${GLOBAL_DIAG}" install \
+  --admin-url "${ADMIN_URL}" \
+  --prepare "${EVIDENCE_DIR}/prepare.json" \
+  --output "${EVIDENCE_DIR}/global-hierarchy-install.json"
+python3 "${GLOBAL_DIAG}" counters \
+  --admin-url "${ADMIN_URL}" \
+  --install "${EVIDENCE_DIR}/global-hierarchy-install.json" \
+  --output "${EVIDENCE_DIR}/global-hierarchy-before.json"
+send_default_probe 30000 "${EVIDENCE_DIR}/flows-global-default.json"
+python3 "${GLOBAL_DIAG}" counters \
+  --admin-url "${ADMIN_URL}" \
+  --install "${EVIDENCE_DIR}/global-hierarchy-install.json" \
+  --output "${EVIDENCE_DIR}/global-hierarchy-after-default.json"
+send_ef_probe 32000 "${EVIDENCE_DIR}/flows-global-ef.json"
+python3 "${GLOBAL_DIAG}" counters \
+  --admin-url "${ADMIN_URL}" \
+  --install "${EVIDENCE_DIR}/global-hierarchy-install.json" \
+  --output "${EVIDENCE_DIR}/global-hierarchy-after-ef.json"
+python3 "${GLOBAL_DIAG}" evaluate \
+  --before "${EVIDENCE_DIR}/global-hierarchy-before.json" \
+  --after-default "${EVIDENCE_DIR}/global-hierarchy-after-default.json" \
+  --after-ef "${EVIDENCE_DIR}/global-hierarchy-after-ef.json" \
+  --default-flow "${EVIDENCE_DIR}/flows-global-default.json" \
+  --ef-flow "${EVIDENCE_DIR}/flows-global-ef.json" \
+  --output "${EVIDENCE_DIR}/global-hierarchy-acceptance.json"
+python3 "${GLOBAL_DIAG}" cleanup \
+  --admin-url "${ADMIN_URL}" \
+  --output "${EVIDENCE_DIR}/global-hierarchy-cleanup.json"
+
+log "evaluating current production classification and queue traversal"
 python3 "${VERIFIER}" evaluate \
   --prepare "${EVIDENCE_DIR}/prepare.json" \
   --before "${EVIDENCE_DIR}/counters-before.json" \
