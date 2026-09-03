@@ -51,7 +51,7 @@ class RouterctlDispatcherTests(unittest.TestCase):
             summary = json.loads(stdout.getvalue())
             self.assertTrue(summary["ok"])
             self.assertFalse(summary["generation_complete"])
-            self.assertEqual(summary["command_count"], 5)
+            self.assertEqual(summary["command_count"], 12)
             self.assertTrue(summary["blocked_operations"])
             self.assertFalse(summary["transport_present"])
             self.assertFalse(summary["apply_available"])
@@ -61,8 +61,13 @@ class RouterctlDispatcherTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertEqual(payload["render_plan"]["claim"], "generation_partial")
             self.assertFalse(payload["render_plan"]["secrets_resolved"])
+            qos = payload["render_plan"]["generation_extensions"]["qos"]
+            self.assertEqual(qos["command_count"], 7)
+            self.assertFalse(qos["default_traffic_marked"])
             script = script_path.read_text(encoding="utf-8")
-            self.assertEqual(len([line for line in script.splitlines() if line.strip()]), 5)
+            self.assertEqual(len([line for line in script.splitlines() if line.strip()]), 12)
+            self.assertIn("dscp=46", script)
+            self.assertIn("kind=fq-codel", script)
             self.assertNotIn("password", script.lower())
             self.assertNotIn("private-key", script.lower())
 
