@@ -103,19 +103,19 @@ class RouterOSGenerationGateTests(unittest.TestCase):
         self.assertFalse(plan["secrets_resolved"])
         self.assertFalse(plan["apply_available"])
         self.assertFalse(plan["write_authorized"])
-        self.assertTrue(
-            any(
-                item["operation_id"] == "routing.multiwan.capacity_weighted"
-                for item in plan["blocked_operations"]
-            )
+        self.assertEqual(
+            {item["operation_id"] for item in plan["blocked_operations"]},
+            {"routing.multiwan.capacity_weighted", "security.baseline", "vpn.wireguard"},
         )
-        self.assertTrue(
-            any(
-                item["operation_id"] == "security.baseline"
-                for item in plan["blocked_operations"]
-            )
-        )
-        self.assertNotIn("generation_extensions", plan)
+        qos = plan["generation_extensions"]["qos"]
+        self.assertEqual(qos["schema_version"], "routeros-qos-command-plan/1")
+        self.assertEqual(qos["policy"], "latency_sensitive_first")
+        self.assertEqual(qos["command_count"], 7)
+        self.assertEqual(len(qos["targets"]), 2)
+        self.assertFalse(qos["default_traffic_marked"])
+        self.assertFalse(qos["transport_present"])
+        self.assertFalse(qos["apply_available"])
+        self.assertFalse(qos["write_authorized"])
         self.assertNotIn("state_bound_extensions", plan)
 
     def test_explicit_firewall_facts_replace_only_security_blocker(self):
@@ -127,7 +127,7 @@ class RouterOSGenerationGateTests(unittest.TestCase):
         self.assertFalse(plan["complete"])
         self.assertEqual(
             {item["operation_id"] for item in plan["blocked_operations"]},
-            {"routing.multiwan.capacity_weighted", "vpn.wireguard", "qos.policy"},
+            {"routing.multiwan.capacity_weighted", "vpn.wireguard"},
         )
         self.assertFalse(
             any(item["operation_id"] == "security.baseline" for item in plan["blocked_operations"])
@@ -141,23 +141,29 @@ class RouterOSGenerationGateTests(unittest.TestCase):
         self.assertFalse(extension["transport_present"])
         self.assertFalse(extension["apply_available"])
         self.assertFalse(extension["write_authorized"])
+        qos = plan["generation_extensions"]["qos"]
+        self.assertEqual(qos["command_count"], 7)
+        self.assertFalse(qos["default_traffic_marked"])
 
         command_ids = [item["command_id"] for item in plan["commands"]]
         firewall_start = command_ids.index("firewall.00.stage-guard")
+        firewall_end = command_ids.index("firewall.99.remove-stage-guard")
+        qos_start = command_ids.index("qos.00.queue-type.fq-codel")
         self.assertGreater(firewall_start, 0)
-        self.assertEqual(command_ids[-1], "firewall.99.remove-stage-guard")
+        self.assertLess(firewall_end, qos_start)
+        self.assertTrue(all(value.startswith("qos.") for value in command_ids[qos_start:]))
         command_text = "\n".join(item["command"] for item in plan["commands"])
         self.assertIn('jump-target="routercfg-input"', command_text)
         self.assertIn('jump-target="routercfg-icmp"', command_text)
 
-    def test_explicit_paths_merge_chr_verified_pcc_after_base_commands(self):
+    def test_explicit_paths_merge_chr_verified_pcc_after_qos_commands(self):
         p = explicit_pcc_profile()
         result = generate_routeros_plan(profile=p, ir=ir(p), evidence=evidence())
         self.assertTrue(result.ok, result.errors)
         plan = result.as_dict()["render_plan"]
         self.assertIsNotNone(plan)
         self.assertFalse(plan["complete"])
-        self.assertEqual(len(plan["commands"]), 38)
+        self.assertEqual(len(plan["commands"]), 45)
         self.assertFalse(
             any(
                 item["operation_id"] == "routing.multiwan.capacity_weighted"
@@ -166,8 +172,10 @@ class RouterOSGenerationGateTests(unittest.TestCase):
         )
         self.assertEqual(
             {item["operation_id"] for item in plan["blocked_operations"]},
-            {"security.baseline", "vpn.wireguard", "qos.policy"},
+            {"security.baseline", "vpn.wireguard"},
         )
+        qos_extension = plan["generation_extensions"]["qos"]
+        self.assertEqual(qos_extension["command_count"], 7)
         extension = plan["state_bound_extensions"]["capacity_weighted_pcc"]
         self.assertEqual(extension["command_count"], 21)
         self.assertEqual(extension["source"], "verified_normalized_state")
@@ -177,8 +185,10 @@ class RouterOSGenerationGateTests(unittest.TestCase):
         self.assertFalse(extension["write_authorized"])
 
         base_commands = plan["commands"][:17]
-        pcc_commands = plan["commands"][17:]
-        self.assertTrue(all(not item["command_id"].startswith("pcc.") for item in base_commands))
+        qos_commands = plan["commands"][17:24]
+        pcc_commands = plan["commands"][24:]
+        self.assertTrue(all(not item["command_id"].startswith(("qos.", "pcc.")) for item in base_commands))
+        self.assertTrue(all(item["command_id"].startswith("qos.") for item in qos_commands))
         self.assertTrue(all(item["command_id"].startswith("pcc.") for item in pcc_commands))
         self.assertEqual(
             [item["section"] for item in pcc_commands[:8]],
@@ -189,7 +199,7 @@ class RouterOSGenerationGateTests(unittest.TestCase):
             13,
         )
 
-    def test_firewall_and_pcc_merge_without_losing_either_extension(self):
+    def test_firewall_qos_and_pcc_merge_without_losing_any_extension(self):
         p = explicit_pcc_and_firewall_profile()
         result = generate_routeros_plan(profile=p, ir=ir(p), evidence=evidence())
         self.assertTrue(result.ok, result.errors)
@@ -197,17 +207,22 @@ class RouterOSGenerationGateTests(unittest.TestCase):
         self.assertIsNotNone(plan)
         self.assertEqual(
             {item["operation_id"] for item in plan["blocked_operations"]},
-            {"vpn.wireguard", "qos.policy"},
+            {"vpn.wireguard"},
         )
         firewall = plan["generation_extensions"]["enterprise_firewall"]
+        qos = plan["generation_extensions"]["qos"]
         pcc = plan["state_bound_extensions"]["capacity_weighted_pcc"]
         self.assertGreater(firewall["command_count"], 0)
+        self.assertEqual(qos["command_count"], 7)
         self.assertEqual(pcc["command_count"], 21)
 
         command_ids = [item["command_id"] for item in plan["commands"]]
         firewall_end = command_ids.index("firewall.99.remove-stage-guard")
+        qos_start = command_ids.index("qos.00.queue-type.fq-codel")
         pcc_start = next(index for index, value in enumerate(command_ids) if value.startswith("pcc."))
-        self.assertLess(firewall_end, pcc_start)
+        self.assertLess(firewall_end, qos_start)
+        self.assertLess(qos_start, pcc_start)
+        self.assertTrue(all(value.startswith("qos.") for value in command_ids[qos_start:pcc_start]))
         self.assertTrue(all(value.startswith("pcc.") for value in command_ids[pcc_start:]))
         self.assertFalse(plan["transport_present"])
         self.assertFalse(plan["apply_available"])

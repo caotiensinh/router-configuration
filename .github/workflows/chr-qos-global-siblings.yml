@@ -1,0 +1,87 @@
+name: CHR QoS Global Siblings
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/routeros_qos_renderer.py"
+      - "lab/chr/udp_flow_probe.py"
+      - "lab/chr/verify_qos_global_siblings.py"
+      - "lab/chr/run_qos_global_siblings_acceptance.sh"
+      - "tests/test_chr_qos_global_siblings_contract.py"
+      - ".github/workflows/chr-qos-global-siblings.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-qos-global-siblings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: router-config-chr-qos-global-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+      EVIDENCE_DIR: ${{ github.workspace }}/evidence/chr-qos-global-siblings
+      FLOW_COUNT: "80"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project and isolated CHR lab dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2
+          sudo -n true
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+      - name: Run production-renderer QoS sibling packet-flow acceptance
+        run: |
+          set -euo pipefail
+          bash lab/chr/run_qos_global_siblings_acceptance.sh
+      - name: Bind exact workflow SHA into acceptance evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence_dir = Path(os.environ["EVIDENCE_DIR"])
+          sha = os.environ["GITHUB_SHA"].strip()
+          if len(sha) != 40:
+              raise SystemExit("GITHUB_SHA must be an exact 40-character commit SHA")
+          for name in ("prepare.json", "evaluation.json", "acceptance.json"):
+              path = evidence_dir / name
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              payload["workflow_sha"] = sha
+              path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          acceptance = json.loads((evidence_dir / "acceptance.json").read_text(encoding="utf-8"))
+          if acceptance.get("workflow_sha") != sha or acceptance.get("acceptance") != "PASS":
+              raise SystemExit("exact-head acceptance evidence binding failed")
+          PY
+      - name: Persist verified CHR archive cache
+        if: success() && steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+      - name: Preserve sanitized QoS global-sibling evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-qos-global-siblings-${{ github.sha }}
+          path: |
+            evidence/chr-qos-global-siblings/*.json
+            evidence/chr-qos-global-siblings/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
