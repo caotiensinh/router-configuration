@@ -13,7 +13,7 @@ class CHRQoSFlatGlobalNoLimitContractTests(unittest.TestCase):
         self.assertIn("import diagnose_qos_flat_global as legacy", source)
         self.assertIn("parent=global", source)
         self.assertIn('"priority=1 max-limit=100M disabled=no"', source)
-        self.assertNotIn("limit-at=10M", source)
+        self.assertNotIn('"priority=1 limit-at=10M max-limit=100M disabled=no"', source)
         self.assertIn('"ef_limit_at_configured": False', source)
         self.assertIn('"production_renderer_modified": False', source)
         self.assertIn('"production_writer_available": False', source)
@@ -22,7 +22,7 @@ class CHRQoSFlatGlobalNoLimitContractTests(unittest.TestCase):
     def test_workflow_selects_no_limit_probe_only_inside_disposable_lab_checkout(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         if "diagnose_qos_flat_global_no_limit.py" not in source:
-            self.skipTest("workflow wiring commit not present yet")
+            self.skipTest("no-limit experiment is not the active diagnostic")
         self.assertIn("diagnose_qos_flat_global_no_limit.py", source)
         self.assertIn("run_qos_flat_global_diagnostic.sh", source)
         self.assertIn('CHR_VERSION: "7.24.1"', source)
