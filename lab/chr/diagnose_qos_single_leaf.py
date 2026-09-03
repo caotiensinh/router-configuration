@@ -11,8 +11,9 @@ import verify_render_dry_run as base
 
 
 SINGLE_DEFAULT_LEAF = "routercfg-qos-single-default"
+SINGLE_NOMARK_LEAF = "routercfg-qos-single-no-mark"
 SINGLE_EF_LEAF = "routercfg-qos-single-ef"
-SUPPORTED_MODES = {"default", "ef"}
+SUPPORTED_MODES = {"default", "no-mark", "ef"}
 SUPPORTED_QUEUES = {"default-small", "routercfg-qos-fq"}
 
 
@@ -34,6 +35,7 @@ def _remove_queue_names(target: Mapping[str, Any]) -> tuple[str, ...]:
         flat.DEFAULT_LEAF,
         flat.EF_LEAF,
         SINGLE_DEFAULT_LEAF,
+        SINGLE_NOMARK_LEAF,
         SINGLE_EF_LEAF,
         "routercfg-qos-diag-interface",
         "routercfg-qos-diag-global",
@@ -95,7 +97,7 @@ def install(
 
     if mode == "default":
         mark = flat.DEFAULT_MARK
-        comment = flat.DEFAULT_COMMENT
+        comment: str | None = flat.DEFAULT_COMMENT
         leaf = SINGLE_DEFAULT_LEAF
         commands.extend(
             (
@@ -109,6 +111,17 @@ def install(
                     f"packet-mark={flat._quote(mark)} queue={flat._quote(queue)} "
                     "max-limit=100M disabled=no"
                 ),
+            )
+        )
+    elif mode == "no-mark":
+        mark = "no-mark"
+        comment = None
+        leaf = SINGLE_NOMARK_LEAF
+        commands.append(
+            (
+                f"/queue/tree/add name={flat._quote(leaf)} parent=global "
+                f"packet-mark=no-mark queue={flat._quote(queue)} "
+                "max-limit=100M disabled=no"
             )
         )
     else:
@@ -127,8 +140,8 @@ def install(
 
     trees = flat._rows(admin, "queue/tree")
     selected = flat._one(trees, key="name", value=leaf, label=f"single {mode} leaf")
-    sibling = SINGLE_EF_LEAF if mode == "default" else SINGLE_DEFAULT_LEAF
-    if any(str(row.get("name") or "") == sibling for row in trees):
+    sibling_names = {SINGLE_DEFAULT_LEAF, SINGLE_NOMARK_LEAF, SINGLE_EF_LEAF} - {leaf}
+    if any(str(row.get("name") or "") in sibling_names for row in trees):
         raise flow.CHRQoSPacketFlowError("single-leaf diagnostic unexpectedly retained sibling leaf")
     if str(selected.get("parent") or "") != "global":
         raise flow.CHRQoSPacketFlowError("single-leaf parent is not global")
@@ -140,39 +153,56 @@ def install(
         raise flow.CHRQoSPacketFlowError("single-leaf queue is invalid or disabled")
 
     mangles = flat._rows(admin, "ip/firewall/mangle")
-    selected_rule = flat._one(
-        mangles,
-        key="comment",
-        value=comment,
-        label=f"single {mode} mangle",
-    )
-    if str(selected_rule.get("new-packet-mark") or "") != mark:
-        raise flow.CHRQoSPacketFlowError("single-leaf mangle mark mismatch")
-    if mode == "ef" and str(selected_rule.get("dscp") or "") != "46":
-        raise flow.CHRQoSPacketFlowError("production EF mangle did not retain DSCP 46")
-    if mode == "ef":
-        lab_default_rules = [
-            row
-            for row in mangles
-            if str(row.get("comment") or "") == flat.DEFAULT_COMMENT
-        ]
-        if lab_default_rules:
+    default_rules = [
+        row for row in mangles if str(row.get("comment") or "") == flat.DEFAULT_COMMENT
+    ]
+    if mode == "no-mark":
+        if default_rules:
+            raise flow.CHRQoSPacketFlowError("no-mark mode unexpectedly created a default mangle rule")
+        production_ef = flat._one(
+            mangles,
+            key="comment",
+            value=ef_comment,
+            label="production EF mangle",
+        )
+        if str(production_ef.get("chain") or "") != "forward":
+            raise flow.CHRQoSPacketFlowError("production EF mangle chain changed in no-mark mode")
+        if str(production_ef.get("out-interface") or "") != interface:
+            raise flow.CHRQoSPacketFlowError("production EF mangle interface changed in no-mark mode")
+        if str(production_ef.get("dscp") or "") != "46":
+            raise flow.CHRQoSPacketFlowError("production EF mangle lost DSCP 46 in no-mark mode")
+    else:
+        if comment is None:
+            raise flow.CHRQoSPacketFlowError("marked single-leaf mode requires mangle comment")
+        selected_rule = flat._one(
+            mangles,
+            key="comment",
+            value=comment,
+            label=f"single {mode} mangle",
+        )
+        if str(selected_rule.get("new-packet-mark") or "") != mark:
+            raise flow.CHRQoSPacketFlowError("single-leaf mangle mark mismatch")
+        if mode == "ef" and str(selected_rule.get("dscp") or "") != "46":
+            raise flow.CHRQoSPacketFlowError("production EF mangle did not retain DSCP 46")
+        if mode == "ef" and default_rules:
             raise flow.CHRQoSPacketFlowError("EF-only mode unexpectedly created default lab mangle")
 
     return {
         "ok": True,
         "runtime_valid": True,
-        "scope": "single_packet_mark_single_global_queue_tree_leaf",
+        "scope": "single_class_single_global_queue_tree_leaf",
         "mode": mode,
         "queue": queue,
         "interface": interface,
         "leaf": leaf,
         "packet_mark": mark,
         "mangle_comment": comment,
+        "mangle_counter_required": mode != "no-mark",
+        "default_mangle_present": bool(default_rules),
         "sibling_leaf_present": False,
         "priority_configured": False,
         "limit_at_configured": False,
-        "production_mark_source_retained": mode == "ef",
+        "production_mark_source_retained": mode in {"no-mark", "ef"},
         "production_renderer_modified": False,
         "production_packet_flow_acceptance": False,
         "production_writer_available": False,
@@ -193,20 +223,25 @@ def counters(*, admin_url: str, install_payload: Mapping[str, Any]) -> dict[str,
         value=str(install_payload["leaf"]),
         label="single-leaf stats",
     )
-    mangles = flat._rows(admin, "ip/firewall/mangle")
-    rule = flat._one(
-        mangles,
-        key="comment",
-        value=str(install_payload["mangle_comment"]),
-        label="single-leaf mangle stats",
-    )
+    mangle_required = bool(install_payload.get("mangle_counter_required", True))
+    mangle_packets = 0
+    if mangle_required:
+        mangles = flat._rows(admin, "ip/firewall/mangle")
+        rule = flat._one(
+            mangles,
+            key="comment",
+            value=str(install_payload["mangle_comment"]),
+            label="single-leaf mangle stats",
+        )
+        mangle_packets = flow._int_counter(rule, "packets", "single_leaf_mangle")
     return {
         "ok": True,
         "counter_source": "queue_tree_print_stats",
         "mode": str(install_payload["mode"]),
         "queue": str(install_payload["queue"]),
+        "mangle_counter_required": mangle_required,
         "leaf_packets": flow._int_counter(leaf, "packets", "single_leaf"),
-        "mangle_packets": flow._int_counter(rule, "packets", "single_leaf_mangle"),
+        "mangle_packets": mangle_packets,
     }
 
 
@@ -219,7 +254,7 @@ def evaluate(
 ) -> dict[str, Any]:
     if mode not in SUPPORTED_MODES:
         raise flow.CHRQoSPacketFlowError(f"unsupported single-leaf mode: {mode}")
-    expected_dscp = 0 if mode == "default" else 46
+    expected_dscp = 46 if mode == "ef" else 0
     if not flow._flow_ok(flow_payload, expected_dscp=expected_dscp):
         raise flow.CHRQoSPacketFlowError(
             f"single-leaf {mode} flow did not traverse disposable CHR reliably"
@@ -229,9 +264,12 @@ def evaluate(
     if before.get("queue") != after.get("queue"):
         raise flow.CHRQoSPacketFlowError("single-leaf queue type changed during measurement")
 
+    mangle_required = bool(before.get("mangle_counter_required", True))
+    if mangle_required != bool(after.get("mangle_counter_required", True)):
+        raise flow.CHRQoSPacketFlowError("single-leaf mangle counter requirement changed")
     mangle_delta = int(after["mangle_packets"]) - int(before["mangle_packets"])
     leaf_delta = int(after["leaf_packets"]) - int(before["leaf_packets"])
-    if mangle_delta <= 0:
+    if mangle_required and mangle_delta <= 0:
         raise flow.CHRQoSPacketFlowError(
             f"single-leaf {mode} packet mark counter did not increase"
         )
@@ -243,10 +281,11 @@ def evaluate(
     return {
         "ok": True,
         "acceptance": "PASS",
-        "scope": "diagnostic_single_mark_to_single_global_leaf_traversal",
+        "scope": "diagnostic_single_class_to_single_global_leaf_traversal",
         "mode": mode,
         "queue": str(before["queue"]),
         "expected_dscp": expected_dscp,
+        "mangle_counter_required": mangle_required,
         "mangle_packet_delta": mangle_delta,
         "leaf_packet_delta": leaf_delta,
         "requested_flows": int(flow_payload["requested_flows"]),
@@ -268,6 +307,7 @@ def cleanup(*, admin_url: str) -> dict[str, Any]:
     admin.assert_disposable_chr()
     commands = (
         f"/queue/tree/remove [find where name={flat._quote(SINGLE_DEFAULT_LEAF)}]",
+        f"/queue/tree/remove [find where name={flat._quote(SINGLE_NOMARK_LEAF)}]",
         f"/queue/tree/remove [find where name={flat._quote(SINGLE_EF_LEAF)}]",
         f"/ip/firewall/mangle/remove [find where comment={flat._quote(flat.DEFAULT_COMMENT)}]",
     )
@@ -275,7 +315,11 @@ def cleanup(*, admin_url: str) -> dict[str, Any]:
     remaining_tree = [
         row
         for row in flat._rows(admin, "queue/tree")
-        if str(row.get("name") or "") in {SINGLE_DEFAULT_LEAF, SINGLE_EF_LEAF}
+        if str(row.get("name") or "") in {
+            SINGLE_DEFAULT_LEAF,
+            SINGLE_NOMARK_LEAF,
+            SINGLE_EF_LEAF,
+        }
     ]
     remaining_default_rule = [
         row
@@ -294,7 +338,7 @@ def cleanup(*, admin_url: str) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Probe one packet mark against exactly one global Queue Tree leaf"
+        description="Probe one traffic class against exactly one global Queue Tree leaf"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

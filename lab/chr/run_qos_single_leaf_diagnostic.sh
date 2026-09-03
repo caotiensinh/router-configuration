@@ -130,7 +130,9 @@ before = json.load(open(sys.argv[1], encoding='utf-8'))
 after = json.load(open(sys.argv[2], encoding='utf-8'))
 mangle_delta = int(after['mangle_packets']) - int(before['mangle_packets'])
 leaf_delta = int(after['leaf_packets']) - int(before['leaf_packets'])
-raise SystemExit(0 if mangle_delta > 0 and leaf_delta > 0 else 1)
+mangle_required = bool(before.get('mangle_counter_required', True))
+visible = leaf_delta > 0 and (not mangle_required or mangle_delta > 0)
+raise SystemExit(0 if visible else 1)
 PY
     then
       visible=1
@@ -157,6 +159,7 @@ payload = {
     'max_attempts': max_attempts,
     'interval_seconds': interval,
     'bounded_window_seconds': max_attempts * interval,
+    'mangle_counter_required': bool(before.get('mangle_counter_required', True)),
     'mangle_packet_delta': int(after['mangle_packets']) - int(before['mangle_packets']),
     'leaf_packet_delta': int(after['leaf_packets']) - int(before['leaf_packets']),
     'acceptance_relaxed': False,
@@ -302,6 +305,61 @@ Path(sys.argv[2]).write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n
 print(json.dumps(summary, indent=2, sort_keys=True))
 PY
   log "PASS: prerouting default mark traversed one isolated global leaf"
+  exit 0
+fi
+
+if [[ "${DIAGNOSTIC_MODE}" == "production-global" ]]; then
+  run_phase no-mark default-small no-mark-default-small 0 42000
+  run_phase ef default-small ef-default-small 46 44000
+  run_phase no-mark routercfg-qos-fq no-mark-fq-codel 0 46000
+  run_phase ef routercfg-qos-fq ef-fq-codel 46 48000
+
+  python3 - \
+    "${EVIDENCE_DIR}/no-mark-default-small-acceptance.json" \
+    "${EVIDENCE_DIR}/ef-default-small-acceptance.json" \
+    "${EVIDENCE_DIR}/no-mark-fq-codel-acceptance.json" \
+    "${EVIDENCE_DIR}/ef-fq-codel-acceptance.json" \
+    "${EVIDENCE_DIR}/summary.json" <<'PY'
+import json, sys
+from pathlib import Path
+labels = (
+    'no_mark_default_small',
+    'ef_default_small',
+    'no_mark_fq_codel',
+    'ef_fq_codel',
+)
+results = [json.load(open(path, encoding='utf-8')) for path in sys.argv[1:5]]
+for label, result in zip(labels, results):
+    if result.get('acceptance') != 'PASS' or result.get('diagnostic_packet_flow_acceptance') is not True:
+        raise SystemExit(f'{label} production-global single-leaf diagnostic did not pass')
+no_mark_results = (results[0], results[2])
+if any(result.get('mangle_counter_required') is not False for result in no_mark_results):
+    raise SystemExit('no-mark diagnostic unexpectedly required a default mangle counter')
+summary = {
+    'ok': True,
+    'acceptance': 'PASS',
+    'scope': 'production_ef_classifier_and_unmarked_default_to_global_leaf_diagnostic',
+    'phases': {label: True for label in labels},
+    'default_small_pass': True,
+    'fq_codel_pass': True,
+    'no_mark_default_to_leaf_pass': True,
+    'production_ef_mark_to_leaf_pass': True,
+    'default_mangle_required': False,
+    'queue_parent': 'global',
+    'counter_visibility_bounded': True,
+    'production_renderer_modified': False,
+    'production_packet_flow_acceptance': False,
+    'aggregate_shaping_claimed': False,
+    'latency_performance_claimed': False,
+    'bandwidth_guarantee_claimed': False,
+    'production_writer_available': False,
+    'physical_router_targeted': False,
+}
+Path(sys.argv[5]).write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+print(json.dumps(summary, indent=2, sort_keys=True))
+PY
+
+  log "PASS: unmarked default and production EF classifier each traverse one global leaf"
   exit 0
 fi
 

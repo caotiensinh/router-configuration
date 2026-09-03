@@ -23,7 +23,7 @@ jobs:
       EVIDENCE_DIR: ${{ github.workspace }}/evidence/chr-qos-single-leaf
       FLOW_COUNT: "80"
       FLOW_TIMEOUT: "0.30"
-      DIAGNOSTIC_MODE: full
+      DIAGNOSTIC_MODE: production-global
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +45,7 @@ jobs:
           path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
           key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
 
-      - name: Run production-forward classifier to global-leaf isolation matrix
+      - name: Run unmarked-default and production-EF global-leaf matrix
         run: |
           set -euo pipefail
           bash lab/chr/run_qos_single_leaf_diagnostic.sh
