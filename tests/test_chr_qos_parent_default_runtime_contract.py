@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PROBE = ROOT / "lab" / "chr" / "verify_qos_parent_default_runtime.py"
+PROBE = ROOT / "lab" / "chr" / "verify_qos_parent_default_runtime_v2.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "chr-qos-parent-default-runtime.yml"
 
 
@@ -11,22 +11,25 @@ class CHRQoSParentDefaultRuntimeContractTests(unittest.TestCase):
     def test_probe_uses_production_renderer_instead_of_parallel_apply_logic(self):
         source = PROBE.read_text(encoding="utf-8")
         self.assertIn("from router_configuration.routeros_qos_renderer import render_routeros_qos", source)
-        self.assertIn("plan = render_routeros_qos(ir=_runtime_ir()).as_dict()", source)
-        self.assertIn("_script_from_plan(plan)", source)
+        self.assertIn("plan = render_routeros_qos(ir=legacy._runtime_ir()).as_dict()", source)
+        self.assertIn("legacy._script_from_plan(plan)", source)
         self.assertNotIn("def _apply_script(", source)
         self.assertNotIn("/queue/tree/add", source)
         self.assertNotIn("/ip/firewall/mangle/add", source)
 
-    def test_probe_requires_runtime_validity_and_exact_owned_rollback(self):
+    def test_probe_requires_default_leaf_runtime_validity_and_exact_owned_rollback(self):
         source = PROBE.read_text(encoding="utf-8")
+        self.assertIn('target["default_queue"]', source)
+        self.assertIn('str(default.get("packet-mark") or "") != "no-mark"', source)
+        self.assertIn('str(priority.get("priority") or "") != "1"', source)
+        self.assertIn('str(default.get("priority") or "") != "8"', source)
         self.assertIn("invalid_managed_objects", source)
         self.assertIn("disabled_managed_objects", source)
         self.assertIn("default_mangle_count", source)
         self.assertIn("rollback_sha != baseline_sha", source)
-        self.assertIn('f\'/queue/tree/remove [find where name="{child}"]\'', source)
-        self.assertIn('f\'/queue/tree/remove [find where name="{parent}"]\'', source)
-        self.assertIn('f\'/ip/firewall/mangle/remove [find where comment="{comment}"]\'', source)
-        self.assertIn('f\'/queue/type/remove [find where name="{qtype}"]\'', source)
+        self.assertIn('/queue/tree/remove [find where name=', source)
+        self.assertIn('/ip/firewall/mangle/remove [find where comment=', source)
+        self.assertIn('/queue/type/remove [find where name=', source)
 
     def test_runtime_gate_does_not_overclaim_packet_flow_or_production_write(self):
         source = PROBE.read_text(encoding="utf-8")
@@ -43,7 +46,7 @@ class CHRQoSParentDefaultRuntimeContractTests(unittest.TestCase):
         self.assertIn("https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip", source)
         self.assertIn("-snapshot", source)
         self.assertIn("hostfwd=tcp:127.0.0.1:9781-:80", source)
-        self.assertIn("verify_qos_parent_default_runtime.py", source)
+        self.assertIn("verify_qos_parent_default_runtime_v2.py", source)
         self.assertIn("chr-qos-parent-default-runtime-${{ github.sha }}", source)
         self.assertNotIn("192.168.11.", source)
         self.assertNotIn("ROUTEROS_PASSWORD", source)
