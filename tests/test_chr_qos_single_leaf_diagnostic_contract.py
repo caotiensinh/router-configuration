@@ -31,7 +31,7 @@ class CHRQoSSingleLeafDiagnosticContractTests(unittest.TestCase):
         source = PROBE.read_text(encoding="utf-8")
         self.assertIn('mark = ef_mark', source)
         self.assertIn('comment = ef_comment', source)
-        self.assertIn('"production_mark_source_retained": mode == "ef"', source)
+        self.assertIn('"production_mark_source_retained": mode in {"no-mark", "ef"}', source)
         self.assertIn('str(selected_rule.get("dscp") or "") != "46"', source)
 
     def test_probe_uses_print_stats_and_never_claims_production_acceptance(self):
