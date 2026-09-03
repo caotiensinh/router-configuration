@@ -17,7 +17,9 @@ V_PEER_NS="vwg-ns"
 WG_IF="wg0"
 PID_FILE="/tmp/chr-wg-handshake.pid"
 SERIAL_LOG="/tmp/chr-wg-handshake-serial.log"
+TRANSPORT_LOG="/tmp/wg-handshake-transport.log"
 LINUX_PRIVATE_KEY=""
+TCPDUMP_PID=""
 
 log() {
   printf '[chr-wg-flow] %s\n' "$*"
@@ -25,19 +27,20 @@ log() {
 
 cleanup() {
   LINUX_PRIVATE_KEY=""
+  if [[ -n "${TCPDUMP_PID}" ]]; then sudo kill "${TCPDUMP_PID}" 2>/dev/null || true; fi
   if [[ -f "${PID_FILE}" ]]; then kill "$(cat "${PID_FILE}")" 2>/dev/null || true; fi
   sudo ip netns del "${NS_PEER}" 2>/dev/null || true
   for dev in "${TAP_UNDERLAY}" "${BR_UNDERLAY}"; do sudo ip link del "${dev}" 2>/dev/null || true; done
-  rm -f /tmp/wg-latest.txt /tmp/wg-transfer.txt
+  rm -f /tmp/wg-latest.txt /tmp/wg-transfer.txt "${TRANSPORT_LOG}"
 }
 trap cleanup EXIT
 
-for command in python3 qemu-system-x86_64 unzip ip curl sudo wg ping; do
+for command in python3 qemu-system-x86_64 unzip ip curl sudo wg ping tcpdump; do
   command -v "${command}" >/dev/null 2>&1 || { echo "missing required command: ${command}" >&2; exit 2; }
 done
 
 mkdir -p "${EVIDENCE_DIR}"
-rm -f "${PID_FILE}" "${SERIAL_LOG}" /tmp/wg-latest.txt /tmp/wg-transfer.txt
+rm -f "${PID_FILE}" "${SERIAL_LOG}" /tmp/wg-latest.txt /tmp/wg-transfer.txt "${TRANSPORT_LOG}"
 cleanup
 trap cleanup EXIT
 
@@ -121,6 +124,9 @@ python3 "${VERIFIER}" prepare \
   --remote-public-key "${LINUX_PUBLIC_KEY}" \
   --output "${EVIDENCE_DIR}/prepared.json"
 
+log "verifying plain underlay reachability before WireGuard acceptance"
+sudo ip netns exec "${NS_PEER}" ping -n -c 3 -W 1 192.0.2.2 >/dev/null
+
 log "negative control: tunnel address must be unreachable before Linux peer activation"
 set +e
 sudo ip netns exec "${NS_PEER}" python3 "${ROOT}/lab/chr/icmp_probe.py" \
@@ -147,6 +153,11 @@ if [[ -z "${CHR_PUBLIC_KEY}" ]]; then
   exit 18
 fi
 
+log "starting non-retained UDP/51820 transport observation"
+sudo tcpdump -nn -l -i "${BR_UNDERLAY}" 'udp port 51820' > "${TRANSPORT_LOG}" 2>/dev/null &
+TCPDUMP_PID=$!
+sleep 0.2
+
 log "activating Linux peer toward CHR responder"
 sudo ip netns exec "${NS_PEER}" wg set "${WG_IF}" \
   peer "${CHR_PUBLIC_KEY}" \
@@ -159,14 +170,59 @@ LINUX_PUBLIC_KEY=""
 log "warming handshake outside measured acceptance window"
 warm=0
 for attempt in $(seq 1 8); do
-  if sudo ip netns exec "${NS_PEER}" ping -n -c 1 -W 1 10.252.0.1 >/dev/null 2>&1; then
+  sudo ip netns exec "${NS_PEER}" ping -n -c 1 -W 1 10.252.0.1 >/dev/null 2>&1 || true
+  handshake_epoch="$(sudo ip netns exec "${NS_PEER}" wg show "${WG_IF}" latest-handshakes | awk 'NR==1 {print $2}')"
+  if [[ "${handshake_epoch:-0}" =~ ^[0-9]+$ ]] && [[ "${handshake_epoch}" -gt 0 ]]; then
     warm=1
     break
   fi
   sleep 1
 done
+sudo kill "${TCPDUMP_PID}" 2>/dev/null || true
+wait "${TCPDUMP_PID}" 2>/dev/null || true
+TCPDUMP_PID=""
+
+python3 - "${TRANSPORT_LOG}" "${ADMIN_URL}" "${EVIDENCE_DIR}/handshake-transport-diagnostic.json" <<'PY'
+import base64
+import json
+import re
+import sys
+import urllib.request
+from pathlib import Path
+
+transport = Path(sys.argv[1]).read_text(encoding='utf-8', errors='replace') if Path(sys.argv[1]).exists() else ''
+linux_to_chr = len(re.findall(r'192\.0\.2\.1\.\d+ > 192\.0\.2\.2\.51820:', transport))
+chr_to_linux = len(re.findall(r'192\.0\.2\.2\.51820 > 192\.0\.2\.1\.\d+:', transport))
+header = 'Basic ' + base64.b64encode(b'admin:').decode('ascii')
+request = urllib.request.Request(sys.argv[2].rstrip('/') + '/rest/interface/wireguard/peers', headers={'Authorization': header})
+with urllib.request.urlopen(request, timeout=5) as response:
+    rows = json.loads(response.read().decode('utf-8'))
+managed = [row for row in rows if str(row.get('comment') or '').startswith('routercfg:managed:wg:peer:')]
+if len(managed) != 1:
+    raise SystemExit(f'expected one managed WireGuard peer, observed {len(managed)}')
+peer = managed[0]
+handshake = str(peer.get('last-handshake') or '').strip()
+payload = {
+    'schema_version': 'chr-wireguard-transport-diagnostic/1',
+    'underlay_reachable': True,
+    'linux_to_chr_udp_51820_packets': linux_to_chr,
+    'chr_to_linux_udp_51820_packets': chr_to_linux,
+    'routeros_last_handshake_present': bool(handshake) and handshake.lower() not in {'never', 'none'},
+    'routeros_rx_bytes': int(str(peer.get('rx') or '0')),
+    'routeros_tx_bytes': int(str(peer.get('tx') or '0')),
+    'routeros_current_endpoint_present': bool(str(peer.get('current-endpoint-address') or '').strip()),
+    'packet_capture_retained': False,
+    'private_key_recorded': False,
+    'peer_public_key_recorded': False,
+}
+Path(sys.argv[3]).write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+print(json.dumps(payload, indent=2, sort_keys=True))
+PY
+rm -f "${TRANSPORT_LOG}"
+
 if [[ "${warm}" -ne 1 ]]; then
   echo "WireGuard handshake did not converge during warm-up" >&2
+  cat "${EVIDENCE_DIR}/handshake-transport-diagnostic.json" >&2
   exit 19
 fi
 
