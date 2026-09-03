@@ -1,0 +1,59 @@
+{
+  "schema_version": "routeros-qos-main-acceptance-evidence/1",
+  "acceptance": "PASS",
+  "scope": "qos_global_sibling_default_and_ef_packet_flow",
+  "workflow_sha": "e5c6f3c2cf87b356dd66d73b3b3a8380bd64c000",
+  "workflow_run_id": 33714864851,
+  "artifact_id": 9878150512,
+  "artifact_sha256": "ffdf7880d5bf335b286240051967eb30fc21973f69e0850b392ca400177b5a3f",
+  "platform": {
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64",
+    "board_name": "CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)"
+  },
+  "renderer": {
+    "schema_version": "routeros-qos-command-plan/1",
+    "strategy": "global_sibling_fq_codel_unmarked_default_marked_priority",
+    "command_count": 4,
+    "default_traffic_marked": false,
+    "production_renderer_used": true,
+    "render_sha256": "bf3b3395ee4747f6602796f9f2dfe3b25f1f10d9d39a8a4b59e19aba5438cabb",
+    "source_ir_sha256": "2978568b45779140394d580b41b1767be52af6c95d06de51cb941fc6b662b44e"
+  },
+  "flows": {
+    "default": {
+      "requested": 80,
+      "successful": 80,
+      "success_ratio": 1.0,
+      "default_leaf_packet_delta": 81,
+      "ef_leaf_packet_delta": 0,
+      "ef_mangle_packet_delta": 0
+    },
+    "ef": {
+      "requested": 80,
+      "successful": 80,
+      "success_ratio": 1.0,
+      "default_leaf_packet_delta": 0,
+      "ef_leaf_packet_delta": 80,
+      "ef_mangle_packet_delta": 80
+    }
+  },
+  "runtime": {
+    "default_mangle_count": 0,
+    "invalid_managed_objects": 0,
+    "disabled_managed_objects": 0,
+    "rollback_digest_restored": true,
+    "configuration_baseline_sha256": "f9675fed93468cd628f6ea3839c2ad42dfc962a93189e5e2a933a8bd97ad6871",
+    "configuration_rollback_sha256": "f9675fed93468cd628f6ea3839c2ad42dfc962a93189e5e2a933a8bd97ad6871"
+  },
+  "claims": {
+    "aggregate_shaping_claimed": false,
+    "bandwidth_guarantee_claimed": false,
+    "latency_performance_claimed": false,
+    "production_writer_available": false,
+    "transport_exposed_to_product": false,
+    "physical_router_targeted": false,
+    "write_authorized": false
+  },
+  "secret_material_recorded": false
+}
