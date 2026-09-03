@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           python -m pip install -e .
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2 iputils-ping wireguard-tools
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2 iputils-ping wireguard-tools tcpdump
 
       - name: Restore official MikroTik CHR archive cache
         id: chr-cache
@@ -140,6 +140,7 @@ jobs:
           name: chr-wireguard-handshake-v2-${{ github.sha }}
           path: |
             evidence/chr-wireguard-handshake/acceptance.json
+            evidence/chr-wireguard-handshake/handshake-transport-diagnostic.json
             evidence/chr-wireguard-handshake/negative-probe.json
             evidence/chr-wireguard-handshake/positive-probe.json
             evidence/chr-wireguard-handshake/linux-wg-stats.json
