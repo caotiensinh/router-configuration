@@ -136,8 +136,8 @@ def install(*, admin_url: str, prepare_payload: Mapping[str, Any], mode: str) ->
     if len(matches) != 1:
         raise legacy.CHRQoSPacketFlowError(f"diagnostic {mode} queue cardinality is {len(matches)}")
     row = matches[0]
-    if base._is_true(row.get("invalid")) or base._is_true(row.get("disabled")):
-        raise legacy.CHRQoSPacketFlowError(f"diagnostic {mode} queue is invalid or disabled")
+    invalid = base._is_true(row.get("invalid"))
+    disabled = base._is_true(row.get("disabled"))
     return {
         "ok": True,
         "mode": mode,
@@ -145,6 +145,9 @@ def install(*, admin_url: str, prepare_payload: Mapping[str, Any], mode: str) ->
         "parent": str(row.get("parent") or ""),
         "packet_mark": str(row.get("packet-mark") or ""),
         "queue": str(row.get("queue") or ""),
+        "invalid": invalid,
+        "disabled": disabled,
+        "runtime_valid": not invalid and not disabled,
         "execute": dict(execute),
         "production_hierarchy_removed_for_diagnostic": True,
         "production_renderer_modified": False,
@@ -160,12 +163,17 @@ def stats(*, admin_url: str, name: str) -> dict[str, Any]:
     if len(matches) != 1:
         raise legacy.CHRQoSPacketFlowError(f"diagnostic stats expected one {name}, observed {len(matches)}")
     row = matches[0]
+    invalid = base._is_true(row.get("invalid"))
+    disabled = base._is_true(row.get("disabled"))
     return {
         "ok": True,
         "name": name,
         "parent": str(row.get("parent") or ""),
         "packet_mark": str(row.get("packet-mark") or ""),
         "queue": str(row.get("queue") or ""),
+        "invalid": invalid,
+        "disabled": disabled,
+        "runtime_valid": not invalid and not disabled,
         "packets": legacy._int_counter(row, "packets", name),
         "bytes": legacy._int_counter(row, "bytes", name),
         "queued_packets": int(str(row.get("queued-packets") or "0")),
