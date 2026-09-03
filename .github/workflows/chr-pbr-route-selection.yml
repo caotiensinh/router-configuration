@@ -1,0 +1,142 @@
+name: CHR PBR Route Selection
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/router_configuration/routeros_pbr_renderer.py"
+      - "src/router_configuration/routeros_generation.py"
+      - "lab/chr/verify_pbr_route_selection.py"
+      - "lab/chr/run_pbr_route_selection_acceptance.sh"
+      - "lab/chr/udp_tag_server.py"
+      - "lab/chr/udp_flow_probe.py"
+      - "tests/test_chr_pbr_route_selection_contract.py"
+      - ".github/workflows/chr-pbr-route-selection.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  chr-pbr-route-selection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    concurrency:
+      group: router-config-chr-pbr-route-selection-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and packet-flow lab dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CHR_ARCHIVE }}
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Download official MikroTik CHR image on cache miss
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -4 --http1.1 -fL \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --retry 1 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o "${CHR_ARCHIVE}"
+
+      - name: Validate official CHR archive
+        run: |
+          set -euo pipefail
+          test -s "${CHR_ARCHIVE}"
+          unzip -t "${CHR_ARCHIVE}" >/dev/null
+
+      - name: Persist verified CHR archive cache
+        if: success() && steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CHR_ARCHIVE }}
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Prove production-rendered PBR route selection and rollback
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          bash lab/chr/run_pbr_route_selection_acceptance.sh
+
+      - name: Validate exact-head sanitized PBR evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("evidence/chr-pbr-route-selection/acceptance.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          assert payload["ok"] is True
+          assert payload["acceptance"] == "PASS"
+          assert payload["workflow_sha"] == "${{ github.sha }}"
+          assert payload["renderer"]["production_renderer_used"] is True
+          assert payload["renderer"]["command_count"] == 1
+          assert payload["packet_flow"]["observed_sequence"] == ["MAIN", "PBR", "MAIN"]
+          assert payload["packet_flow"]["baseline"]["success_ratio"] == 1.0
+          assert payload["packet_flow"]["policy_applied"]["success_ratio"] == 1.0
+          assert payload["packet_flow"]["policy_rolled_back"]["success_ratio"] == 1.0
+          assert payload["route_selection_data_plane_acceptance"] is True
+          assert payload["rollback_to_setup_digest_restored"] is True
+          assert payload["lab_cleanup_digest_restored"] is True
+          assert payload["temporary_files_removed"] is True
+          assert payload["production_writer_available"] is False
+          assert payload["transport_exposed_to_product"] is False
+          assert payload["write_authorized"] is False
+          assert payload["physical_router_targeted"] is False
+          assert payload["production_route_selection_claimed"] is False
+          PY
+
+      - name: Scan PBR evidence for secret material
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          text = "\n".join(
+              path.read_text(encoding="utf-8", errors="replace")
+              for path in Path("evidence/chr-pbr-route-selection").glob("*.json")
+          ).lower()
+          forbidden = ("private_key", "private-key", "password", "token", ".backup", "preshared", "begin private")
+          hits = [item for item in forbidden if item in text]
+          assert not hits, hits
+          PY
+
+      - name: Preserve PBR route-selection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-pbr-route-selection-${{ github.sha }}
+          path: |
+            evidence/chr-pbr-route-selection/prepare.json
+            evidence/chr-pbr-route-selection/apply.json
+            evidence/chr-pbr-route-selection/rollback.json
+            evidence/chr-pbr-route-selection/flow-baseline-main.json
+            evidence/chr-pbr-route-selection/flow-policy-pbr.json
+            evidence/chr-pbr-route-selection/flow-rollback-main.json
+            evidence/chr-pbr-route-selection/acceptance.json
+            evidence/chr-pbr-route-selection/chr-resource.json
+            evidence/chr-pbr-route-selection/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
