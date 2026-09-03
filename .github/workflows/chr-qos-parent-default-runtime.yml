@@ -114,10 +114,10 @@ jobs:
               raise SystemExit(f'missing QoS runtime interfaces: {missing}')
           PY
 
-      - name: Validate production QoS renderer runtime and exact rollback
+      - name: Validate production QoS default-leaf runtime and exact rollback
         run: |
           set -euo pipefail
-          python lab/chr/verify_qos_parent_default_runtime.py \
+          python lab/chr/verify_qos_parent_default_runtime_v2.py \
             --admin-url http://127.0.0.1:9781 \
             --output evidence/chr-qos-parent-default-runtime/result.json
 
