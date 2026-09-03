@@ -92,7 +92,7 @@ def install(*, admin_url: str, prepare_payload: Mapping[str, Any]) -> dict[str, 
                 f"packet-mark=no-mark action=mark-packet new-packet-mark={_quote(DEFAULT_MARK)} "
                 f"passthrough=no comment={_quote(DEFAULT_COMMENT)} disabled=no"
             ),
-            f"/queue/tree/add name={_quote(PARENT)} parent=global queue=default-small max-limit=100M disabled=no",
+            f"/queue/tree/add name={_quote(PARENT)} parent=global max-limit=100M disabled=no",
             (
                 f"/queue/tree/add name={_quote(EF)} parent={_quote(PARENT)} packet-mark={_quote(ef_mark)} "
                 "queue=default-small priority=1 limit-at=10M max-limit=100M disabled=no"
