@@ -8,6 +8,7 @@ from router_configuration.vendors.mikrotik.approval_binding import (
     validate_approval_fingerprint,
 )
 from router_configuration.vendors.mikrotik.script_planner import MikroTikScriptArtifact
+from router_configuration.vendors.mikrotik.semantic_validation import MikroTikSemanticAttestation
 
 
 def _artifact(script_sha="a" * 64):
@@ -18,6 +19,16 @@ def _artifact(script_sha="a" * 64):
         render_sha256="render-001",
         ordered_command_ids=("inventory.1",),
         dry_run_command='/import file-name="change.rsc" verbose=yes dry-run',
+    )
+
+
+def _semantic(artifact):
+    return MikroTikSemanticAttestation(
+        render_sha256=artifact.render_sha256,
+        script_sha256=artifact.script_sha256,
+        ordered_command_ids=artifact.ordered_command_ids,
+        passed=True,
+        findings=(),
     )
 
 
@@ -39,10 +50,7 @@ class MikroTikApprovalBindingTests(unittest.TestCase):
         result = {
             "ok": True,
             "platform": {"version": "7.24.1"},
-            "generated_script": {
-                "sha256": artifact.script_sha256,
-                "dry_run_passed": True,
-            },
+            "generated_script": {"sha256": artifact.script_sha256, "dry_run_passed": True},
             "negative_control": {"dry_run_rejected": True},
             "configuration_before_sha256": "x",
             "configuration_after_sha256": "x",
@@ -70,19 +78,39 @@ class MikroTikApprovalBindingTests(unittest.TestCase):
         with self.assertRaises(MikroTikApprovalError):
             dry_run_evidence_from_chr(result=result, script=artifact)
 
-    def test_approval_binds_exact_script_state_knowledge_and_dry_run(self):
+    def test_approval_binds_script_state_knowledge_semantics_and_dry_run(self):
         artifact = _artifact()
-        dry_run = _proven_dry_run(artifact)
         binding = build_approval_binding(
             change_id="CHG-20260914-001",
             routeros_version="7.24.1",
             pre_state_sha256="b" * 64,
             script=artifact,
-            dry_run=dry_run,
+            semantic_attestation=_semantic(artifact),
+            dry_run=_proven_dry_run(artifact),
         )
         self.assertEqual(len(binding.approval_sha256), 64)
         self.assertEqual(len(binding.knowledge_sha256), 64)
+        self.assertEqual(len(binding.semantic_attestation_sha256), 64)
         validate_approval_fingerprint(binding, binding.approval_sha256)
+
+    def test_failed_semantic_attestation_cannot_be_approved(self):
+        artifact = _artifact()
+        semantic = MikroTikSemanticAttestation(
+            artifact.render_sha256,
+            artifact.script_sha256,
+            artifact.ordered_command_ids,
+            False,
+            (),
+        )
+        with self.assertRaisesRegex(MikroTikApprovalError, "semantic conflict"):
+            build_approval_binding(
+                change_id="CHG-1",
+                routeros_version="7.24.1",
+                pre_state_sha256="b" * 64,
+                script=artifact,
+                semantic_attestation=semantic,
+                dry_run=_proven_dry_run(artifact),
+            )
 
     def test_dry_run_for_different_script_is_rejected(self):
         artifact = _artifact()
@@ -100,19 +128,20 @@ class MikroTikApprovalBindingTests(unittest.TestCase):
                 routeros_version="7.24.1",
                 pre_state_sha256="b" * 64,
                 script=artifact,
+                semantic_attestation=_semantic(artifact),
                 dry_run=dry_run,
             )
 
     def test_failed_dry_run_cannot_be_approved(self):
         artifact = _artifact()
-        dry_run = _proven_dry_run(artifact, passed=False, errors=("syntax error",))
         with self.assertRaises(MikroTikApprovalError):
             build_approval_binding(
                 change_id="CHG-1",
                 routeros_version="7.24.1",
                 pre_state_sha256="b" * 64,
                 script=artifact,
-                dry_run=dry_run,
+                semantic_attestation=_semantic(artifact),
+                dry_run=_proven_dry_run(artifact, passed=False, errors=("syntax error",)),
             )
 
     def test_unproven_negative_control_cannot_be_approved(self):
@@ -131,18 +160,19 @@ class MikroTikApprovalBindingTests(unittest.TestCase):
                 routeros_version="7.24.1",
                 pre_state_sha256="b" * 64,
                 script=artifact,
+                semantic_attestation=_semantic(artifact),
                 dry_run=dry_run,
             )
 
     def test_stale_approval_hash_is_rejected(self):
         artifact = _artifact()
-        dry_run = _proven_dry_run(artifact)
         binding = build_approval_binding(
             change_id="CHG-1",
             routeros_version="7.24.1",
             pre_state_sha256="b" * 64,
             script=artifact,
-            dry_run=dry_run,
+            semantic_attestation=_semantic(artifact),
+            dry_run=_proven_dry_run(artifact),
         )
         with self.assertRaises(MikroTikApprovalError):
             validate_approval_fingerprint(binding, "d" * 64)
