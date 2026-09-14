@@ -31,18 +31,35 @@ python3 "${ROOT}/lab/chr/evaluate_link_up_failure_state.py" \
   --host-interface "${V_WAN10_BR}" \
   --namespace-interface "${V_WAN10_NS}" \
   --output "${EVIDENCE_DIR}/internet-down-link-up.json"'''
-
 old_recover = 'sudo ip link set "${V_WAN10_BR}" up'
 new_recover = r'''sudo ip netns exec "${NS_WAN10}" ip addr add 1.1.1.1/32 dev lo
 sudo ip netns exec "${NS_WAN10}" ip addr add 8.8.8.8/32 dev lo'''
 
-if text.count(old_fail) != 1:
-    raise SystemExit(f"expected exactly one failure injection line, found {text.count(old_fail)}")
-if text.count(old_recover) != 1:
-    raise SystemExit(f"expected exactly one recovery injection line, found {text.count(old_recover)}")
+for needle, label in ((old_fail, "failure injection"), (old_recover, "recovery injection")):
+    if text.count(needle) != 1:
+        raise SystemExit(f"expected exactly one {label} line, found {text.count(needle)}")
 
-patched = text.replace(old_fail, new_fail, 1).replace(old_recover, new_recover, 1)
-target.write_text(patched, encoding="utf-8")
+old_verifier = 'verify_packet_flow_behavior.py'
+if text.count(old_verifier) != 4:
+    raise SystemExit(
+        f"expected exactly four packet-flow verifier call sites, found {text.count(old_verifier)}"
+    )
+text = text.replace(old_verifier, 'verify_link_up_recursive_failover.py')
+
+start_marker = 'log "diagnosing RouterOS runtime validity of PCC and routing-mark rules"\n'
+end_marker = 'python3 "${ROOT}/lab/chr/verify_link_up_recursive_failover.py" wait-routes \\\n'
+start = text.find(start_marker)
+end = text.find(end_marker, start + len(start_marker)) if start >= 0 else -1
+if start < 0 or end < 0:
+    raise SystemExit("could not isolate PCC-only diagnostic block")
+text = text[:start] + text[end:]
+
+text = text.replace(old_fail, new_fail, 1).replace(old_recover, new_recover, 1)
+text = text.replace('log "measuring normal 10:1 PCC distribution"', 'log "measuring preferred-WAN recursive routing"')
+text = text.replace('log "evaluating end-to-end packet-flow acceptance"', 'log "evaluating link-up Internet failure and recursive failover acceptance"')
+text = text.replace('log "PASS: real CHR PCC distribution, failover and failback behavior verified"', 'log "PASS: Internet-down/link-up recursive failover and recovery verified"')
+
+target.write_text(text, encoding="utf-8")
 target.chmod(0o755)
 PY
 

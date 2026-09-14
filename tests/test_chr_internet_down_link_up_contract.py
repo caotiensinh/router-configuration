@@ -14,8 +14,21 @@ class ChrInternetDownLinkUpContractTests(unittest.TestCase):
         self.assertIn('ip addr add 8.8.8.8/32 dev lo', text)
         self.assertNotIn('new_fail = \'sudo ip link set', text)
         self.assertIn('evaluate_link_up_failure_state.py', text)
+        self.assertIn('verify_link_up_recursive_failover.py', text)
         self.assertIn('expected exactly one failure injection line', text)
         self.assertIn('expected exactly one recovery injection line', text)
+        self.assertIn('expected exactly four packet-flow verifier call sites', text)
+        self.assertIn('could not isolate PCC-only diagnostic block', text)
+
+    def test_recursive_verifier_uses_base_renderer_without_pcc(self):
+        text = (ROOT / "lab/chr/verify_link_up_recursive_failover.py").read_text(encoding="utf-8")
+        self.assertIn('RouterOSSafeSubsetRenderer().render(flow._build_ir())', text)
+        self.assertIn('requires exactly 17 base commands', text)
+        self.assertNotIn('render_routeros_pcc', text)
+        self.assertIn('preferred WAN10', text)
+        self.assertIn('flows did not move completely to WAN1', text)
+        self.assertIn('production_writer_available', text)
+        self.assertIn('write_authorized', text)
 
     def test_workflow_is_opt_in_by_commit_prefix(self):
         text = (ROOT / ".github/workflows/chr-internet-down-link-up.yml").read_text(encoding="utf-8")
