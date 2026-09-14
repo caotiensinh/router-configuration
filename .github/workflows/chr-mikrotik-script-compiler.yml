@@ -1,0 +1,169 @@
+name: CHR MikroTik Script Compiler
+
+on:
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/mikrotik/**"
+      - "lab/chr/build_mikrotik_script_compiler_fixture.py"
+      - "lab/chr/verify_mikrotik_script_compiler_evidence.py"
+      - "lab/chr/verify_render_dry_run.py"
+      - "lab/chr/verify_render_dry_run_chunked.py"
+      - ".github/workflows/chr-mikrotik-script-compiler.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-script-compiler-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: router-config-mikrotik-script-compiler-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      CHR_VERSION: "7.24.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and headless QEMU
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Prepare official MikroTik CHR image
+        run: |
+          set -euo pipefail
+          archive="/tmp/chr-${CHR_VERSION}.img.zip"
+          if [ ! -s "$archive" ]; then
+            curl -4 --http1.1 -fL \
+              --connect-timeout 15 \
+              --max-time 180 \
+              --retry 1 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+              -o "$archive"
+          fi
+          test -s "$archive"
+          unzip -t "$archive"
+          unzip -p "$archive" > /tmp/chr.img
+          test -s /tmp/chr.img
+          sha256sum "$archive" > /tmp/chr-script-compiler-download.sha256
+
+      - name: Persist CHR archive cache
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Boot disposable three-interface CHR snapshot
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9180-:80 \
+            -device virtio-net-pci,netdev=net0,mac=52:54:00:12:35:01 \
+            -netdev user,id=net1 \
+            -device virtio-net-pci,netdev=net1,mac=52:54:00:12:35:02 \
+            -netdev user,id=net2 \
+            -device virtio-net-pci,netdev=net2,mac=52:54:00:12:35:03 \
+            -display none \
+            -serial file:/tmp/chr-script-compiler-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-script-compiler.pid
+
+      - name: Wait for CHR REST
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9180/rest/system/resource \
+              > /tmp/chr-script-compiler-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chr-script-compiler-serial.log >&2 || true
+            exit 1
+          fi
+          cat /tmp/chr-script-compiler-resource.json
+
+      - name: Build script through deterministic MikroTik compiler pipeline
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python lab/chr/build_mikrotik_script_compiler_fixture.py \
+            --script-output evidence/mikrotik-script-compiler.rsc \
+            --metadata-output evidence/mikrotik-script-compiler-metadata.json \
+            | tee evidence/mikrotik-script-compiler-build.json
+
+      - name: Validate exact generated script on live RouterOS dry-run
+        run: |
+          set -euo pipefail
+          python lab/chr/verify_render_dry_run_chunked.py \
+            --admin-url http://127.0.0.1:9180 \
+            --script evidence/mikrotik-script-compiler.rsc \
+            --output evidence/mikrotik-script-compiler-dryrun.json
+
+      - name: Bind semantic proof and RouterOS dry-run into approval fingerprint
+        run: |
+          set -euo pipefail
+          python lab/chr/verify_mikrotik_script_compiler_evidence.py \
+            --script evidence/mikrotik-script-compiler.rsc \
+            --dry-run-evidence evidence/mikrotik-script-compiler-dryrun.json \
+            --output evidence/mikrotik-script-compiler-acceptance.json
+          python - <<'PY'
+          import json
+          p = json.load(open('evidence/mikrotik-script-compiler-acceptance.json', encoding='utf-8'))
+          assert p['ok'] is True
+          assert p['negative_control_rejected'] is True
+          assert p['configuration_unchanged'] is True
+          assert p['temporary_files_removed'] is True
+          assert p['write_authorized'] is False
+          print(json.dumps(p, indent=2, sort_keys=True))
+          PY
+
+      - name: Preserve MikroTik script-compiler evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-mikrotik-script-compiler-${{ github.sha }}
+          path: |
+            evidence/mikrotik-script-compiler.rsc
+            evidence/mikrotik-script-compiler-metadata.json
+            evidence/mikrotik-script-compiler-build.json
+            evidence/mikrotik-script-compiler-dryrun.json
+            evidence/mikrotik-script-compiler-acceptance.json
+            /tmp/chr-script-compiler-resource.json
+            /tmp/chr-script-compiler-serial.log
+            /tmp/chr-script-compiler-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          if [ -f /tmp/chr-script-compiler.pid ]; then
+            kill "$(cat /tmp/chr-script-compiler.pid)" 2>/dev/null || true
+          fi
