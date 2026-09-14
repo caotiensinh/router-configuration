@@ -44,6 +44,7 @@ def _script() -> str:
         '/ip/address/remove [find where interface=ether2]',
         '/ip/address/remove [find where interface=ether3]',
         '/ip/address/remove [find where interface=ether4]',
+        '/ip/dhcp-client/set [find where interface=ether1] default-route-distance=250',
         '/routing/settings/set check-gateway-ping-count=2 check-gateway-ping-interval=500ms check-gateway-ping-timeout=200ms',
         '/ip/address/add address="10.10.10.1/24" interface="ether4" comment="routercfg:lab:core-address"',
     ]
@@ -82,6 +83,27 @@ def _managed_defaults(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
             }
         )
     rows.sort(key=lambda item: item["comment"])
+    return rows
+
+
+def _management_dhcp_defaults(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
+    _, payload = admin.request("GET", "ip/route")
+    rows: list[dict[str, Any]] = []
+    for row in base._rows(payload):
+        if not base._is_true(row.get("dhcp")):
+            continue
+        if str(row.get("dst-address") or "") != "0.0.0.0/0":
+            continue
+        rows.append(
+            {
+                "route_id": str(row.get(".id") or ""),
+                "distance": str(row.get("distance") or ""),
+                "gateway": str(row.get("gateway") or ""),
+                "immediate_gateway": str(row.get("immediate-gw") or ""),
+                "active": base._is_true(row.get("active")),
+                "dhcp": True,
+            }
+        )
     return rows
 
 
@@ -175,8 +197,17 @@ def prepare(*, admin_url: str, output: Path) -> dict[str, Any]:
         raise CHRLinkUpRecursiveError(
             f"expected four managed main-table recursive defaults, observed {len(rows)}"
         )
+    management_defaults = _management_dhcp_defaults(admin)
+    management_distances = sorted(
+        {str(row.get("distance") or "") for row in management_defaults}
+    )
+    if not management_defaults or management_distances != ["250"]:
+        raise CHRLinkUpRecursiveError(
+            "disposable CHR management DHCP default route is not isolated at distance 250; "
+            f"observed={management_distances}"
+        )
     result = {
-        "schema_version": "chr-link-up-recursive-prepare/1",
+        "schema_version": "chr-link-up-recursive-prepare/2",
         "ok": True,
         "platform": {
             "version": str(platform.get("version") or ""),
@@ -185,6 +216,8 @@ def prepare(*, admin_url: str, output: Path) -> dict[str, Any]:
         },
         "generated_command_count": 17,
         "managed_default_count": len(rows),
+        "management_dhcp_default_count": len(management_defaults),
+        "management_dhcp_default_distances": management_distances,
         "dry_run": dry_run,
         "apply": apply_result,
         "production_writer_available": False,
