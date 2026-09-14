@@ -11,7 +11,9 @@
 
 ## Current measured status
 
-**93% complete / 7% remaining.**
+**95% complete / 5% remaining.**
+
+Change from the previous 93% checkpoint: **+2 P09 points for accepted full planned-v1 RouterOS renderer coverage**. The canonical product path now uses `V1ExtendedSafeSubsetCompiler` -> `routerctl routeros-render` -> `generate_routeros_plan_v1` -> `assess_renderer_coverage`. Exact source commit `d3a7a60154c5f7943ea7824ecd9db87928c86502` passed CI run `34824591913`, Governance run `34824591915`, and MikroTik Script Compiler run `34824591904`. Persisted evidence `evidence/renderer/2026-09-14-v1-full-coverage.json` records `renderer_complete=true`, `coverage_blocked_operation_count=0`, state-bound PCC/VLAN/PBR extensions, generation-complete firewall/QoS, and WireGuard as a deliberate deferred **execution** boundary rather than a renderer gap. Existing independent CHR evidence for PBR route selection, VLAN data plane, WireGuard handshake and QoS packet flow is reused without changing RouterOS command semantics. Production apply, transport, secret resolution and write authorization remain disabled.
 
 Change from the previous 91% checkpoint: **+2 P10 points for independently accepted DNS-failure and default-route-loss simulations on disposable official RouterOS CHR 7.24.1**. DNS failure is bound to exact source commit `48aa5ff43dc603f73f41e4db5a1728b4181a4f16`; workflow run `34810824257`, job `103871643203`, artifact `10334767118`, digest `sha256:b67b44ba776dd2952b47d2ad2ba721043407d6778872a97496ef6fe9a282ae46`. Direct artifact inspection proved DNS `success -> timeout -> success` while general UDP traffic remained 30/30 on WAN10 in all three phases and WAN10 route/link state stayed healthy. Default-route loss is bound to exact source commit `2a89300e597992b6659d4d49a5c6f0af516ec490`; workflow run `34812460392`, job `103876344042`, artifact `10335700314`, digest `sha256:ff93f270d3bf6be09933ef1ed01e17b2a44e2bb96e88a8ebb4fd1d9f971f9fe6`. The gate disabled exactly the two owned WAN10 default-route IDs while RouterOS ether2 and Linux host/namespace links remained UP, proved 30/30 failover flows via WAN1, restored the same two route IDs, then proved 30/30 failback via WAN10. Both gates retain `production_writer_available=false` and `write_authorized=false`; neither claims physical-router or production-write readiness.
 
@@ -39,13 +41,13 @@ Change from the previous 79% checkpoint: **+3 points backed by two independent a
 | P06 | Compiler / secret boundary | 4 | 4 | DONE | Further RouterOS command coverage is tracked under P09 |
 | P07 | RouterOS read-only discovery | 12 | 10 | PARTIAL | dedicated least-privilege HTTPS reader + explicit provenance attestation/candidate review |
 | P08 | RouterOS normalization | 6 | 6 | DONE | — |
-| P09 | RouterOS renderer | 13 | 11 | PARTIAL | close remaining v1 renderer capability gaps; production apply remains separately gated |
+| P09 | RouterOS renderer | 13 | 13 | DONE | Planned v1 renderer coverage accepted; production execution remains gated under P10 |
 | P10 | Backup/preflight/apply/verify/rollback | 15 | 12 | PARTIAL | production-grade backup/management reachability + applicable WAN/DNS/routing/VPN verification + rollback recovery; production writer remains disabled |
 | P11 | Dual-WAN / failover | 5 | 5 | DONE | — |
 | P12 | Security/VLAN/PBR/VPN/QoS | 8 | 8 | DONE | — |
 | P13 | CHR integration/failure lab | 5 | 5 | DONE | — |
 | P14 | CI/regression/golden evidence | 2 | 2 | DONE | — |
-| P15 | v1 release/beginner deployment docs | 1 | 1 | DONE | Final v1 release still depends on remaining P07/P09/P10 hard gates |
+| P15 | v1 release/beginner deployment docs | 1 | 1 | DONE | Final v1 release still depends on remaining P07/P10 hard gates |
 | P16 | AI observability gateway placeholder | 1 | 1 | DONE | AI engine intentionally deferred |
 
 ## Hard release gates
@@ -89,7 +91,7 @@ Change from the previous 79% checkpoint: **+3 points backed by two independent a
 - [ ] Full CHR acceptance uses HTTPS with certificate verification.
 - [ ] Full CHR evidence passes explicit provenance attestation/candidate review.
 - [ ] Populated NAT/QoS objects are reviewed on live CHR or covered by an explicit accepted capability-gap policy.
-- [ ] RouterOS renderer has accepted coverage for every planned v1 operation.
+- [x] RouterOS renderer has accepted coverage for every planned v1 operation.
 - [ ] Production apply requires real backup evidence.
 - [ ] Default-route/firewall/management changes require verified management reachability in the production transaction path.
 - [ ] Post-apply verification covers WAN, DNS, routing, VPN and management reachability as applicable.
