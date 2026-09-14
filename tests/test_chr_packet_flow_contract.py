@@ -61,6 +61,7 @@ class CHRPacketFlowContractTests(unittest.TestCase):
         self.assertIn("set -Eeuo pipefail", source)
         self.assertNotIn("set +e", source)
         self.assertIn("probe_pcc_pristine_runtime.py", source)
+        self.assertIn("--fingerprint-mode connection-tracking", source)
         self.assertIn("pcc-pristine-runtime.json", source)
         self.assertIn("diagnose_pcc_runtime.py", source)
         self.assertIn("pcc-runtime-diagnostic.json", source)
