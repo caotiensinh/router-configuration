@@ -11,7 +11,9 @@
 
 ## Current measured status
 
-**91% complete / 9% remaining.**
+**93% complete / 7% remaining.**
+
+Change from the previous 91% checkpoint: **+2 P10 points for independently accepted DNS-failure and default-route-loss simulations on disposable official RouterOS CHR 7.24.1**. DNS failure is bound to exact source commit `48aa5ff43dc603f73f41e4db5a1728b4181a4f16`; workflow run `34810824257`, job `103871643203`, artifact `10334767118`, digest `sha256:b67b44ba776dd2952b47d2ad2ba721043407d6778872a97496ef6fe9a282ae46`. Direct artifact inspection proved DNS `success -> timeout -> success` while general UDP traffic remained 30/30 on WAN10 in all three phases and WAN10 route/link state stayed healthy. Default-route loss is bound to exact source commit `2a89300e597992b6659d4d49a5c6f0af516ec490`; workflow run `34812460392`, job `103876344042`, artifact `10335700314`, digest `sha256:ff93f270d3bf6be09933ef1ed01e17b2a44e2bb96e88a8ebb4fd1d9f971f9fe6`. The gate disabled exactly the two owned WAN10 default-route IDs while RouterOS ether2 and Linux host/namespace links remained UP, proved 30/30 failover flows via WAN1, restored the same two route IDs, then proved 30/30 failback via WAN10. Both gates retain `production_writer_available=false` and `write_authorized=false`; neither claims physical-router or production-write readiness.
 
 Change from the previous 90% checkpoint: **+1 P10 point for accepted Internet-down-with-link-up recursive failover/recovery on disposable official RouterOS CHR 7.24.1**. The accepted exact-head behavior is bound to commit `bc7054732d07c02303cc9e0dfc01587c4f24fbbf`; workflow run `34809160558`, job `103866838708`, artifact `10334520218`, digest `sha256:e6682301e9956f8c066af1eae1833e4d650f337cda01809daf62b84450a1299f`. Readiness passed with a 1/1 WAN10 probe after isolating the disposable CHR management DHCP default at distance 250. Direct artifact inspection proved NORMAL 220/220 via WAN10, `tc netem loss 100%` upstream blackhole while host/namespace/RouterOS ether2 remained UP, WAN10 recursive-route withdrawal with WAN1 activation, FAILOVER 220/220 via WAN1, and RECOVERY 220/220 via WAN10. The evidence explicitly retains `production_writer_available=false` and `write_authorized=false`; it does not claim physical-router or production-write readiness.
 
@@ -38,7 +40,7 @@ Change from the previous 79% checkpoint: **+3 points backed by two independent a
 | P07 | RouterOS read-only discovery | 12 | 10 | PARTIAL | dedicated least-privilege HTTPS reader + explicit provenance attestation/candidate review |
 | P08 | RouterOS normalization | 6 | 6 | DONE | — |
 | P09 | RouterOS renderer | 13 | 11 | PARTIAL | close remaining v1 renderer capability gaps; production apply remains separately gated |
-| P10 | Backup/preflight/apply/verify/rollback | 15 | 10 | PARTIAL | DNS-failure and route-loss simulations + production-grade backup/management reachability + applicable WAN/DNS/routing/VPN verification + rollback recovery; production writer remains disabled |
+| P10 | Backup/preflight/apply/verify/rollback | 15 | 12 | PARTIAL | production-grade backup/management reachability + applicable WAN/DNS/routing/VPN verification + rollback recovery; production writer remains disabled |
 | P11 | Dual-WAN / failover | 5 | 5 | DONE | — |
 | P12 | Security/VLAN/PBR/VPN/QoS | 8 | 8 | DONE | — |
 | P13 | CHR integration/failure lab | 5 | 5 | DONE | — |
@@ -93,8 +95,8 @@ Change from the previous 79% checkpoint: **+3 points backed by two independent a
 - [ ] Post-apply verification covers WAN, DNS, routing, VPN and management reachability as applicable.
 - [ ] Failed production verification produces rollback and recovery-verification evidence.
 - [x] Internet-down-with-link-up simulation passes while Ethernet/carrier remains UP, with WAN10 recursive-route failure, complete WAN1 failover and WAN10 recovery/failback.
-- [ ] DNS failure simulation passes in addition to the accepted WAN failure/recovery gates.
-- [ ] Route-loss simulation passes in addition to the accepted WAN failure/recovery gates.
+- [x] DNS failure simulation passes in addition to the accepted WAN failure/recovery gates.
+- [x] Route-loss simulation passes in addition to the accepted WAN failure/recovery gates.
 - [x] Disposable CHR integration/failure simulation gates pass for the currently implemented safe-subset slices before physical CCR2116 testing.
 - [ ] Physical CCR2116 acceptance evidence is recorded before production writer is enabled.
 - [ ] CI is green on the exact release commit.
