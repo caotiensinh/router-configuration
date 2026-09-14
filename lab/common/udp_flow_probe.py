@@ -2,8 +2,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from pathlib import Path
 
-from router_configuration.lab_probes import run_udp_flow_probe, write_json_evidence
+_ROOT = Path(__file__).resolve().parents[2]
+_SRC = _ROOT / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from router_configuration.lab_probes import (  # noqa: E402
+    run_udp_flow_probe,
+    write_json_evidence,
+)
 
 
 def main() -> int:
