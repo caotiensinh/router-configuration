@@ -1,0 +1,58 @@
+{
+  "schema_version": "chr-dns-failure-evidence-summary/1",
+  "acceptance": "PASS",
+  "routeros_version": "7.24.1",
+  "source_commit": "48aa5ff43dc603f73f41e4db5a1728b4181a4f16",
+  "workflow": {
+    "name": "CHR DNS Failure",
+    "run_id": 34810824257,
+    "job_id": 103871643203,
+    "artifact_id": 10334767118,
+    "artifact_digest": "sha256:b67b44ba776dd2952b47d2ad2ba721043407d6778872a97496ef6fe9a282ae46"
+  },
+  "exact_commit_gates": {
+    "ci_run_id": 34810826565,
+    "ci_conclusion": "success",
+    "governance_run_id": 34810826521,
+    "governance_conclusion": "success",
+    "mikrotik_script_compiler_run_id": 34810826570,
+    "mikrotik_script_compiler_conclusion": "success"
+  },
+  "dns": {
+    "normal": {
+      "expected": "success",
+      "observed": "success",
+      "answer_ip": "192.0.2.53"
+    },
+    "failure": {
+      "expected": "failure",
+      "observed": "timeout",
+      "error": "DNS query timed out"
+    },
+    "recovery": {
+      "expected": "success",
+      "observed": "success",
+      "answer_ip": "192.0.2.53"
+    }
+  },
+  "general_connectivity": {
+    "normal": {"successful_flows": 30, "requested_flows": 30, "WAN10": 30, "WAN1": 0},
+    "failure": {"successful_flows": 30, "requested_flows": 30, "WAN10": 30, "WAN1": 0},
+    "recovery": {"successful_flows": 30, "requested_flows": 30, "WAN10": 30, "WAN1": 0}
+  },
+  "semantics": {
+    "dns_normal_success": true,
+    "dns_failure_observed": true,
+    "dns_recovery_success": true,
+    "general_connectivity_remained_healthy": true,
+    "wan10_route_remained_preferred": true,
+    "wan10_link_remained_up": true,
+    "wan10_dns_socket_absent_during_failure": true,
+    "wan10_dns_socket_present_after_recovery": true
+  },
+  "safety": {
+    "production_writer_available": false,
+    "write_authorized": false,
+    "physical_router_acceptance_claimed": false
+  }
+}
