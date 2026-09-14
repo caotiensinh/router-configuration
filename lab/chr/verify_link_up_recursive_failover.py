@@ -50,35 +50,34 @@ def _script() -> str:
     return "\n".join([*prelude, *(str(item["command"]) for item in _commands())]) + "\n"
 
 
-def _route_is_active(row: Mapping[str, Any]) -> bool:
-    """Normalize RouterOS route status without assuming the `active` key is always present.
-
-    RouterOS documents route status as mutually exclusive active/inactive flags. The REST
-    wrapper may omit a property from an item, so observed CHR evidence can expose an
-    installed route as ``inactive=false`` without an ``active`` key. Prefer an explicit
-    ``active`` value when present, otherwise derive status from explicit ``inactive``.
-    Missing status remains fail-closed.
-    """
-    if "active" in row:
-        return base._is_true(row.get("active"))
-    if "inactive" in row:
-        return not base._is_true(row.get("inactive"))
-    return False
+def _active_route_ids(admin: base.LoopbackCHRAdmin) -> set[str]:
+    """Ask RouterOS itself which routes are active instead of inferring flag absence."""
+    _, payload = admin.request("GET", "ip/route?active=true")
+    return {
+        route_id
+        for row in base._rows(payload)
+        if (route_id := str(row.get(".id") or ""))
+    }
 
 
 def _managed_defaults(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
     _, payload = admin.request("GET", "ip/route")
+    active_ids = _active_route_ids(admin)
     rows = []
     for row in base._rows(payload):
         comment = str(row.get("comment") or "")
         if not comment.startswith("routercfg:managed:default:"):
             continue
+        route_id = str(row.get(".id") or "")
         rows.append(
             {
+                "route_id": route_id,
                 "comment": comment,
-                "active": _route_is_active(row),
+                "active": bool(route_id) and route_id in active_ids,
+                "inactive": base._is_true(row.get("inactive")),
                 "distance": str(row.get("distance") or ""),
                 "gateway": str(row.get("gateway") or ""),
+                "immediate_gateway": str(row.get("immediate-gw") or ""),
                 "routing_table": str(row.get("routing-table") or ""),
             }
         )
@@ -92,7 +91,9 @@ def _route_condition(rows: list[dict[str, Any]], expected: str) -> bool:
     if len(wan10) != 2 or len(wan1) != 2:
         return False
     if expected in {"normal", "recovered"}:
-        return any(row["active"] for row in wan10)
+        return any(row["active"] for row in wan10) and not any(
+            row["active"] for row in wan1
+        )
     if expected == "wan10_failed":
         return not any(row["active"] for row in wan10) and any(
             row["active"] for row in wan1
@@ -128,7 +129,7 @@ def _write_timeout_diagnostic(
 ) -> Path:
     diagnostic_path = output.with_name(f"{output.stem}-diagnostic.json")
     payload = {
-        "schema_version": "chr-link-up-recursive-timeout-diagnostic/1",
+        "schema_version": "chr-link-up-recursive-timeout-diagnostic/2",
         "ok": False,
         "expected": expected,
         "timeout_seconds": timeout_seconds,
@@ -136,6 +137,8 @@ def _write_timeout_diagnostic(
         "managed_defaults": rows,
         "routing_settings": _endpoint_snapshot(admin, "routing/settings"),
         "ip_routes": _endpoint_snapshot(admin, "ip/route"),
+        "active_ip_routes": _endpoint_snapshot(admin, "ip/route?active=true"),
+        "routing_routes": _endpoint_snapshot(admin, "routing/route"),
         "routing_nexthops": _endpoint_snapshot(admin, "routing/nexthop"),
         "production_writer_available": False,
         "write_authorized": False,
@@ -221,7 +224,7 @@ def wait_routes(
             )
         time.sleep(0.25)
     result = {
-        "schema_version": "chr-link-up-recursive-route-state/1",
+        "schema_version": "chr-link-up-recursive-route-state/2",
         "ok": True,
         "expected": expected,
         "attempts": attempts,

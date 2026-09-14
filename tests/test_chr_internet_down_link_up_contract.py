@@ -19,6 +19,20 @@ class ChrInternetDownLinkUpContractTests(unittest.TestCase):
         self.assertIn('expected exactly five packet-flow verifier call sites', text)
         self.assertIn('could not isolate PCC-only diagnostic block', text)
 
+    def test_wrapper_has_deterministic_pre_measurement_readiness_gate(self):
+        text = (ROOT / "lab/chr/run_packet_flow_link_up_failure.sh").read_text(encoding="utf-8")
+        self.assertIn('verifying deterministic dataplane readiness before acceptance measurement', text)
+        self.assertIn('LAB_READINESS_FAILED', text)
+        self.assertIn('routeros-active-ip-routes.json', text)
+        self.assertIn('routeros-nexthops.json', text)
+        self.assertIn('responder-processes.txt', text)
+        self.assertIn('wan10-sockets.txt', text)
+        self.assertIn('neighbours-after.json', text)
+        self.assertIn('--count 1', text)
+        self.assertIn('readiness.json', text)
+        self.assertIn('production_writer_available', text)
+        self.assertIn('write_authorized', text)
+
     def test_link_state_evaluator_requires_netem_blackhole_and_link_up(self):
         text = (ROOT / "lab/chr/evaluate_link_up_failure_state.py").read_text(encoding="utf-8")
         self.assertIn('"netem" in text and "loss 100%" in text', text)
@@ -32,6 +46,7 @@ class ChrInternetDownLinkUpContractTests(unittest.TestCase):
         self.assertIn('RouterOSSafeSubsetRenderer().render(flow._build_ir())', text)
         self.assertIn('requires exactly 17 base commands', text)
         self.assertNotIn('render_routeros_pcc', text)
+        self.assertIn('ip/route?active=true', text)
         self.assertIn('preferred WAN10', text)
         self.assertIn('flows did not move completely to WAN1', text)
         self.assertIn('production_writer_available', text)
