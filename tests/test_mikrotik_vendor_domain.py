@@ -8,6 +8,7 @@ from router_configuration.vendors.mikrotik.finalization import finalize_verified
 from router_configuration.vendors.mikrotik.inference import MikroTikReasoningRequest, build_grounded_prompt
 from router_configuration.vendors.mikrotik.knowledge import MikroTikOfflineKnowledge
 from router_configuration.vendors.mikrotik.postdeploy import BackupArtifact
+from router_configuration.vendors.mikrotik.reference_measure import measure_pre_post
 from router_configuration.vendors.mikrotik.workflow import (
     MikroTikDeploymentStage,
     completion_requirements,
@@ -21,6 +22,7 @@ class MikroTikVendorDomainTests(unittest.TestCase):
         hits = store.search("wireguard allowed-address keepalive")
         self.assertTrue(hits)
         self.assertEqual(hits[0].record.id, "wireguard-peers")
+        self.assertEqual(len(store.digest_sha256), 64)
 
     def test_prompt_redacts_secret_bearing_fields(self):
         prompt, ids = build_grounded_prompt(
@@ -61,6 +63,49 @@ class MikroTikVendorDomainTests(unittest.TestCase):
             "post_state_sha256": "b",
         }
 
+    def _reference_comparison(self, *, post_ready=True):
+        keys = {
+            "routeros_version_recorded": True,
+            "knowledge_version_recorded": True,
+            "management_path_survives": True,
+            "post_state_matches_desired": True,
+            "established_related_preserved": True,
+            "invalid_state_dropped": True,
+            "unsolicited_wan_to_lan_denied": True,
+            "wan_management_denied": True,
+            "management_sources_restricted": True,
+            "lan_can_reach_internet": True,
+            "desired_state_idempotent": True,
+        }
+        pre = dict(keys)
+        pre["wan_management_denied"] = False
+        post = dict(keys)
+        if not post_ready:
+            post["post_state_matches_desired"] = False
+        return measure_pre_post(
+            intent_kind="secure_internet_gateway",
+            pre_evidence=pre,
+            post_evidence=post,
+        )
+
+    def test_finalization_refuses_nonconformant_reference_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            export = root / "router.rsc"
+            backup = root / "router.backup"
+            export.write_text("/system identity print\n", encoding="utf-8")
+            backup.write_bytes(b"binary-placeholder")
+            with self.assertRaisesRegex(ValueError, "official-reference post-state"):
+                finalize_verified_deployment(
+                    output_dir=root / "handover",
+                    deployment_record=self._completed_record(),
+                    backup_artifacts=[
+                        BackupArtifact("sanitized_export", export, False, "7.24.1"),
+                        BackupArtifact("binary_system_backup", backup, True, "7.24.1"),
+                    ],
+                    reference_comparison=self._reference_comparison(post_ready=False),
+                )
+
     def test_finalization_refuses_missing_required_backup_type(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -73,6 +118,7 @@ class MikroTikVendorDomainTests(unittest.TestCase):
                     backup_artifacts=[
                         BackupArtifact("binary_system_backup", backup, True, "7.24.1")
                     ],
+                    reference_comparison=self._reference_comparison(),
                 )
 
     def test_finalization_hashes_both_backups_and_generates_documents(self):
@@ -89,6 +135,7 @@ class MikroTikVendorDomainTests(unittest.TestCase):
                     BackupArtifact("sanitized_export", export, False, "7.24.1"),
                     BackupArtifact("binary_system_backup", backup, True, "7.24.1"),
                 ],
+                reference_comparison=self._reference_comparison(),
             )
             names = {path.name for path in result.files}
             self.assertIn("00_deployment_completion.md", names)
