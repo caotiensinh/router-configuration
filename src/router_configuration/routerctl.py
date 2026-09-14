@@ -10,7 +10,7 @@ from typing import Any
 from .cli import main as legacy_main
 from .guided_release import build_guided_release_workspace
 from .profile_builder import GuidedProfileRequest
-from .routeros_generation import generate_routeros_plan
+from .routeros_generation_v1 import generate_routeros_plan_v1
 
 
 def _load_json(path: str) -> Any:
@@ -71,7 +71,7 @@ def command_routeros_render(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     try:
-        result = generate_routeros_plan(
+        result = generate_routeros_plan_v1(
             profile=_load_json(args.profile),
             ir=_load_json(args.ir),
             evidence=_load_json(args.evidence),
