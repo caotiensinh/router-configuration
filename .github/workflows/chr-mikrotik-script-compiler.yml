@@ -3,6 +3,7 @@ name: CHR MikroTik Script Compiler
 on:
   pull_request:
     paths:
+      - "src/router_configuration/test_harness.py"
       - "src/router_configuration/vendors/mikrotik/**"
       - "lab/chr/build_mikrotik_script_compiler_fixture.py"
       - "lab/chr/verify_mikrotik_script_compiler_evidence.py"
@@ -144,6 +145,40 @@ jobs:
           print(json.dumps(p, indent=2, sort_keys=True))
           PY
 
+      - name: Project accepted CHR evidence into shared test harness
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from router_configuration.vendors.mikrotik.chr_test_bridge import (
+              build_chr_script_compiler_test_bundle,
+          )
+
+          source = json.loads(
+              Path('evidence/mikrotik-script-compiler-acceptance.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          bundle = build_chr_script_compiler_test_bundle(
+              source,
+              evidence_ref=f"chr-script-compiler-acceptance-{os.environ['GITHUB_SHA']}",
+          )
+          assessment = bundle['assessment']
+          assert assessment['software_acceptance_passed'] is True
+          assert assessment['hardware_certified'] is False
+          assert bundle['hardware_certification_claimed'] is False
+          assert bundle['production_writer_available'] is False
+          assert bundle['write_authorized'] is False
+          Path('evidence/vendor-neutral-test-assessment.json').write_text(
+              json.dumps(bundle, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(bundle, indent=2, sort_keys=True))
+          PY
+
       - name: Preserve MikroTik script-compiler evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -155,6 +190,7 @@ jobs:
             evidence/mikrotik-script-compiler-build.json
             evidence/mikrotik-script-compiler-dryrun.json
             evidence/mikrotik-script-compiler-acceptance.json
+            evidence/vendor-neutral-test-assessment.json
             /tmp/chr-script-compiler-resource.json
             /tmp/chr-script-compiler-serial.log
             /tmp/chr-script-compiler-download.sha256
