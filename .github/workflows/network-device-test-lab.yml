@@ -37,13 +37,21 @@ jobs:
         run: |
           set -euo pipefail
           bash -n lab/common/network_lab.sh
+          bash -n lab/common/fault_executor.sh
           bash -n lab/common/run_network_lab_selftest.sh
+          bash -n lab/common/run_fault_executor_selftest.sh
 
       - name: Run reusable Linux lab substrate self-test
         run: |
           set -euo pipefail
           bash lab/common/run_network_lab_selftest.sh \
             evidence/test-harness/network-lab-selftest.json
+
+      - name: Run reusable external fault self-test
+        run: |
+          set -euo pipefail
+          bash lab/common/run_fault_executor_selftest.sh \
+            evidence/test-harness/common-fault-executor-selftest.json
 
       - name: Verify safety boundary
         run: |
@@ -52,20 +60,37 @@ jobs:
           import json
           from pathlib import Path
 
-          p = json.loads(
+          substrate = json.loads(
               Path('evidence/test-harness/network-lab-selftest.json').read_text(
                   encoding='utf-8'
               )
           )
-          assert p['acceptance'] == 'PASS'
-          assert p['scope'] == 'host_network_substrate_only_no_vendor_os'
-          assert p['vendor_os_acceptance_claimed'] is False
-          assert p['physical_hardware_claimed'] is False
-          assert p['production_writer_available'] is False
-          assert p['write_authorized'] is False
-          assert p['topology']['management_isolated'] is True
-          assert len(p['topology']['topology_sha256']) == 64
-          print(json.dumps(p, indent=2, sort_keys=True))
+          assert substrate['acceptance'] == 'PASS'
+          assert substrate['scope'] == 'host_network_substrate_only_no_vendor_os'
+          assert substrate['vendor_os_acceptance_claimed'] is False
+          assert substrate['physical_hardware_claimed'] is False
+          assert substrate['production_writer_available'] is False
+          assert substrate['write_authorized'] is False
+          assert substrate['topology']['management_isolated'] is True
+          assert len(substrate['topology']['topology_sha256']) == 64
+
+          faults = json.loads(
+              Path('evidence/test-harness/common-fault-executor-selftest.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert faults['acceptance'] == 'PASS'
+          assert faults['scope'] == 'common_linux_lab_external_faults_only_no_vendor_os'
+          assert faults['fail_closed_without_explicit_fault_opt_in'] is True
+          assert faults['arbitrary_host_interface_targeting_available'] is False
+          assert faults['arbitrary_host_pid_targeting_available'] is False
+          assert faults['faults']['wan_primary_blackhole']['recovered'] is True
+          assert faults['faults']['dns_responder_stop']['listener_absent_after_fault'] is True
+          assert faults['vendor_os_acceptance_claimed'] is False
+          assert faults['physical_hardware_claimed'] is False
+          assert faults['production_writer_available'] is False
+          assert faults['write_authorized'] is False
+          print(json.dumps({'substrate': substrate, 'faults': faults}, indent=2, sort_keys=True))
           PY
 
       - name: Preserve common lab evidence
@@ -73,6 +98,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: network-device-test-lab-${{ github.sha }}
-          path: evidence/test-harness/network-lab-selftest.json
+          path: |
+            evidence/test-harness/network-lab-selftest.json
+            evidence/test-harness/common-fault-executor-selftest.json
           if-no-files-found: warn
           retention-days: 14
