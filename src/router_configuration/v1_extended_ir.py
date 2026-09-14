@@ -82,3 +82,10 @@ def compile_v1_extended_ir(profile: Mapping[str, Any]) -> SafeSubsetIR:
 
     operations.sort(key=lambda item: item.operation_id)
     return SafeSubsetIR(device_id=base.device_id, operations=tuple(operations))
+
+
+class V1ExtendedSafeSubsetCompiler:
+    """Class-compatible product adapter for the v1 extended safe-subset compiler."""
+
+    def compile(self, profile: Mapping[str, Any]) -> SafeSubsetIR:
+        return compile_v1_extended_ir(profile)
