@@ -65,7 +65,6 @@ def _extended_profile():
             {"id": 20, "name": "users"},
         ],
         "ports": [
-            {"interface": "ether5", "mode": "access", "access_vlan": 20},
             {
                 "interface": "sfp-sfpplus2",
                 "mode": "trunk",
@@ -86,7 +85,6 @@ def _extended_profile():
                 "name": "users-via-wan1g",
                 "source_cidr": "10.20.0.0/24",
                 "destination_cidr": "0.0.0.0/0",
-                "in_interface": "routercfg-users-vlan20",
                 "table": "to-wan1g",
                 "action": "lookup",
             }
