@@ -19,21 +19,21 @@ target = Path(sys.argv[2])
 text = source.read_text(encoding="utf-8")
 
 old_fail = 'sudo ip link set "${V_WAN10_BR}" down'
-new_fail = r'''sudo ip netns exec "${NS_WAN10}" ip addr del 1.1.1.1/32 dev lo
-sudo ip netns exec "${NS_WAN10}" ip addr del 8.8.8.8/32 dev lo
+new_fail = r'''sudo ip netns exec "${NS_WAN10}" tc qdisc replace dev "${V_WAN10_NS}" root netem loss 100%
 ip -j link show "${V_WAN10_BR}" > "${EVIDENCE_DIR}/linkup-host-veth.json"
 sudo ip netns exec "${NS_WAN10}" ip -j link show "${V_WAN10_NS}" > "${EVIDENCE_DIR}/linkup-namespace-veth.json"
+sudo ip netns exec "${NS_WAN10}" tc qdisc show dev "${V_WAN10_NS}" > "${EVIDENCE_DIR}/linkup-namespace-qdisc.txt"
 curl -fsS --user 'admin:' "${ADMIN_URL}/rest/interface" > "${EVIDENCE_DIR}/linkup-routeros-interfaces.json"
 python3 "${ROOT}/lab/chr/evaluate_link_up_failure_state.py" \
   --host-link "${EVIDENCE_DIR}/linkup-host-veth.json" \
   --namespace-link "${EVIDENCE_DIR}/linkup-namespace-veth.json" \
+  --namespace-qdisc "${EVIDENCE_DIR}/linkup-namespace-qdisc.txt" \
   --routeros-interfaces "${EVIDENCE_DIR}/linkup-routeros-interfaces.json" \
   --host-interface "${V_WAN10_BR}" \
   --namespace-interface "${V_WAN10_NS}" \
   --output "${EVIDENCE_DIR}/internet-down-link-up.json"'''
 old_recover = 'sudo ip link set "${V_WAN10_BR}" up'
-new_recover = r'''sudo ip netns exec "${NS_WAN10}" ip addr add 1.1.1.1/32 dev lo
-sudo ip netns exec "${NS_WAN10}" ip addr add 8.8.8.8/32 dev lo'''
+new_recover = r'''sudo ip netns exec "${NS_WAN10}" tc qdisc del dev "${V_WAN10_NS}" root'''
 
 for needle, label in ((old_fail, "failure injection"), (old_recover, "recovery injection")):
     if text.count(needle) != 1:
