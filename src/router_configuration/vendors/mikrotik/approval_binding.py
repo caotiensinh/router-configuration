@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 from .knowledge import MikroTikOfflineKnowledge
 from .script_planner import MikroTikScriptArtifact
+from .semantic_validation import MikroTikSemanticAttestation
 
 
 class MikroTikApprovalError(ValueError):
@@ -51,6 +52,7 @@ class MikroTikApprovalBinding:
     render_sha256: str
     script_sha256: str
     knowledge_sha256: str
+    semantic_attestation_sha256: str
     dry_run_evidence_sha256: str
     ordered_command_ids: tuple[str, ...]
     approval_sha256: str
@@ -64,6 +66,7 @@ class MikroTikApprovalBinding:
             "render_sha256": self.render_sha256,
             "script_sha256": self.script_sha256,
             "knowledge_sha256": self.knowledge_sha256,
+            "semantic_attestation_sha256": self.semantic_attestation_sha256,
             "dry_run_evidence_sha256": self.dry_run_evidence_sha256,
             "ordered_command_ids": list(self.ordered_command_ids),
             "approval_sha256": self.approval_sha256,
@@ -93,13 +96,7 @@ def dry_run_evidence_from_chr(
     result: Mapping[str, Any],
     script: MikroTikScriptArtifact,
 ) -> MikroTikDryRunEvidence:
-    """Convert proven disposable-CHR dry-run output into approval evidence.
-
-    This parser deliberately requires more than `ok=true`: the tested file hash
-    must equal the exact compiled script, RouterOS must report a version, the
-    negative control must be rejected, the configuration digest must remain
-    unchanged, and temporary test files must be removed.
-    """
+    """Convert proven disposable-CHR dry-run output into approval evidence."""
 
     generated = result.get("generated_script")
     platform = result.get("platform")
@@ -156,6 +153,7 @@ def build_approval_binding(
     routeros_version: str,
     pre_state_sha256: str,
     script: MikroTikScriptArtifact,
+    semantic_attestation: MikroTikSemanticAttestation,
     dry_run: MikroTikDryRunEvidence,
     knowledge: MikroTikOfflineKnowledge | None = None,
 ) -> MikroTikApprovalBinding:
@@ -171,6 +169,16 @@ def build_approval_binding(
         raise MikroTikApprovalError("script artifact must remain generation-only before approval")
     if not script.dry_run_required:
         raise MikroTikApprovalError("MikroTik script artifact must require RouterOS dry-run")
+
+    if not semantic_attestation.passed or semantic_attestation.findings:
+        raise MikroTikApprovalError("semantic conflict attestation must pass without findings before approval")
+    if semantic_attestation.script_sha256 != script_digest:
+        raise MikroTikApprovalError("semantic attestation belongs to a different compiled script")
+    if semantic_attestation.render_sha256 != script.render_sha256:
+        raise MikroTikApprovalError("semantic attestation belongs to a different render plan")
+    if semantic_attestation.ordered_command_ids != script.ordered_command_ids:
+        raise MikroTikApprovalError("semantic attestation command order differs from compiled script")
+
     if dry_run.routeros_version.strip() != version:
         raise MikroTikApprovalError("dry-run RouterOS version does not match approval target")
     if dry_run.script_sha256.strip().lower() != script_digest:
@@ -193,6 +201,7 @@ def build_approval_binding(
         "render_sha256": script.render_sha256,
         "script_sha256": script_digest,
         "knowledge_sha256": store.digest_sha256,
+        "semantic_attestation_sha256": semantic_attestation.attestation_sha256,
         "dry_run_evidence_sha256": dry_run.evidence_sha256,
         "ordered_command_ids": list(script.ordered_command_ids),
     }
@@ -204,6 +213,7 @@ def build_approval_binding(
         render_sha256=script.render_sha256,
         script_sha256=script_digest,
         knowledge_sha256=store.digest_sha256,
+        semantic_attestation_sha256=semantic_attestation.attestation_sha256,
         dry_run_evidence_sha256=dry_run.evidence_sha256,
         ordered_command_ids=script.ordered_command_ids,
         approval_sha256=digest,
@@ -217,5 +227,5 @@ def validate_approval_fingerprint(
     supplied = _require_hex64(approved_sha256, "approved_sha256")
     if supplied != binding.approval_sha256:
         raise MikroTikApprovalError(
-            "approval fingerprint is stale or belongs to a different state/render/script/knowledge/dry-run set"
+            "approval fingerprint is stale or belongs to a different state/render/script/knowledge/semantic/dry-run set"
         )
