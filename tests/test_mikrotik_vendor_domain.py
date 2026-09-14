@@ -4,9 +4,10 @@ import unittest
 from pathlib import Path
 
 from router_configuration.vendors.mikrotik.backup import backup_operations
+from router_configuration.vendors.mikrotik.finalization import finalize_verified_deployment
 from router_configuration.vendors.mikrotik.inference import MikroTikReasoningRequest, build_grounded_prompt
 from router_configuration.vendors.mikrotik.knowledge import MikroTikOfflineKnowledge
-from router_configuration.vendors.mikrotik.postdeploy import BackupArtifact, build_handover_bundle
+from router_configuration.vendors.mikrotik.postdeploy import BackupArtifact
 from router_configuration.vendors.mikrotik.workflow import (
     MikroTikDeploymentStage,
     completion_requirements,
@@ -47,33 +48,61 @@ class MikroTikVendorDomainTests(unittest.TestCase):
         self.assertLess(stages.index(MikroTikDeploymentStage.GENERATE_HANDOVER), stages.index(MikroTikDeploymentStage.COMPLETE))
         self.assertIn("operations and maintenance guide generated", completion_requirements())
 
-    def test_handover_bundle_hashes_backup_and_generates_documents(self):
+    def _completed_record(self):
+        return {
+            "status": "completed",
+            "deployment_id": "dep-1",
+            "site": "lab",
+            "device": {"identity": "r1", "model": "CHR", "routeros_version": "7.24.1"},
+            "intent": {"kind": "secure_internet_gateway"},
+            "changes": ["firewall baseline"],
+            "verification": [{"name": "management_path_survives", "status": "pass"}],
+            "pre_state_sha256": "a",
+            "post_state_sha256": "b",
+        }
+
+    def test_finalization_refuses_missing_required_backup_type(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             backup = root / "router.backup"
             backup.write_bytes(b"binary-placeholder")
-            record = {
-                "status": "completed",
-                "deployment_id": "dep-1",
-                "site": "lab",
-                "device": {"identity": "r1", "model": "CHR", "routeros_version": "7.24.1"},
-                "intent": {"kind": "secure_internet_gateway"},
-                "changes": ["firewall baseline"],
-                "verification": [{"name": "management_path_survives", "status": "pass"}],
-                "pre_state_sha256": "a",
-                "post_state_sha256": "b",
-            }
-            result = build_handover_bundle(
+            with self.assertRaisesRegex(ValueError, "sanitized_export"):
+                finalize_verified_deployment(
+                    output_dir=root / "handover",
+                    deployment_record=self._completed_record(),
+                    backup_artifacts=[
+                        BackupArtifact("binary_system_backup", backup, True, "7.24.1")
+                    ],
+                )
+
+    def test_finalization_hashes_both_backups_and_generates_documents(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            export = root / "router.rsc"
+            backup = root / "router.backup"
+            export.write_text("/system identity print\n", encoding="utf-8")
+            backup.write_bytes(b"binary-placeholder")
+            result = finalize_verified_deployment(
                 output_dir=root / "handover",
-                deployment_record=record,
-                backup_artifacts=[BackupArtifact("binary", backup, True, "7.24.1")],
+                deployment_record=self._completed_record(),
+                backup_artifacts=[
+                    BackupArtifact("sanitized_export", export, False, "7.24.1"),
+                    BackupArtifact("binary_system_backup", backup, True, "7.24.1"),
+                ],
             )
             names = {path.name for path in result.files}
             self.assertIn("00_deployment_completion.md", names)
             self.assertIn("03_operations_maintenance.md", names)
             self.assertIn("99_bundle_manifest.json", names)
             manifest = json.loads((root / "handover" / "05_backup_manifest.json").read_text())
-            self.assertTrue(manifest["artifacts"][0]["contains_sensitive_data"])
+            self.assertEqual(
+                {item["kind"] for item in manifest["artifacts"]},
+                {"sanitized_export", "binary_system_backup"},
+            )
+            binary_manifest = next(
+                item for item in manifest["artifacts"] if item["kind"] == "binary_system_backup"
+            )
+            self.assertTrue(binary_manifest["contains_sensitive_data"])
 
 
 if __name__ == "__main__":
