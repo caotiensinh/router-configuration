@@ -1,0 +1,78 @@
+name: Network Device Test Lab
+
+on:
+  pull_request:
+    paths:
+      - "src/router_configuration/test_lab.py"
+      - "lab/common/**"
+      - "tests/test_test_lab.py"
+      - ".github/workflows/network-device-test-lab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-substrate-selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    concurrency:
+      group: network-device-test-lab-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and host-network tools
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends iproute2
+          sudo -n true
+
+      - name: Validate shared lab shell syntax
+        run: |
+          set -euo pipefail
+          bash -n lab/common/network_lab.sh
+          bash -n lab/common/run_network_lab_selftest.sh
+
+      - name: Run reusable Linux lab substrate self-test
+        run: |
+          set -euo pipefail
+          bash lab/common/run_network_lab_selftest.sh \
+            evidence/test-harness/network-lab-selftest.json
+
+      - name: Verify safety boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = json.loads(
+              Path('evidence/test-harness/network-lab-selftest.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert p['acceptance'] == 'PASS'
+          assert p['scope'] == 'host_network_substrate_only_no_vendor_os'
+          assert p['vendor_os_acceptance_claimed'] is False
+          assert p['physical_hardware_claimed'] is False
+          assert p['production_writer_available'] is False
+          assert p['write_authorized'] is False
+          assert p['topology']['management_isolated'] is True
+          assert len(p['topology']['topology_sha256']) == 64
+          print(json.dumps(p, indent=2, sort_keys=True))
+          PY
+
+      - name: Preserve common lab evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-device-test-lab-${{ github.sha }}
+          path: evidence/test-harness/network-lab-selftest.json
+          if-no-files-found: warn
+          retention-days: 14
