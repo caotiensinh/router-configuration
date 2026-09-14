@@ -22,6 +22,41 @@ RAW = ROOT / "tests" / "fixtures" / "routeros_readonly_snapshot.json"
 
 def _extended_profile():
     profile = json.loads(PROFILE.read_text(encoding="utf-8"))
+    profile["topology"]["wans"] = [
+        {
+            "name": "wan10g",
+            "interface": "sfp-sfpplus1",
+            "capacity_mbps": 10000,
+            "addressing": "static",
+            "address": "192.0.2.2/30",
+            "enabled": True,
+            "routing": {
+                "gateway": "192.0.2.1",
+                "table": "to-wan10g",
+                "failover_distance": 10,
+                "health_probe_targets": ["1.1.1.1", "8.8.8.8"],
+            },
+        },
+        {
+            "name": "wan1g",
+            "interface": "ether1",
+            "capacity_mbps": 1000,
+            "addressing": "static",
+            "address": "198.51.100.2/30",
+            "enabled": True,
+            "routing": {
+                "gateway": "198.51.100.1",
+                "table": "to-wan1g",
+                "failover_distance": 20,
+                "health_probe_targets": ["9.9.9.9", "208.67.222.222"],
+            },
+        },
+    ]
+    security = profile["intent"]["security"]
+    security["management_sources"] = ["192.168.11.0/24"]
+    security["anti_spoofing"] = True
+    security["icmp_policy"] = "essential_ipv4"
+    security["required_wan_services"] = []
     profile["intent"]["segmentation"] = {
         "enabled": True,
         "bridge": "br-lan",
