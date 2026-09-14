@@ -91,6 +91,30 @@ def _routing_table_safety_errors(
     return tuple(errors)
 
 
+def _has_ip_address_state(evidence: Mapping[str, Any]) -> bool:
+    state = evidence.get("normalized_state")
+    return isinstance(state, Mapping) and isinstance(state.get("ip_addresses"), list)
+
+
+def _has_switching_prerequisites(evidence: Mapping[str, Any]) -> bool:
+    prerequisites = evidence.get("render_prerequisites")
+    if not isinstance(prerequisites, Mapping):
+        return False
+    if prerequisites.get("schema_version") != "routeros-render-prerequisites/1":
+        return False
+    if prerequisites.get("read_only") is not True:
+        return False
+    if prerequisites.get("write_methods_present") is not False:
+        return False
+    switching = prerequisites.get("switching")
+    if not isinstance(switching, Mapping):
+        return False
+    return all(
+        isinstance(switching.get(field), list)
+        for field in ("bridges", "bridge_ports", "bridge_vlans", "vlan_interfaces")
+    )
+
+
 def assess_render_readiness(
     *,
     profile: Mapping[str, Any],
@@ -179,6 +203,10 @@ def assess_render_readiness(
             elif name == "interfaces":
                 state = evidence.get("normalized_state", {})
                 available = isinstance(state, Mapping) and isinstance(state.get("interfaces"), list)
+            elif name == "ip_addresses":
+                available = _has_ip_address_state(evidence)
+            elif name == "switching":
+                available = _has_switching_prerequisites(evidence)
             else:
                 available = bool(capabilities.get(name))
             if not available:
