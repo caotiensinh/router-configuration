@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from .command_effects import validate_effect_order
 from .script_planner import (
     MikroTikOrderingProposal,
     MikroTikScriptArtifact,
@@ -98,10 +99,26 @@ def _section_order_findings(
     return findings
 
 
+def _effect_graph_findings(
+    contract: MikroTikScriptContract,
+    proposal: MikroTikOrderingProposal,
+) -> list[MikroTikSemanticFinding]:
+    return [
+        MikroTikSemanticFinding(
+            item.code,
+            item.detail,
+            (item.command_id,),
+        )
+        for item in validate_effect_order(contract, proposal.ordered_command_ids)
+    ]
+
+
 def _known_safety_findings(
     contract: MikroTikScriptContract,
     proposal: MikroTikOrderingProposal,
 ) -> list[MikroTikSemanticFinding]:
+    """Compatibility checks retained while the explicit effect registry expands."""
+
     findings: list[MikroTikSemanticFinding] = []
     position = {cid: index for index, cid in enumerate(proposal.ordered_command_ids)}
     ids = set(position)
@@ -110,7 +127,6 @@ def _known_safety_findings(
         if a in ids and b in ids and position[a] >= position[b]:
             findings.append(MikroTikSemanticFinding(code, message, (a, b)))
 
-    # WireGuard dependency ladder: interface -> addresses -> peers -> routes.
     wg_interface = sorted(cid for cid in ids if cid.startswith("wireguard.10.interface"))
     wg_addresses = sorted(cid for cid in ids if cid.startswith("wireguard.20.address."))
     wg_peers = sorted(cid for cid in ids if cid.startswith("wireguard.30.peer."))
@@ -140,7 +156,6 @@ def _known_safety_findings(
                 message="WireGuard peer scope must be established before dependent routes",
             )
 
-    # Firewall staging is intentionally fail closed while managed policy is rebuilt.
     stage = next((cid for cid in ids if "stage-guard" in cid and "remove" not in cid and "release" not in cid), None)
     release = next((cid for cid in ids if "stage-guard" in cid and ("remove" in cid or "release" in cid)), None)
     managed_firewall = sorted(cid for cid in ids if cid.startswith("firewall."))
@@ -163,14 +178,12 @@ def _known_safety_findings(
                     message="temporary firewall guard may be removed only after managed firewall construction",
                 )
 
-    # Enabling VLAN filtering is a management-critical boundary and must be last
-    # among the generated VLAN primitives unless a future explicit renderer graph
-    # states otherwise.
     vlan_enable = next(
         (
             cid
             for cid in ids
-            if cid.startswith("vlan.") and ("enable-filter" in cid or "vlan-filtering" in cid)
+            if cid.startswith("vlan.")
+            and ("activate-filtering" in cid or "enable-filter" in cid or "vlan-filtering" in cid)
         ),
         None,
     )
@@ -193,8 +206,9 @@ def attest_semantics(
 ) -> MikroTikSemanticAttestation:
     """Deterministically attest that model ordering did not create contradictions.
 
-    The validator uses renderer/source ordering and MikroTik-specific dependency
-    rules. It does not ask the AI model whether its own plan is safe.
+    Validation combines the immutable renderer order, the MikroTik resource/effect
+    graph, and compatibility safety checks. The AI model never judges its own
+    safety or supplies PASS evidence.
     """
 
     try:
@@ -213,6 +227,7 @@ def attest_semantics(
 
     findings = [
         *_section_order_findings(contract, proposal),
+        *_effect_graph_findings(contract, proposal),
         *_known_safety_findings(contract, proposal),
     ]
     if script.render_sha256 != contract.render_sha256:
