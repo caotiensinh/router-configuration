@@ -1,0 +1,19 @@
+{
+  "schema_version": "mikrotik-knowledge-manifest/1",
+  "vendor": "mikrotik",
+  "runtime_network_required": false,
+  "default_bundle": "knowledge_seed.json",
+  "full_snapshot_optional": true,
+  "full_snapshot_expected_files": [
+    "llms.txt",
+    "llms-full.txt",
+    "sitemap.xml",
+    "snapshot-manifest.json"
+  ],
+  "source_priority": [
+    "https://manual.mikrotik.com/docs/",
+    "https://manual.mikrotik.com/llms.txt",
+    "https://manual.mikrotik.com/llms-full.txt",
+    "https://manual.mikrotik.com/sitemap.xml"
+  ]
+}
