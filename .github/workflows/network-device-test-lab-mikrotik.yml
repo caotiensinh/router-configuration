@@ -1,0 +1,102 @@
+name: Network Device Test Lab - MikroTik CHR
+
+on:
+  pull_request:
+    paths:
+      - "src/router_configuration/test_lab.py"
+      - "lab/common/**"
+      - "lab/chr/run_common_lab_attachment_smoke.sh"
+      - ".github/workflows/network-device-test-lab-mikrotik.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-common-lab-attachment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: network-device-test-lab-mikrotik-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and lab dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2
+          sudo -n true
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Validate shared lab and CHR attachment scripts
+        run: |
+          set -euo pipefail
+          bash -n lab/common/network_lab.sh
+          bash -n lab/chr/run_common_lab_attachment_smoke.sh
+
+      - name: Attach live CHR to shared lab substrate
+        run: |
+          set -euo pipefail
+          bash lab/chr/run_common_lab_attachment_smoke.sh \
+            evidence/test-harness/mikrotik-chr-common-lab.json
+
+      - name: Persist verified CHR archive cache
+        if: success() && steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Verify common-lab vendor attachment evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = json.loads(
+              Path('evidence/test-harness/mikrotik-chr-common-lab.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert p['acceptance'] == 'PASS'
+          assert p['backend']['vendor'] == 'mikrotik'
+          assert p['backend']['kind'] == 'virtual_appliance'
+          assert p['backend']['evidence_fidelity'] == 'vendor_os'
+          assert p['role_mapping_verified'] is True
+          assert set(p['role_mapping']) == {'management', 'wan_primary', 'wan_backup', 'lan'}
+          assert p['configuration_mutation_performed'] is False
+          assert p['whole_vendor_software_certification_claimed'] is False
+          assert p['physical_hardware_claimed'] is False
+          assert p['production_writer_available'] is False
+          assert p['write_authorized'] is False
+          print(json.dumps(p, indent=2, sort_keys=True))
+          PY
+
+      - name: Preserve vendor attachment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-device-test-lab-mikrotik-${{ github.sha }}
+          path: |
+            evidence/test-harness/mikrotik-chr-common-lab.json
+            /tmp/chr-common-lab-resource.json
+            /tmp/chr-common-lab-interfaces.json
+            /tmp/chr-common-lab-serial.log
+          if-no-files-found: warn
+          retention-days: 14
