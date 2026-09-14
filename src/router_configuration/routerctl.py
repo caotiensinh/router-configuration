@@ -12,6 +12,7 @@ from .guided_release import build_guided_release_workspace
 from .production_transaction_readiness import (
     ProductionTransactionReadinessError,
     build_production_transaction_readiness,
+    evaluate_production_verification_outcome,
 )
 from .profile_builder import GuidedProfileRequest
 from .routeros_generation_v1 import generate_routeros_plan_v1
@@ -206,6 +207,58 @@ def command_production_readiness_check(argv: list[str]) -> int:
     return 0
 
 
+def command_production_outcome_check(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="routerctl production-outcome-check",
+        description=(
+            "Evaluate offline post-apply verification or rollback-recovery evidence against "
+            "a previously accepted production-readiness artifact. No router transport is created."
+        ),
+    )
+    parser.add_argument("--readiness", required=True)
+    parser.add_argument("--lifecycle", required=True)
+    parser.add_argument("--verification-evidence", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args(argv)
+
+    try:
+        outcome = evaluate_production_verification_outcome(
+            readiness=_load_json(args.readiness),
+            lifecycle=_load_json(args.lifecycle),
+            verification_evidence=_load_json(args.verification_evidence),
+        )
+        _write_private_json(args.output, outcome)
+    except (OSError, ValueError, json.JSONDecodeError, ProductionTransactionReadinessError) as exc:
+        summary = {
+            "ok": False,
+            "claim": "production_outcome_blocked",
+            "error": exc.__class__.__name__,
+            "output": args.output,
+            "transport_present": False,
+            "apply_available": False,
+            "production_writer_available": False,
+            "write_authorized": False,
+        }
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 12
+
+    summary = {
+        "ok": True,
+        "claim": "production_outcome_verified",
+        "outcome": outcome["outcome"],
+        "deployment_success": outcome["deployment_success"],
+        "failure_recovered": outcome["failure_recovered"],
+        "outcome_sha256": outcome["outcome_sha256"],
+        "output": args.output,
+        "transport_present": False,
+        "apply_available": False,
+        "production_writer_available": False,
+        "write_authorized": False,
+    }
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
 def command_guided_start(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="routerctl guided-start",
@@ -272,6 +325,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_routeros_render(args[1:])
     if args and args[0] == "production-readiness-check":
         return command_production_readiness_check(args[1:])
+    if args and args[0] == "production-outcome-check":
+        return command_production_outcome_check(args[1:])
     if args and args[0] == "guided-start":
         return command_guided_start(args[1:])
     return int(legacy_main(args))
