@@ -9,6 +9,10 @@ from typing import Any
 
 from .cli import main as legacy_main
 from .guided_release import build_guided_release_workspace
+from .production_transaction_readiness import (
+    ProductionTransactionReadinessError,
+    build_production_transaction_readiness,
+)
 from .profile_builder import GuidedProfileRequest
 from .routeros_generation_v1 import generate_routeros_plan_v1
 
@@ -139,6 +143,69 @@ def command_routeros_render(argv: list[str]) -> int:
     return 0
 
 
+def command_production_readiness_check(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="routerctl production-readiness-check",
+        description=(
+            "Validate offline production transaction evidence. This command only reads JSON "
+            "artifacts and never creates a router transport, resolves credentials, or applies changes."
+        ),
+    )
+    parser.add_argument("--profile", required=True)
+    parser.add_argument("--envelope", required=True)
+    parser.add_argument("--lifecycle", required=True)
+    parser.add_argument("--sanitized-backup", required=True)
+    parser.add_argument("--protected-backup", required=True)
+    parser.add_argument("--management", required=True)
+    parser.add_argument("--verification-contract", required=True)
+    parser.add_argument("--rollback-contract", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args(argv)
+
+    try:
+        readiness = build_production_transaction_readiness(
+            profile=_load_json(args.profile),
+            envelope=_load_json(args.envelope),
+            lifecycle=_load_json(args.lifecycle),
+            backups=[
+                _load_json(args.sanitized_backup),
+                _load_json(args.protected_backup),
+            ],
+            management_path=_load_json(args.management),
+            verification_contract=_load_json(args.verification_contract),
+            rollback_contract=_load_json(args.rollback_contract),
+        ).as_dict()
+        _write_private_json(args.output, readiness)
+    except (OSError, ValueError, json.JSONDecodeError, ProductionTransactionReadinessError) as exc:
+        summary = {
+            "ok": False,
+            "claim": "production_readiness_blocked",
+            "error": exc.__class__.__name__,
+            "output": args.output,
+            "transport_present": False,
+            "apply_available": False,
+            "production_writer_available": False,
+            "write_authorized": False,
+        }
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 11
+
+    summary = {
+        "ok": True,
+        "claim": readiness["claim"],
+        "ready": readiness["ready"],
+        "required_verification_checks": readiness["required_verification_checks"],
+        "readiness_sha256": readiness["readiness_sha256"],
+        "output": args.output,
+        "transport_present": False,
+        "apply_available": False,
+        "production_writer_available": False,
+        "write_authorized": False,
+    }
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
 def command_guided_start(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="routerctl guided-start",
@@ -203,6 +270,8 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] == "routeros-render":
         return command_routeros_render(args[1:])
+    if args and args[0] == "production-readiness-check":
+        return command_production_readiness_check(args[1:])
     if args and args[0] == "guided-start":
         return command_guided_start(args[1:])
     return int(legacy_main(args))
