@@ -146,18 +146,29 @@ def validate_effect_order(
             ),
         )
 
+    # A requirement may be either transaction-local or an externally verified
+    # precondition. The effect graph owns ordering only when this transaction
+    # contains a producer for the capability. External prerequisites are checked
+    # by discovery/readiness/preflight, not guessed as missing by the script graph.
+    transaction_provides = {
+        capability
+        for effect in by_id.values()
+        for capability in effect.provides
+    }
+
     available: set[str] = set()
     active_conflict_tokens: set[str] = set()
     findings: list[MikroTikEffectFinding] = []
     for command_id in order:
         effect = by_id[command_id]
-        missing = sorted(set(effect.requires) - available)
+        local_requirements = set(effect.requires) & transaction_provides
+        missing = sorted(local_requirements - available)
         if missing:
             findings.append(
                 MikroTikEffectFinding(
                     "missing_requirement",
                     command_id,
-                    "required capabilities not yet provided: " + ", ".join(missing),
+                    "transaction-local capabilities not yet provided: " + ", ".join(missing),
                 )
             )
         conflict = sorted(set(effect.conflicts) & active_conflict_tokens)
