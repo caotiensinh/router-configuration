@@ -2,8 +2,15 @@ from __future__ import annotations
 
 import argparse
 import signal
+import sys
+from pathlib import Path
 
-from router_configuration.lab_probes import serve_tagged_udp
+_ROOT = Path(__file__).resolve().parents[2]
+_SRC = _ROOT / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from router_configuration.lab_probes import serve_tagged_udp  # noqa: E402
 
 _RUNNING = True
 
