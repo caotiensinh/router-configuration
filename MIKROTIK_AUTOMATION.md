@@ -1,198 +1,253 @@
-# MikroTik Intent-Driven Automation
+# MikroTik RouterOS Automation Domain
 
-## Purpose
+## Scope rule: one vendor, one domain
 
-MikroTik is the first production-reference vendor for this repository.
+MikroTik is developed as an independent router automation domain.
 
-The target operator experience is **intent in -> verified network state out**.
-An operator should describe the network outcome, not memorize RouterOS CLI
-syntax. RouterOS commands remain an implementation detail generated only after
-discovery, validation, policy compilation and safety gates.
+The project must **not** implement one large cross-vendor configuration engine that
+tries to force MikroTik, Yamaha, Omada, or future vendors into identical behavior.
+Shared code is limited to infrastructure primitives such as evidence envelopes,
+secret references, audit records, transaction interfaces, hashing, and generic
+approval concepts.
 
-This document adds the MikroTik-specific contract without weakening the
-vendor-neutral architecture or the existing rule that production writes are
-disabled until acceptance gates are complete.
+MikroTik-specific knowledge, intent semantics, RouterOS command behavior,
+validation, safety rules, diagnostics, backup policy, AI grounding, and handover
+outputs belong under:
 
-## Official knowledge sources
+`src/router_configuration/vendors/mikrotik/`
 
-Source precedence is mandatory:
+Root-level `mikrotik_*` modules are compatibility shims during migration only.
 
-1. `https://manual.mikrotik.com/docs/` — current authoritative RouterOS manual.
-2. `https://manual.mikrotik.com/llms.txt` — current page index for retrieval.
-3. `https://manual.mikrotik.com/llms-full.txt` — current full corpus for bulk
-   indexing and documentation-diff jobs.
-4. Per-page Markdown (`.md`) and `sitemap.xml` — deterministic ingestion and
-   completeness checks.
-5. `https://help.mikrotik.com/docs/` — legacy/history only. It must never
-   override conflicting behavior in the current manual.
+## Target operator experience
 
-A future documentation sync job should ingest the current manual, normalize
-command paths/arguments/version notes, diff the previous snapshot, regenerate
-affected tool metadata, run tests against CHR and open a review PR. Documentation
-changes must never auto-deploy to production.
+The target is:
 
-## Architecture
+`operator intent -> discovered RouterOS facts -> MikroTik policy -> verified configuration -> backup -> handover bundle`
 
-```text
-Operator request
-    |
-    v
-MikroTik operator-intent compiler
-    |
-    +--> explicit facts
-    +--> derived policy
-    +--> missing facts / blockers
-    +--> verification contract
-    |
-    v
-Relevant micro-tool selection
-    |
-    v
-RouterOS discovery / normalized state
-    |
-    v
-Vendor-neutral desired state / safe-subset IR
-    |
-    v
-Existing RouterOS renderers
-    |
-    v
-Existing transaction + admission + rollback gates
-    |
-    v
-CHR acceptance
-    |
-    v
-Production apply (future gate only)
+The operator should describe the required network outcome instead of memorizing
+RouterOS syntax. Missing facts are discovered when possible and explicitly
+blocked when they cannot be proven. The system must never invent interface
+names, addresses, routes, capabilities, credentials, or reachability.
+
+## Official MikroTik knowledge sources
+
+Current official documentation has highest authority:
+
+1. `https://manual.mikrotik.com/docs/`
+2. `https://manual.mikrotik.com/llms.txt`
+3. `https://manual.mikrotik.com/llms-full.txt`
+4. per-page Markdown (`.md`) and `sitemap.xml`
+5. `https://help.mikrotik.com/docs/` for legacy/history only
+
+The current manual explicitly publishes machine-readable endpoints for AI and
+retrieval systems. Online documentation is therefore an **update source**, not a
+runtime dependency.
+
+## Offline-first knowledge architecture
+
+Runtime MikroTik reasoning must work without Internet access.
+
+The package ships a curated, structured knowledge seed:
+
+`vendors/mikrotik/data/knowledge_seed.json`
+
+It contains normalized RouterOS concepts, relevant CLI paths, safety rules, and
+official source provenance. `MikroTikOfflineKnowledge` retrieves this data
+locally and performs no network I/O.
+
+For complete offline documentation, run the synchronization tool while Internet
+access is available:
+
+```bash
+python tools/mikrotik/sync_offline_knowledge.py \
+  --output ./offline/mikrotik/current
 ```
 
-The tool registry is deliberately small and composable. The runtime should load
-only tools relevant to the current intent. Packet capture tools require a
-separate opt-in because RouterOS separates normal read/test permissions from
-`sniff`. Write tools are metadata-only until the normal write gate authorizes a
-transaction.
+The snapshot contains:
+
+- `llms.txt` page catalog;
+- `llms-full.txt` complete text corpus;
+- `sitemap.xml` completeness source;
+- `snapshot-manifest.json` with byte counts, source URLs, timestamps and SHA-256.
+
+After synchronization, deployment/reasoning runtimes consume local files only.
+Documentation updates must be reviewed and tested against CHR before they can
+change production configuration behavior.
+
+## AI/reasoning provider boundary
+
+AI is optional and replaceable. It is not the RouterOS source of truth and it
+never authorizes a write.
+
+Supported provider boundary:
+
+- `openai` - OpenAI Responses API with an explicit caller-selected model;
+- `codex` - same OpenAI Responses transport with an explicit coding model;
+- `anthropic` - Claude Messages API;
+- `ollama` - local Ollama `/api/chat`, allowing fully local/offline reasoning.
+
+No model name is hard-coded as permanent policy. Provider, model, base URL and
+API-key environment variable are configuration.
+
+Before a request reaches any model:
+
+1. relevant MikroTik knowledge is retrieved locally;
+2. observed RouterOS evidence is attached;
+3. secret-like fields are redacted;
+4. constraints forbid invented network facts;
+5. model output is treated as advisory;
+6. deterministic MikroTik compilers/validators remain authoritative.
+
+A system can run with no cloud AI at all. Deterministic intent, discovery,
+validation, rendering, verification, backup and handover logic remain usable.
+A local Ollama model can be added when natural-language reasoning is wanted in
+an isolated environment.
+
+## MikroTik deployment lifecycle
+
+The MikroTik workflow is vendor-specific and completion requires more than a
+successful apply:
+
+```text
+DISCOVER
+  -> NORMALIZE
+  -> RESOLVE_INTENT
+  -> RETRIEVE_OFFLINE_KNOWLEDGE
+  -> OPTIONAL_AI_REASONING
+  -> PLAN
+  -> VALIDATE
+  -> PRE_CHANGE_BACKUP
+  -> APPROVAL
+  -> APPLY
+  -> VERIFY
+  -> POST_CHANGE_BACKUP
+  -> GENERATE_HANDOVER
+  -> COMPLETE
+```
+
+`COMPLETE` is forbidden until verification, backup, and documentation outputs
+exist.
+
+### Safety invariants
+
+- current RouterOS state is discovered before planning;
+- existing configuration is diffed, not blindly overwritten;
+- management-path survival is checked around critical changes;
+- management-critical mutations are small and independently verified;
+- Safe Mode/rollback protection is used where its RouterOS semantics apply;
+- reboot-required operations are not assumed to be protected by Safe Mode;
+- secrets stay as references until the approved execution boundary;
+- subnet overlap and unsupported/unknown behavior fail closed;
+- generated changes are deterministic and idempotent;
+- failed verification stops completion and enters rollback/recovery handling.
+
+## Backup policy
+
+Every production deployment requires both pre-change and post-change recovery
+artifacts.
+
+### Human-readable export
+
+Template:
+
+```text
+/export terse file={artifact_name}
+```
+
+Purpose:
+
+- reviewable change/as-built evidence;
+- configuration diff support;
+- operational troubleshooting.
+
+It is **not** a complete secret/certificate/user-database backup.
+
+### Binary system backup
+
+Template:
+
+```text
+/system/backup/save name={artifact_name} password={resolved_backup_password}
+```
+
+Binary backups contain sensitive configuration. They must be encrypted,
+access-controlled, hashed, and stored with RouterOS version provenance.
+Restore compatibility must be checked before use.
+
+## Automatic post-deployment package
+
+A verified deployment automatically produces a handover bundle:
+
+```text
+00_deployment_completion.md
+01_handover_record.md
+02_as_built.md
+03_operations_maintenance.md
+04_verification_evidence.json
+05_backup_manifest.json
+backups/
+99_bundle_manifest.json
+```
+
+The bundle generator accepts only observed deployment evidence. It does not
+invent facts. If any verification item is not PASS, the handover bundle cannot
+be finalized.
+
+The backup manifest records hashes, RouterOS version, sensitivity classification
+and artifact type. The final bundle manifest hashes every generated deliverable.
+
+## Operations and maintenance document
+
+The generated O&M guide includes at minimum:
+
+- approved management path;
+- routine resource/interface/route checks;
+- firewall/log review guidance;
+- WireGuard handshake/RX/TX checks when VPN is deployed;
+- drift comparison against the verified as-built state;
+- safe change procedure;
+- backup/restore constraints;
+- first-response troubleshooting guidance;
+- recovery/rollback references.
+
+Human-facing documents may later be rendered in Japanese, Vietnamese, or
+English. Their factual source remains the same verified deployment record and
+MikroTik offline knowledge bundle.
 
 ## Intent: secure Internet gateway
 
-Minimal operator facts:
+The current compiler supports a conservative IPv4 gateway intent. Derived policy
+includes LAN-initiated Internet access, default denial of unsolicited WAN-to-LAN
+traffic, WAN management denial, stateful firewall handling, controlled ICMP,
+NAT only when evidence shows it is required, management-source restriction,
+rollback coverage, and idempotency verification.
 
-```json
-{
-  "kind": "secure_internet_gateway",
-  "lan_cidr": "192.168.10.0/24",
-  "lan_interface": "bridge-lan",
-  "wan_interface": "ether1",
-  "wan_addressing": "dhcp",
-  "credential_ref": "env://ROUTEROS_PASSWORD"
-}
-```
-
-Derived policy includes:
-
-- LAN may initiate Internet traffic.
-- unsolicited WAN-to-LAN traffic is denied.
-- WAN access to router management is denied.
-- WAN ICMP echo-request is denied when requested by the intent, while required
-  IPv4 ICMP control/error messages are preserved.
-- established/related traffic is accepted and invalid state is dropped.
-- IPv4 source NAT is derived only after discovery confirms that it is required.
-- management services are restricted to the declared LAN management source.
-- default deny is the primary port-scan control; optional detection/logging is
-  not allowed to replace correct firewall policy.
-- every management-critical mutation requires verification and rollback
-  coverage.
-- the second plan against the achieved state must be idempotent.
-
-The compiler does **not** emit RouterOS command strings and does not authorize
-writes.
+The compiler does not authorize RouterOS writes.
 
 ## Intent: Site-to-Site WireGuard
 
-Minimal topology facts:
+The current compiler validates non-overlapping site LANs, keeps Internet breakout
+local unless explicitly requested otherwise, limits allowed-address and forwarding
+to declared networks, derives keepalive/NAT behavior from evidence, and requires
+handshake plus bidirectional LAN verification.
 
-```json
-{
-  "kind": "site_to_site_wireguard",
-  "local_site_id": "tokyo",
-  "remote_site_id": "nagoya",
-  "local_lan_cidr": "192.168.10.0/24",
-  "remote_lan_cidr": "192.168.20.0/24",
-  "local_credential_ref": "vault://routers/tokyo",
-  "remote_credential_ref": "vault://routers/nagoya"
-}
-```
+The compiler does not invent public reachability or silently hide subnet overlap
+behind NAT.
 
-Derived policy includes:
+## Current implementation
 
-- overlapping site LANs fail closed before routing is generated.
-- unique WireGuard key pairs are generated per site and stored through secret
-  references; plaintext private keys do not belong in profiles or generated
-  scripts.
-- tunnel addressing is allocated automatically only after both sites are
-  discovered and overlap checks pass.
-- only the remote tunnel host and declared remote LAN are placed in the peer
-  allowed-address set.
-- the Internet default route stays local at each site.
-- the firewall opens only the required WireGuard UDP listener and declared
-  LAN-to-LAN forwarding.
-- persistent keepalive is enabled only when discovered NAT/firewall behavior
-  requires it.
-- NAT behavior is derived after discovery so LAN-to-LAN traffic is not
-  accidentally masqueraded.
-- verification requires a recent handshake, tunnel reachability, bidirectional
-  LAN reachability, local Internet breakout and denial of undeclared VPN
-  forwarding.
+Canonical MikroTik domain components now include:
 
-Endpoint reachability, public/private/CGNAT state and current firewall/NAT state
-must be discovered rather than guessed.
+- `vendors/mikrotik/docs.py` - official documentation authority and offline roles;
+- `vendors/mikrotik/data/knowledge_seed.json` - bundled offline knowledge;
+- `vendors/mikrotik/knowledge.py` - local retrieval;
+- `vendors/mikrotik/tool_registry.py` - MikroTik micro-tool catalog;
+- `vendors/mikrotik/intent.py` - deterministic intent compiler;
+- `vendors/mikrotik/inference.py` - OpenAI/Codex/Claude/Ollama reasoning boundary;
+- `vendors/mikrotik/backup.py` - pre/post backup contract;
+- `vendors/mikrotik/workflow.py` - MikroTik deployment lifecycle;
+- `vendors/mikrotik/postdeploy.py` - completion/handover/as-built/O&M bundle;
+- `tools/mikrotik/sync_offline_knowledge.py` - official full-doc snapshot sync.
 
-## Micro-tool permission model
-
-Default selection returns read/test tools only.
-
-- `read_only`: inventory and configuration observation.
-- `test`: bounded active diagnostics such as ping/traceroute.
-- `capture`: torch/sniffer; separate explicit opt-in and RouterOS `sniff`
-  permission.
-- `write`: configuration mutation metadata; always requires normal write
-  admission.
-- `destructive`: reserved for operations such as reset/cleanup and should
-  require a higher human-confirmation policy.
-
-REST is preferred for one-shot reads and CRUD-shaped operations. RouterOS API or
-SSH/CLI remains available where continuous monitoring, interactive behavior or
-Safe Mode semantics make REST the wrong transport. Selecting a write-capable
-tool never means that execution is authorized.
-
-## Safety invariants
-
-1. Current state is discovered before planning.
-2. Existing configuration is not overwritten blindly.
-3. Required facts are never invented to make a renderer succeed.
-4. Secrets remain unresolved references until the approved execution boundary.
-5. Management-plane changes require backup, recovery evidence and post-step
-   verification.
-6. Subnet overlap, unsupported RouterOS behavior or unknown reachability blocks
-   automatic deployment.
-7. Generated operations must be deterministic and idempotent.
-8. Failed verification stops the transaction and enters rollback handling.
-9. Documentation-derived code is tested in CHR before physical-device
-   acceptance.
-10. AI or natural-language input may propose intent but cannot bypass the same
-    deterministic compiler, admission and transaction gates.
-
-## Current implementation slice
-
-This change adds:
-
-- `mikrotik_docs.py` — official source precedence and machine-readable
-  documentation endpoints.
-- `mikrotik_tool_registry.py` — small RouterOS micro-tool metadata catalog with
-  permission/risk boundaries and intent-based selection.
-- `mikrotik_intent.py` — deterministic high-level compilers for secure Internet
-  gateway and Site-to-Site WireGuard.
-- `MikroTikReferenceAdapter` integration for intent compilation and relevant
-  tool selection.
-
-It intentionally does **not** add a new production write transport. Existing
-RouterOS renderers, CHR acceptance and transaction gates remain authoritative.
+Production write enablement remains separately gated by CHR acceptance,
+transaction admission, recovery evidence, and physical-device acceptance.
