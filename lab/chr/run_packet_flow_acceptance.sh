@@ -195,9 +195,10 @@ if missing:
 print(json.dumps({'ok': True, 'interfaces': sorted(names)}))
 PY
 
-log "probing pristine RouterOS PCC and connection-mark validity"
+log "probing pristine RouterOS PCC after connection-tracking-only readiness read"
 python3 "${ROOT}/lab/chr/probe_pcc_pristine_runtime.py" \
   --admin-url "${ADMIN_URL}" \
+  --fingerprint-mode connection-tracking \
   --output "${EVIDENCE_DIR}/pcc-pristine-runtime.json"
 
 log "rendering and applying 17 recursive + 21 PCC commands"
