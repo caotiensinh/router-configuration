@@ -1,4 +1,4 @@
-import pytest
+import unittest
 
 from router_configuration.transaction_backup_evidence import build_transaction_backup_evidence
 from router_configuration.transaction_backup_set import build_transaction_backup_set
@@ -25,22 +25,26 @@ def _binary(state=PRE_STATE):
     ).as_dict()
 
 
-def test_backup_set_requires_complementary_bound_artifacts():
-    payload = build_transaction_backup_set(
-        sanitized_export=_export(),
-        protected_binary=_binary(),
-    ).as_dict()
-    assert payload["production_backup_requirements_satisfied"] is True
-    assert payload["repository_contains_binary_backup"] is False
-    assert payload["protected_storage_required"] is True
-    assert payload["restore_available"] is False
-    assert payload["production_writer_available"] is False
-    assert payload["write_authorized"] is False
-
-
-def test_backup_set_rejects_mismatched_pre_state():
-    with pytest.raises(ValueError, match="different pre-state"):
-        build_transaction_backup_set(
+class TransactionBackupSetTests(unittest.TestCase):
+    def test_backup_set_requires_complementary_bound_artifacts(self):
+        payload = build_transaction_backup_set(
             sanitized_export=_export(),
-            protected_binary=_binary("d" * 64),
-        )
+            protected_binary=_binary(),
+        ).as_dict()
+        self.assertTrue(payload["production_backup_requirements_satisfied"])
+        self.assertFalse(payload["repository_contains_binary_backup"])
+        self.assertTrue(payload["protected_storage_required"])
+        self.assertFalse(payload["restore_available"])
+        self.assertFalse(payload["production_writer_available"])
+        self.assertFalse(payload["write_authorized"])
+
+    def test_backup_set_rejects_mismatched_pre_state(self):
+        with self.assertRaisesRegex(ValueError, "different pre-state"):
+            build_transaction_backup_set(
+                sanitized_export=_export(),
+                protected_binary=_binary("d" * 64),
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
