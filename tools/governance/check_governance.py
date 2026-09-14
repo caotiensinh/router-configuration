@@ -16,6 +16,10 @@ REQUIRED_POLICIES = (
     "governance/SECURITY_POLICY.md",
     "governance/DOCUMENTATION_POLICY.md",
 )
+REQUIRED_GITHUB_GOVERNANCE = (
+    ".github/pull_request_template.md",
+    ".github/CODEOWNERS",
+)
 MASTER_MARKERS = (
     "Official vendor documentation is the technical source of truth",
     "NEVER INVENT TECHNICAL TRUTH",
@@ -26,6 +30,11 @@ PR_CHECKS = (
     "I read `AGENTS.md` and all applicable scoped/vendor rules.",
     "I used approved authoritative sources for vendor-specific technical behavior.",
     "Required tests were executed.",
+)
+CODEOWNER_MARKERS = (
+    "/MASTER_RULES.md @caotiensinh",
+    "/governance/ @caotiensinh",
+    "/vendors/*/VENDOR_RULES.md @caotiensinh",
 )
 
 
@@ -63,7 +72,7 @@ def main() -> int:
 
     require_files(root, REQUIRED_ROOT, errors)
     require_files(root, REQUIRED_POLICIES, errors)
-    require_files(root, (".github/pull_request_template.md",), errors)
+    require_files(root, REQUIRED_GITHUB_GOVERNANCE, errors)
     for vendor in args.vendor:
         require_files(root, (f"vendors/{vendor}/VENDOR_RULES.md",), errors)
 
@@ -82,6 +91,13 @@ def main() -> int:
     if not readme.is_file() or "MASTER_RULES.md" not in readme.read_text(encoding="utf-8"):
         errors.append("README_MASTER_RULE_REFERENCE_MISSING")
 
+    codeowners = root / ".github/CODEOWNERS"
+    if codeowners.is_file():
+        codeowners_text = codeowners.read_text(encoding="utf-8")
+        for marker in CODEOWNER_MARKERS:
+            if marker not in codeowners_text:
+                errors.append(f"GOVERNANCE_CODEOWNER_MISSING:{marker}")
+
     check_pr_declaration(errors)
 
     evidence = {
@@ -90,6 +106,7 @@ def main() -> int:
         "errors": errors,
         "master_rules_sha256": sha256(master) if master.is_file() else None,
         "agents_sha256": sha256(agents) if agents.is_file() else None,
+        "codeowners_sha256": sha256(codeowners) if codeowners.is_file() else None,
         "vendors": {
             vendor: sha256(root / f"vendors/{vendor}/VENDOR_RULES.md")
             if (root / f"vendors/{vendor}/VENDOR_RULES.md").is_file()
