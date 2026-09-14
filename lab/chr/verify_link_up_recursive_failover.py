@@ -27,7 +27,8 @@ def _commands() -> list[Mapping[str, Any]]:
     commands = plan.get("commands", [])
     if not isinstance(commands, list) or len(commands) != 17:
         raise CHRLinkUpRecursiveError(
-            f"recursive lab requires exactly 17 base commands; observed {len(commands) if isinstance(commands, list) else 'non-list'}"
+            f"recursive lab requires exactly 17 base commands; observed "
+            f"{len(commands) if isinstance(commands, list) else 'non-list'}"
         )
     return commands
 
@@ -49,6 +50,22 @@ def _script() -> str:
     return "\n".join([*prelude, *(str(item["command"]) for item in _commands())]) + "\n"
 
 
+def _route_is_active(row: Mapping[str, Any]) -> bool:
+    """Normalize RouterOS route status without assuming the `active` key is always present.
+
+    RouterOS documents route status as mutually exclusive active/inactive flags. The REST
+    wrapper may omit a property from an item, so observed CHR evidence can expose an
+    installed route as ``inactive=false`` without an ``active`` key. Prefer an explicit
+    ``active`` value when present, otherwise derive status from explicit ``inactive``.
+    Missing status remains fail-closed.
+    """
+    if "active" in row:
+        return base._is_true(row.get("active"))
+    if "inactive" in row:
+        return not base._is_true(row.get("inactive"))
+    return False
+
+
 def _managed_defaults(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
     _, payload = admin.request("GET", "ip/route")
     rows = []
@@ -59,7 +76,7 @@ def _managed_defaults(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
         rows.append(
             {
                 "comment": comment,
-                "active": base._is_true(row.get("active")),
+                "active": _route_is_active(row),
                 "distance": str(row.get("distance") or ""),
                 "gateway": str(row.get("gateway") or ""),
                 "routing_table": str(row.get("routing-table") or ""),
@@ -77,7 +94,9 @@ def _route_condition(rows: list[dict[str, Any]], expected: str) -> bool:
     if expected in {"normal", "recovered"}:
         return any(row["active"] for row in wan10)
     if expected == "wan10_failed":
-        return not any(row["active"] for row in wan10) and any(row["active"] for row in wan1)
+        return not any(row["active"] for row in wan10) and any(
+            row["active"] for row in wan1
+        )
     raise CHRLinkUpRecursiveError(f"unsupported route expectation: {expected}")
 
 
@@ -168,11 +187,15 @@ def prepare(*, admin_url: str, output: Path) -> dict[str, Any]:
         "production_writer_available": False,
         "write_authorized": False,
     }
-    output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return result
 
 
-def wait_routes(*, admin_url: str, expected: str, timeout_seconds: float, output: Path) -> dict[str, Any]:
+def wait_routes(
+    *, admin_url: str, expected: str, timeout_seconds: float, output: Path
+) -> dict[str, Any]:
     admin = base.LoopbackCHRAdmin(admin_url)
     admin.assert_disposable_chr()
     deadline = time.monotonic() + timeout_seconds
@@ -204,7 +227,9 @@ def wait_routes(*, admin_url: str, expected: str, timeout_seconds: float, output
         "attempts": attempts,
         "routes": rows,
     }
-    output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return result
 
 
@@ -219,7 +244,15 @@ def _metrics(path: Path) -> dict[str, int]:
     }
 
 
-def evaluate(*, normal: Path, failover: Path, recovery: Path, failed_routes: Path, recovered_routes: Path, output: Path) -> dict[str, Any]:
+def evaluate(
+    *,
+    normal: Path,
+    failover: Path,
+    recovery: Path,
+    failed_routes: Path,
+    recovered_routes: Path,
+    output: Path,
+) -> dict[str, Any]:
     phases = {
         "normal": _metrics(normal),
         "failover": _metrics(failover),
@@ -228,21 +261,31 @@ def evaluate(*, normal: Path, failover: Path, recovery: Path, failed_routes: Pat
     errors: list[str] = []
     for label in ("normal", "recovery"):
         item = phases[label]
-        if item["requested"] <= 0 or item["successful"] < int(item["requested"] * 0.97):
+        if item["requested"] <= 0 or item["successful"] < int(
+            item["requested"] * 0.97
+        ):
             errors.append(f"{label}: successful flow ratio below 97%")
         if item["wan10"] != item["successful"] or item["wan1"] != 0:
             errors.append(f"{label}: flows did not remain on preferred WAN10")
     failed = phases["failover"]
-    if failed["requested"] <= 0 or failed["successful"] < int(failed["requested"] * 0.95):
+    if failed["requested"] <= 0 or failed["successful"] < int(
+        failed["requested"] * 0.95
+    ):
         errors.append("failover: successful flow ratio below 95%")
     if failed["wan1"] != failed["successful"] or failed["wan10"] != 0:
         errors.append("failover: flows did not move completely to WAN1")
 
     failed_route_payload = json.loads(failed_routes.read_text(encoding="utf-8"))
     recovered_route_payload = json.loads(recovered_routes.read_text(encoding="utf-8"))
-    if failed_route_payload.get("expected") != "wan10_failed" or failed_route_payload.get("ok") is not True:
+    if (
+        failed_route_payload.get("expected") != "wan10_failed"
+        or failed_route_payload.get("ok") is not True
+    ):
         errors.append("failover route-state evidence missing or invalid")
-    if recovered_route_payload.get("expected") != "recovered" or recovered_route_payload.get("ok") is not True:
+    if (
+        recovered_route_payload.get("expected") != "recovered"
+        or recovered_route_payload.get("ok") is not True
+    ):
         errors.append("recovery route-state evidence missing or invalid")
 
     result = {
@@ -256,7 +299,9 @@ def evaluate(*, normal: Path, failover: Path, recovery: Path, failed_routes: Pat
         "production_writer_available": False,
         "write_authorized": False,
     }
-    output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     if errors:
         raise CHRLinkUpRecursiveError("; ".join(errors))
     return result
@@ -270,30 +315,62 @@ def main() -> int:
     p.add_argument("--output", required=True)
     w = sub.add_parser("wait-routes")
     w.add_argument("--admin-url", default="http://127.0.0.1:9380")
-    w.add_argument("--expected", choices=("normal", "wan10_failed", "recovered"), required=True)
+    w.add_argument(
+        "--expected", choices=("normal", "wan10_failed", "recovered"), required=True
+    )
     w.add_argument("--timeout-seconds", type=float, default=15.0)
     w.add_argument("--output", required=True)
     e = sub.add_parser("evaluate")
-    for name in ("normal", "failover", "recovery", "failed-routes", "recovered-routes", "output"):
+    for name in (
+        "normal",
+        "failover",
+        "recovery",
+        "failed-routes",
+        "recovered-routes",
+        "output",
+    ):
         e.add_argument(f"--{name}", required=True)
     args = parser.parse_args()
     try:
         if args.command == "prepare":
             result = prepare(admin_url=args.admin_url, output=Path(args.output))
         elif args.command == "wait-routes":
-            result = wait_routes(admin_url=args.admin_url, expected=args.expected, timeout_seconds=args.timeout_seconds, output=Path(args.output))
+            result = wait_routes(
+                admin_url=args.admin_url,
+                expected=args.expected,
+                timeout_seconds=args.timeout_seconds,
+                output=Path(args.output),
+            )
         else:
             result = evaluate(
-                normal=Path(args.normal), failover=Path(args.failover), recovery=Path(args.recovery),
-                failed_routes=Path(args.failed_routes), recovered_routes=Path(args.recovered_routes), output=Path(args.output)
+                normal=Path(args.normal),
+                failover=Path(args.failover),
+                recovery=Path(args.recovery),
+                failed_routes=Path(args.failed_routes),
+                recovered_routes=Path(args.recovered_routes),
+                output=Path(args.output),
             )
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
-    except (OSError, ValueError, base.CHRRenderDryRunError, CHRLinkUpRecursiveError) as exc:
-        failure = {"ok": False, "acceptance": "FAIL", "error": str(exc), "production_writer_available": False, "write_authorized": False}
+    except (
+        OSError,
+        ValueError,
+        base.CHRRenderDryRunError,
+        CHRLinkUpRecursiveError,
+    ) as exc:
+        failure = {
+            "ok": False,
+            "acceptance": "FAIL",
+            "error": str(exc),
+            "production_writer_available": False,
+            "write_authorized": False,
+        }
         output_value = getattr(args, "output", None)
         if output_value:
-            Path(output_value).write_text(json.dumps(failure, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            Path(output_value).write_text(
+                json.dumps(failure, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
         print(json.dumps(failure, indent=2, sort_keys=True))
         return 17
 
