@@ -47,6 +47,8 @@ class ChrInternetDownLinkUpContractTests(unittest.TestCase):
         self.assertIn('requires exactly 17 base commands', text)
         self.assertNotIn('render_routeros_pcc', text)
         self.assertIn('ip/route?active=true', text)
+        self.assertIn('default-route-distance=250', text)
+        self.assertIn('management_dhcp_default_distances', text)
         self.assertIn('preferred WAN10', text)
         self.assertIn('flows did not move completely to WAN1', text)
         self.assertIn('production_writer_available', text)
