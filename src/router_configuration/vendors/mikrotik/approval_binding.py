@@ -17,6 +17,22 @@ class MikroTikApprovalError(ValueError):
 
 _CHANGE_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,96}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
+_ROUTEROS_BASE = re.compile(r"^[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[A-Za-z][A-Za-z0-9._-]*)?$")
+
+
+def routeros_base_version(value: str) -> str:
+    """Return the RouterOS version token while preserving channel text elsewhere.
+
+    `/system/resource` commonly reports values such as `7.24.1 (stable)`. The
+    deployment contract may pin `7.24.1`. Compatibility compares only the version
+    token, while the full observed string remains in evidence for audit.
+    """
+
+    text = str(value or "").strip()
+    token = text.split(maxsplit=1)[0] if text else ""
+    if not _ROUTEROS_BASE.fullmatch(token):
+        raise MikroTikApprovalError(f"unsupported RouterOS version string: {value!r}")
+    return token
 
 
 @dataclass(frozen=True)
@@ -30,10 +46,15 @@ class MikroTikDryRunEvidence:
     temporary_files_removed: bool = False
 
     @property
+    def routeros_base_version(self) -> str:
+        return routeros_base_version(self.routeros_version)
+
+    @property
     def evidence_sha256(self) -> str:
         payload = {
             "script_sha256": self.script_sha256,
             "routeros_version": self.routeros_version,
+            "routeros_base_version": self.routeros_base_version,
             "passed": self.passed,
             "errors": list(self.errors),
             "negative_control_rejected": self.negative_control_rejected,
@@ -62,6 +83,7 @@ class MikroTikApprovalBinding:
             "schema_version": "mikrotik-approval-binding/1",
             "change_id": self.change_id,
             "routeros_version": self.routeros_version,
+            "routeros_base_version": routeros_base_version(self.routeros_version),
             "pre_state_sha256": self.pre_state_sha256,
             "render_sha256": self.render_sha256,
             "script_sha256": self.script_sha256,
@@ -114,8 +136,7 @@ def dry_run_evidence_from_chr(
         raise MikroTikApprovalError("CHR dry-run tested a different .rsc script hash")
 
     version = str(platform.get("version") or "").strip()
-    if not version:
-        raise MikroTikApprovalError("CHR dry-run evidence is missing RouterOS version")
+    routeros_base_version(version)
 
     passed = bool(result.get("ok")) and generated.get("dry_run_passed") is True
     negative_rejected = negative.get("dry_run_rejected") is True
@@ -161,8 +182,7 @@ def build_approval_binding(
     version = routeros_version.strip()
     if not _CHANGE_ID.fullmatch(cid):
         raise MikroTikApprovalError("change_id contains unsupported characters")
-    if not version:
-        raise MikroTikApprovalError("RouterOS version is required")
+    target_base = routeros_base_version(version)
     pre_digest = _require_hex64(pre_state_sha256, "pre_state_sha256")
     script_digest = _require_hex64(script.script_sha256, "script_sha256")
     if script.write_authorized:
@@ -179,8 +199,11 @@ def build_approval_binding(
     if semantic_attestation.ordered_command_ids != script.ordered_command_ids:
         raise MikroTikApprovalError("semantic attestation command order differs from compiled script")
 
-    if dry_run.routeros_version.strip() != version:
-        raise MikroTikApprovalError("dry-run RouterOS version does not match approval target")
+    observed_base = dry_run.routeros_base_version
+    if observed_base != target_base:
+        raise MikroTikApprovalError(
+            f"dry-run RouterOS base version does not match approval target: expected={target_base} observed={observed_base}"
+        )
     if dry_run.script_sha256.strip().lower() != script_digest:
         raise MikroTikApprovalError("dry-run evidence belongs to a different script")
     if not dry_run.passed or dry_run.errors:
@@ -197,6 +220,7 @@ def build_approval_binding(
         "schema_version": "mikrotik-approval-binding/1",
         "change_id": cid,
         "routeros_version": version,
+        "routeros_base_version": target_base,
         "pre_state_sha256": pre_digest,
         "render_sha256": script.render_sha256,
         "script_sha256": script_digest,
