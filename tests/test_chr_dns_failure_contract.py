@@ -67,6 +67,13 @@ class ChrDNSFailureContractTests(unittest.TestCase):
                 path.write_text(json.dumps(payload), encoding="utf-8")
                 return path
 
+            failed_sockets = root / "failed-sockets.txt"
+            recovered_sockets = root / "recovered-sockets.txt"
+            failed_sockets.write_text("", encoding="utf-8")
+            recovered_sockets.write_text(
+                "UNCONN 0 0 203.0.113.53:53 0.0.0.0:*\n", encoding="utf-8"
+            )
+
             result = verifier.evaluate(
                 dns_normal=dump("dns-normal.json", dns_ok),
                 dns_failure=dump("dns-failure.json", dns_down),
@@ -80,15 +87,10 @@ class ChrDNSFailureContractTests(unittest.TestCase):
                 failure_interfaces=dump(
                     "interfaces.json", [{"name": "ether2", "running": "true"}]
                 ),
-                failed_sockets=(root / "failed-sockets.txt"),
-                recovered_sockets=(root / "recovered-sockets.txt"),
+                failed_sockets=failed_sockets,
+                recovered_sockets=recovered_sockets,
                 output=root / "acceptance.json",
-            ) if not (
-                (root / "failed-sockets.txt").write_text("", encoding="utf-8")
-                or (root / "recovered-sockets.txt").write_text(
-                    "UNCONN 0 0 203.0.113.53:53 0.0.0.0:*\n", encoding="utf-8"
-                )
-            ) else None
+            )
             self.assertIsNotNone(result)
             self.assertTrue(result["ok"])
             self.assertEqual(result["acceptance"], "PASS")
