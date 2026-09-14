@@ -19,6 +19,7 @@ PREFIX = "routercfg:diagnostic:pcc-pristine:"
 SCRIPT_FILE = "routercfg-pcc-pristine-probe.rsc"
 VERDICT_FILE = "routercfg-pcc-pristine-probe-verdict.txt"
 TEMP_FILES = (SCRIPT_FILE, VERDICT_FILE)
+FINGERPRINT_MODES = ("none", "connection-tracking", "full")
 DEVICE_MODE_FEATURES = (
     "bandwidth-test",
     "container",
@@ -118,12 +119,15 @@ def _routing_table_fingerprint(admin: base.LoopbackCHRAdmin) -> list[dict[str, A
 def _runtime_fingerprint(
     admin: base.LoopbackCHRAdmin,
     platform: Mapping[str, Any],
+    *,
+    mode: str,
 ) -> dict[str, Any]:
-    license_status, license_payload = _optional_get(admin, "system/license")
-    mode_status, mode_payload = _optional_get(admin, "system/device-mode")
-    tracking_status, tracking_payload = _optional_get(admin, "ip/firewall/connection/tracking")
+    if mode not in FINGERPRINT_MODES:
+        raise PCCPristineProbeError(f"unsupported runtime fingerprint mode: {mode}")
+
     initial_mangle = _rows(admin)
-    return {
+    result: dict[str, Any] = {
+        "mode": mode,
         "platform": {
             "version": str(platform.get("version") or ""),
             "architecture": str(platform.get("architecture-name") or ""),
@@ -132,28 +136,39 @@ def _runtime_fingerprint(
             "cpu_count": str(platform.get("cpu-count") or ""),
             "total_memory": str(platform.get("total-memory") or ""),
         },
-        "license": {
-            "http_status": license_status,
-            **(_sanitize_license(license_payload) if license_status == 200 else {}),
-        },
-        "device_mode": {
-            "http_status": mode_status,
-            **(_sanitize_device_mode(mode_payload) if mode_status == 200 else {}),
-        },
-        "connection_tracking": {
+        "initial_mangle_rule_count": len(initial_mangle),
+        "initial_mangle_dynamic_count": sum(
+            1 for row in initial_mangle if base._is_true(row.get("dynamic"))
+        ),
+    }
+
+    if mode in {"connection-tracking", "full"}:
+        tracking_status, tracking_payload = _optional_get(
+            admin, "ip/firewall/connection/tracking"
+        )
+        result["connection_tracking"] = {
             "http_status": tracking_status,
             **(
                 _sanitize_connection_tracking(tracking_payload)
                 if tracking_status == 200
                 else {}
             ),
-        },
-        "routing_tables": _routing_table_fingerprint(admin),
-        "initial_mangle_rule_count": len(initial_mangle),
-        "initial_mangle_dynamic_count": sum(
-            1 for row in initial_mangle if base._is_true(row.get("dynamic"))
-        ),
-    }
+        }
+
+    if mode == "full":
+        license_status, license_payload = _optional_get(admin, "system/license")
+        mode_status, mode_payload = _optional_get(admin, "system/device-mode")
+        result["license"] = {
+            "http_status": license_status,
+            **(_sanitize_license(license_payload) if license_status == 200 else {}),
+        }
+        result["device_mode"] = {
+            "http_status": mode_status,
+            **(_sanitize_device_mode(mode_payload) if mode_status == 200 else {}),
+        }
+        result["routing_tables"] = _routing_table_fingerprint(admin)
+
+    return result
 
 
 def _rows(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
@@ -241,13 +256,22 @@ def _cumulative_case(
     return result
 
 
-def probe(*, admin_url: str, output: Path) -> dict[str, Any]:
+def probe(
+    *,
+    admin_url: str,
+    output: Path,
+    fingerprint_mode: str = "full",
+) -> dict[str, Any]:
     admin = base.LoopbackCHRAdmin(admin_url)
     platform = admin.assert_disposable_chr()
     for temp in TEMP_FILES:
         base._delete_file_if_present(admin, temp)
     _delete_probe_rows(admin)
-    runtime_fingerprint = _runtime_fingerprint(admin, platform)
+    runtime_fingerprint = _runtime_fingerprint(
+        admin,
+        platform,
+        mode=fingerprint_mode,
+    )
 
     pcc0 = (
         f'/ip/firewall/mangle/add chain=prerouting action=accept '
@@ -324,9 +348,19 @@ def main() -> int:
     )
     parser.add_argument("--admin-url", default="http://127.0.0.1:9380")
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--fingerprint-mode",
+        choices=FINGERPRINT_MODES,
+        default="full",
+        help="Select which read-only runtime surfaces are queried before the scratch probe",
+    )
     args = parser.parse_args()
     try:
-        result = probe(admin_url=args.admin_url, output=Path(args.output))
+        result = probe(
+            admin_url=args.admin_url,
+            output=Path(args.output),
+            fingerprint_mode=args.fingerprint_mode,
+        )
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (OSError, base.CHRRenderDryRunError, PCCPristineProbeError) as exc:
