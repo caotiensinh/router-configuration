@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -115,6 +116,18 @@ class MikroTikOfflineKnowledge:
     @property
     def records(self) -> tuple[MikroTikKnowledgeRecord, ...]:
         return self._records
+
+    @property
+    def digest_sha256(self) -> str:
+        """Stable digest used to bind approvals/reports to the exact local KB."""
+        payload = [item.as_dict() for item in sorted(self._records, key=lambda item: item.id)]
+        canonical = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
 
     def get(self, record_id: str) -> MikroTikKnowledgeRecord:
         try:
