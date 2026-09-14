@@ -81,6 +81,53 @@ def _route_condition(rows: list[dict[str, Any]], expected: str) -> bool:
     raise CHRLinkUpRecursiveError(f"unsupported route expectation: {expected}")
 
 
+def _endpoint_snapshot(admin: base.LoopbackCHRAdmin, path: str) -> dict[str, Any]:
+    try:
+        status, payload = admin.request("GET", path)
+    except Exception as exc:  # diagnostic capture must not hide the primary timeout
+        return {
+            "ok": False,
+            "endpoint": path,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    return {
+        "ok": 200 <= int(status) < 300,
+        "endpoint": path,
+        "http_status": int(status),
+        "payload": payload,
+    }
+
+
+def _write_timeout_diagnostic(
+    *,
+    admin: base.LoopbackCHRAdmin,
+    output: Path,
+    expected: str,
+    timeout_seconds: float,
+    attempts: int,
+    rows: list[dict[str, Any]],
+) -> Path:
+    diagnostic_path = output.with_name(f"{output.stem}-diagnostic.json")
+    payload = {
+        "schema_version": "chr-link-up-recursive-timeout-diagnostic/1",
+        "ok": False,
+        "expected": expected,
+        "timeout_seconds": timeout_seconds,
+        "attempts": attempts,
+        "managed_defaults": rows,
+        "routing_settings": _endpoint_snapshot(admin, "routing/settings"),
+        "ip_routes": _endpoint_snapshot(admin, "ip/route"),
+        "routing_nexthops": _endpoint_snapshot(admin, "routing/nexthop"),
+        "production_writer_available": False,
+        "write_authorized": False,
+    }
+    diagnostic_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return diagnostic_path
+
+
 def prepare(*, admin_url: str, output: Path) -> dict[str, Any]:
     admin = base.LoopbackCHRAdmin(admin_url)
     platform = admin.assert_disposable_chr()
@@ -137,8 +184,17 @@ def wait_routes(*, admin_url: str, expected: str, timeout_seconds: float, output
         if _route_condition(rows, expected):
             break
         if time.monotonic() >= deadline:
+            diagnostic_path = _write_timeout_diagnostic(
+                admin=admin,
+                output=output,
+                expected=expected,
+                timeout_seconds=timeout_seconds,
+                attempts=attempts,
+                rows=rows,
+            )
             raise CHRLinkUpRecursiveError(
-                f"main-table route state did not reach {expected!r} within {timeout_seconds}s"
+                f"main-table route state did not reach {expected!r} within {timeout_seconds}s; "
+                f"diagnostic={diagnostic_path.name}"
             )
         time.sleep(0.25)
     result = {
