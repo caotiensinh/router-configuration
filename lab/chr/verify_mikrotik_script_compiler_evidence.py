@@ -9,6 +9,7 @@ from build_mikrotik_script_compiler_fixture import build_fixture
 from router_configuration.vendors.mikrotik.approval_binding import (
     build_approval_binding,
     dry_run_evidence_from_chr,
+    routeros_base_version,
 )
 
 
@@ -32,9 +33,11 @@ def main() -> int:
 
     dry_run_payload = json.loads(Path(args.dry_run_evidence).read_text(encoding="utf-8"))
     dry_run = dry_run_evidence_from_chr(result=dry_run_payload, script=artifact)
-    if dry_run.routeros_version != contract.routeros_version:
+    expected_base = routeros_base_version(contract.routeros_version)
+    observed_base = dry_run.routeros_base_version
+    if observed_base != expected_base:
         raise SystemExit(
-            f"CHR RouterOS version mismatch: expected={contract.routeros_version} observed={dry_run.routeros_version}"
+            f"CHR RouterOS base version mismatch: expected={expected_base} observed={observed_base} raw={dry_run.routeros_version}"
         )
 
     pre_state_sha256 = str(dry_run_payload.get("configuration_before_sha256") or "").strip().lower()
@@ -52,7 +55,9 @@ def main() -> int:
     result = {
         "schema_version": "mikrotik-script-compiler-chr-acceptance/1",
         "ok": True,
-        "routeros_version": contract.routeros_version,
+        "routeros_target_version": contract.routeros_version,
+        "routeros_observed_version": dry_run.routeros_version,
+        "routeros_base_version": observed_base,
         "command_count": len(contract.commands),
         "ordering_source": proposal.source,
         "script_sha256": artifact.script_sha256,
