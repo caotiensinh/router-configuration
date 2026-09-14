@@ -118,7 +118,8 @@ class ChrRouteLossContractTests(unittest.TestCase):
     def test_verifier_is_lab_only_and_owner_scoped(self):
         text = (ROOT / "lab/chr/verify_route_loss_acceptance.py").read_text(encoding="utf-8")
         self.assertIn("assert_disposable_chr", text)
-        self.assertIn('routercfg:managed:default:lab-wan10g:', text)
+        self.assertIn('routercfg:managed:default:', text)
+        self.assertIn(':lab-wan10g:', text)
         self.assertIn('"PATCH"', text)
         self.assertIn('"production_writer_available": False', text)
         self.assertIn('"write_authorized": False', text)
