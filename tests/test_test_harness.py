@@ -9,6 +9,7 @@ from router_configuration.test_harness import (
     TestBackendSpec,
     canonical_vendor,
     evaluate_vendor_test_results,
+    execute_vendor_test_plan,
     plan_vendor_tests,
 )
 
@@ -25,6 +26,22 @@ SOFTWARE_CAPABILITIES = {
     "dns",
     "vpn",
 }
+
+
+class PassingExecutor:
+    def __init__(self, vendor, backend_id):
+        self.vendor = vendor
+        self.backend_id = backend_id
+        self.calls = []
+
+    def run_scenario(self, scenario):
+        self.calls.append(scenario)
+        return ScenarioResult.build(
+            scenario=scenario,
+            passed=True,
+            evidence_ref=f"executor-{scenario.value}",
+            fidelity=EvidenceFidelity.VENDOR_OS,
+        )
 
 
 class VendorNeutralTestHarnessTests(unittest.TestCase):
@@ -100,7 +117,7 @@ class VendorNeutralTestHarnessTests(unittest.TestCase):
             any("vendor_os fidelity" in reason for reason in by_name[CommonScenario.DEFAULT_ROUTE_LOSS].reasons)
         )
 
-    def test_fault_injection_requires_disposable_lab(self):
+    def test_mutating_scenarios_require_disposable_lab(self):
         backend = TestBackendSpec.build(
             backend_id="yamaha-nondisposable-01",
             vendor="yamaha",
@@ -111,10 +128,23 @@ class VendorNeutralTestHarnessTests(unittest.TestCase):
             fault_injection_allowed=True,
             snapshot_restore_available=True,
         )
-        plan = plan_vendor_tests(backend, [CommonScenario.DNS_FAILURE])
-        item = plan.scenarios[0]
-        self.assertEqual(item.disposition, ScenarioDisposition.DEFERRED)
-        self.assertIn("fault injection requires a declared lab/disposable target", item.reasons)
+        plan = plan_vendor_tests(
+            backend,
+            [CommonScenario.CONFIGURATION_ROUNDTRIP, CommonScenario.DNS_FAILURE],
+        )
+        by_name = {item.scenario: item for item in plan.scenarios}
+        self.assertEqual(
+            by_name[CommonScenario.CONFIGURATION_ROUNDTRIP].disposition,
+            ScenarioDisposition.DEFERRED,
+        )
+        self.assertIn(
+            "scenario requires a declared lab/disposable target",
+            by_name[CommonScenario.CONFIGURATION_ROUNDTRIP].reasons,
+        )
+        self.assertEqual(
+            by_name[CommonScenario.DNS_FAILURE].disposition,
+            ScenarioDisposition.DEFERRED,
+        )
 
     def test_physical_backend_can_make_hardware_scenarios_runnable(self):
         backend = TestBackendSpec.build(
@@ -183,6 +213,35 @@ class VendorNeutralTestHarnessTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "exceeds backend fidelity"):
             evaluate_vendor_test_results(plan, [result])
+
+    def test_shared_executor_runs_only_eligible_scenarios(self):
+        backend = self._vendor_os_backend("fortinet")
+        plan = plan_vendor_tests(
+            backend,
+            [
+                CommonScenario.READ_ONLY_DISCOVERY,
+                CommonScenario.RENDER_VALIDATE,
+                CommonScenario.HARDWARE_DATAPLANE,
+            ],
+        )
+        executor = PassingExecutor("fortigate", backend.backend_id)
+        assessment = execute_vendor_test_plan(plan, executor).as_dict()
+
+        self.assertEqual(
+            executor.calls,
+            [CommonScenario.READ_ONLY_DISCOVERY, CommonScenario.RENDER_VALIDATE],
+        )
+        self.assertIn("hardware_dataplane", assessment["deferred_scenarios"])
+        self.assertFalse(assessment["hardware_certified"])
+
+    def test_shared_executor_is_bound_to_vendor_and_backend(self):
+        backend = self._vendor_os_backend("mikrotik")
+        plan = plan_vendor_tests(backend, [CommonScenario.READ_ONLY_DISCOVERY])
+
+        with self.assertRaisesRegex(ValueError, "executor vendor does not match"):
+            execute_vendor_test_plan(plan, PassingExecutor("cisco", backend.backend_id))
+        with self.assertRaisesRegex(ValueError, "executor backend_id does not match"):
+            execute_vendor_test_plan(plan, PassingExecutor("mikrotik", "other-backend"))
 
 
 if __name__ == "__main__":
