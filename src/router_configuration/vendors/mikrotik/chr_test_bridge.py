@@ -108,6 +108,7 @@ def build_chr_script_compiler_test_bundle(
     """Build a common-harness assessment from existing live CHR evidence."""
 
     validate_chr_script_compiler_acceptance(acceptance)
+    source_acceptance_sha256 = _canonical_sha256(acceptance)
     backend = TestBackendSpec.build(
         backend_id=backend_id,
         vendor="mikrotik",
@@ -130,6 +131,8 @@ def build_chr_script_compiler_test_bundle(
     payload = {
         "schema_version": "mikrotik-chr-common-test-bridge/1",
         "source_schema_version": _EXPECTED_SCHEMA,
+        "source_acceptance_sha256": source_acceptance_sha256,
+        "source_approval_sha256": str(acceptance["approval_sha256"]),
         "routeros_observed_version": str(acceptance["routeros_observed_version"]),
         "plan": plan.as_dict(),
         "assessment": assessment,
