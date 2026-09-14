@@ -1,0 +1,72 @@
+{
+  "schema_version": "chr-internet-down-link-up-evidence/1",
+  "acceptance": "PASS",
+  "scope": "Disposable MikroTik CHR 7.24.1 upstream Internet blackhole while Ethernet/carrier remains up",
+  "source": {
+    "commit_sha": "bc7054732d07c02303cc9e0dfc01587c4f24fbbf",
+    "workflow": "CHR Internet Down Link Up",
+    "workflow_run_id": 34809160558,
+    "job_id": 103866838708,
+    "artifact_id": 10334520218,
+    "artifact_digest": "sha256:e6682301e9956f8c066af1eae1833e4d650f337cda01809daf62b84450a1299f"
+  },
+  "platform": {
+    "product": "CHR",
+    "version": "7.24.1 (stable)",
+    "architecture": "x86_64"
+  },
+  "lab_isolation": {
+    "management_dhcp_default_count": 1,
+    "management_dhcp_default_distance": 250,
+    "reason": "Keep the disposable CHR management DHCP default route out of ECMP with the preferred managed WAN10 distance-1 recursive defaults."
+  },
+  "readiness": {
+    "acceptance": "PASS",
+    "classification": "READY",
+    "attempts": 1,
+    "probe": {
+      "requested": 1,
+      "successful": 1,
+      "path": "WAN10"
+    }
+  },
+  "failure_injection": {
+    "method": "wan10 namespace egress tc netem loss 100%",
+    "upstream_packet_blackhole": true,
+    "host_link_up": true,
+    "namespace_link_up": true,
+    "routeros_ether2_running": true,
+    "management_path_independent": true
+  },
+  "phases": {
+    "normal": {
+      "requested_flows": 220,
+      "successful_flows": 220,
+      "WAN10": 220,
+      "WAN1": 0
+    },
+    "failure": {
+      "preferred_wan10_route_active": false,
+      "backup_wan1_route_active": true,
+      "route_failure_observed": true
+    },
+    "failover": {
+      "requested_flows": 220,
+      "successful_flows": 220,
+      "WAN10": 0,
+      "WAN1": 220
+    },
+    "recovery": {
+      "requested_flows": 220,
+      "successful_flows": 220,
+      "WAN10": 220,
+      "WAN1": 0,
+      "route_recovery_observed": true
+    }
+  },
+  "safety_boundary": {
+    "production_writer_available": false,
+    "write_authorized": false,
+    "physical_router_claimed": false
+  }
+}
