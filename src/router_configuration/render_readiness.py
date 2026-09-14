@@ -6,7 +6,7 @@ from typing import Any, Mapping
 
 from .preflight import RouterOSPreflightEvaluator
 from .routeros_state_contract import verify_routeros_discovery_evidence
-from .safe_subset_ir import SafeSubsetCompiler
+from .v1_extended_ir import V1ExtendedSafeSubsetCompiler
 
 
 @dataclass(frozen=True)
@@ -116,7 +116,7 @@ def assess_render_readiness(
         errors.append("IR must not contain a write transport")
 
     try:
-        expected_ir = SafeSubsetCompiler().compile(profile).as_dict()
+        expected_ir = V1ExtendedSafeSubsetCompiler().compile(profile).as_dict()
     except ValueError as exc:
         errors.append(f"profile cannot compile to safe-subset IR: {exc}")
         return RenderReadinessResult(tuple(errors), tuple(warnings))
