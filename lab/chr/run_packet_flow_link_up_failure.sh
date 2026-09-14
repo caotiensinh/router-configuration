@@ -40,9 +40,9 @@ for needle, label in ((old_fail, "failure injection"), (old_recover, "recovery i
         raise SystemExit(f"expected exactly one {label} line, found {text.count(needle)}")
 
 old_verifier = 'verify_packet_flow_behavior.py'
-if text.count(old_verifier) != 4:
+if text.count(old_verifier) != 5:
     raise SystemExit(
-        f"expected exactly four packet-flow verifier call sites, found {text.count(old_verifier)}"
+        f"expected exactly five packet-flow verifier call sites, found {text.count(old_verifier)}"
     )
 text = text.replace(old_verifier, 'verify_link_up_recursive_failover.py')
 

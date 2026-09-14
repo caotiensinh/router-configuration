@@ -15,9 +15,8 @@ class ChrInternetDownLinkUpContractTests(unittest.TestCase):
         self.assertNotIn('new_fail = \'sudo ip link set', text)
         self.assertIn('evaluate_link_up_failure_state.py', text)
         self.assertIn('verify_link_up_recursive_failover.py', text)
-        self.assertIn('expected exactly one failure injection line', text)
-        self.assertIn('expected exactly one recovery injection line', text)
-        self.assertIn('expected exactly four packet-flow verifier call sites', text)
+        self.assertIn('expected exactly one {label} line', text)
+        self.assertIn('expected exactly five packet-flow verifier call sites', text)
         self.assertIn('could not isolate PCC-only diagnostic block', text)
 
     def test_recursive_verifier_uses_base_renderer_without_pcc(self):
