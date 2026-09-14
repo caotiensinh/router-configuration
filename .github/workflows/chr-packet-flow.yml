@@ -11,6 +11,7 @@ on:
       - "lab/chr/verify_packet_flow_behavior.py"
       - "lab/chr/diagnose_pcc_runtime.py"
       - "lab/chr/probe_pcc_pristine_runtime.py"
+      - "lab/chr/ensure_connection_tracking_ready.py"
       - ".github/workflows/chr-packet-flow.yml"
   workflow_dispatch:
 
