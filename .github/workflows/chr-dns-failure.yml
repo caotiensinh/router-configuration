@@ -2,6 +2,15 @@ name: CHR DNS Failure
 
 on:
   push:
+  pull_request:
+    paths:
+      - "src/router_configuration/lab_probes.py"
+      - "lab/chr/dns_probe.py"
+      - "lab/chr/udp_tag_server.py"
+      - "lab/chr/udp_flow_probe.py"
+      - "lab/chr/run_dns_failure_acceptance.sh"
+      - "lab/chr/verify_dns_failure_acceptance.py"
+      - ".github/workflows/chr-dns-failure.yml"
   workflow_dispatch:
 
 permissions:
@@ -9,11 +18,11 @@ permissions:
 
 jobs:
   chr-dns-failure:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'ci(chr-dns):')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || startsWith(github.event.head_commit.message, 'ci(chr-dns):')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: router-config-chr-dns-failure
+      group: router-config-chr-dns-failure-${{ github.ref }}
       cancel-in-progress: false
     env:
       CHR_VERSION: "7.24.1"
