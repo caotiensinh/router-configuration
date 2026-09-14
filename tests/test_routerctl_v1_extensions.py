@@ -18,6 +18,8 @@ from router_configuration.v1_extended_ir import V1ExtendedSafeSubsetCompiler
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = ROOT / "examples" / "rd-10g-1g" / "deployment-profile.json"
 RAW = ROOT / "tests" / "fixtures" / "routeros_readonly_snapshot.json"
+PUBLIC_KEY_A = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+PUBLIC_KEY_B = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
 
 
 def _extended_profile():
@@ -57,6 +59,35 @@ def _extended_profile():
     security["anti_spoofing"] = True
     security["icmp_policy"] = "essential_ipv4"
     security["required_wan_services"] = []
+    profile["intent"]["vpn"]["wireguard"] = {
+        "enabled": True,
+        "secret_ref": "vault://routers/rd-router-01/wireguard-private-key",
+        "name": "wg-enterprise",
+        "addresses": ["10.250.0.1/24"],
+        "listen_port": 51820,
+        "mtu": 1420,
+        "peers": [
+            {
+                "name": "branch-a",
+                "public_key": PUBLIC_KEY_A,
+                "tunnel_address": "10.250.0.2/32",
+                "allowed_addresses": ["10.250.0.2/32", "10.40.0.0/24"],
+                "routes": ["10.40.0.0/24"],
+                "endpoint_address": "198.51.100.10",
+                "endpoint_port": 51820,
+                "persistent_keepalive": 25,
+                "responder": False,
+            },
+            {
+                "name": "branch-b",
+                "public_key": PUBLIC_KEY_B,
+                "tunnel_address": "10.250.0.3/32",
+                "allowed_addresses": ["10.250.0.3/32", "10.50.0.0/24"],
+                "routes": ["10.50.0.0/24"],
+                "responder": True,
+            },
+        ],
+    }
     profile["intent"]["segmentation"] = {
         "enabled": True,
         "bridge": "br-lan",
@@ -118,7 +149,7 @@ def _evidence():
 
 
 class RouterctlV1ExtensionTests(unittest.TestCase):
-    def test_routeros_render_uses_v1_vlan_pbr_extensions_without_write_path(self):
+    def test_routeros_render_covers_planned_v1_without_enabling_execution(self):
         profile = _extended_profile()
         ir = V1ExtendedSafeSubsetCompiler().compile(profile).as_dict()
         evidence = _evidence()
@@ -164,15 +195,28 @@ class RouterctlV1ExtensionTests(unittest.TestCase):
             extensions = plan["state_bound_extensions"]
             self.assertGreater(extensions["vlan_segmentation"]["command_count"], 0)
             self.assertGreater(extensions["policy_routing"]["command_count"], 0)
-            self.assertFalse(extensions["vlan_segmentation"]["transport_present"])
-            self.assertFalse(extensions["vlan_segmentation"]["apply_available"])
-            self.assertFalse(extensions["vlan_segmentation"]["write_authorized"])
-            self.assertFalse(extensions["policy_routing"]["transport_present"])
-            self.assertFalse(extensions["policy_routing"]["apply_available"])
-            self.assertFalse(extensions["policy_routing"]["write_authorized"])
+            for extension_name in (
+                "capacity_weighted_pcc",
+                "vlan_segmentation",
+                "policy_routing",
+            ):
+                extension = extensions[extension_name]
+                self.assertGreater(extension["command_count"], 0)
+                self.assertFalse(extension["transport_present"])
+                self.assertFalse(extension["apply_available"])
+                self.assertFalse(extension["write_authorized"])
 
             coverage = assess_renderer_coverage(ir=ir, render_plan=plan)
             by_id = {item.operation_id: item for item in coverage.operations}
+            self.assertTrue(coverage.renderer_complete, coverage.as_dict())
+            self.assertTrue(coverage.execution_deferred)
+            self.assertFalse(
+                any(
+                    item.status is RendererCoverageStatus.BLOCKED
+                    for item in coverage.operations
+                ),
+                coverage.as_dict(),
+            )
             self.assertIs(
                 by_id["switching.vlan.segmentation"].status,
                 RendererCoverageStatus.RENDERED,
@@ -181,6 +225,13 @@ class RouterctlV1ExtensionTests(unittest.TestCase):
                 by_id["routing.pbr.rules"].status,
                 RendererCoverageStatus.RENDERED,
             )
+            self.assertIs(
+                by_id["vpn.wireguard"].status,
+                RendererCoverageStatus.DEFERRED_EXECUTION_BOUNDARY,
+            )
+            coverage_payload = coverage.as_dict()
+            self.assertFalse(coverage_payload["production_writer_available"])
+            self.assertFalse(coverage_payload["write_authorized"])
 
             script = script_path.read_text(encoding="utf-8")
             self.assertIn("vlan-filtering=yes", script)
