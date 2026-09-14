@@ -73,6 +73,26 @@ def _operation_rows(ir: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return rows
 
 
+def _accepted_state_bound_extension(
+    extensions: Mapping[str, Any],
+    name: str,
+) -> bool:
+    """Require positive generation evidence without accepting a write-capable extension."""
+
+    value = extensions.get(name)
+    if not isinstance(value, Mapping):
+        return False
+    command_count = value.get("command_count")
+    return (
+        isinstance(command_count, int)
+        and not isinstance(command_count, bool)
+        and command_count > 0
+        and value.get("transport_present") is False
+        and value.get("apply_available") is False
+        and value.get("write_authorized") is False
+    )
+
+
 def assess_renderer_coverage(
     *,
     ir: Mapping[str, Any],
@@ -82,8 +102,9 @@ def assess_renderer_coverage(
 
     WireGuard may have a complete deterministic command-template renderer while its
     secret binding / authorized apply boundary remains intentionally unavailable.
-    That state is recorded as deferred execution, not as a renderer defect.
-    Unknown or otherwise blocked operations remain fail-closed.
+    State-bound VLAN and PBR extensions count as renderer coverage only when their
+    accepted extension metadata proves generation-only behavior and a non-empty
+    command set. Unknown or otherwise blocked operations remain fail-closed.
     """
 
     if ir.get("schema_version") != "config-safe-subset-ir/1":
@@ -109,8 +130,11 @@ def assess_renderer_coverage(
 
     generation_extensions = render_plan.get("generation_extensions", {})
     deferred_extensions = render_plan.get("deferred_generation_extensions", {})
+    state_bound_extensions = render_plan.get("state_bound_extensions", {})
     if not isinstance(generation_extensions, Mapping) or not isinstance(deferred_extensions, Mapping):
         raise ValueError("render-plan extension collections must be objects")
+    if not isinstance(state_bound_extensions, Mapping):
+        raise ValueError("render-plan state_bound_extensions must be an object")
 
     report: list[RendererOperationCoverage] = []
     for operation in sorted(_operation_rows(ir), key=lambda item: str(item["operation_id"])):
@@ -121,12 +145,25 @@ def assess_renderer_coverage(
         if operation_id in command_operation_ids:
             evidence.append("base_render_commands")
 
-        if operation_id == "routing.multiwan.capacity_weighted" and "pcc" in generation_extensions:
-            evidence.append("pcc_generation_extension")
+        if operation_id == "routing.multiwan.capacity_weighted":
+            if "pcc" in generation_extensions:
+                evidence.append("pcc_generation_extension")
+            if _accepted_state_bound_extension(
+                state_bound_extensions, "capacity_weighted_pcc"
+            ):
+                evidence.append("capacity_weighted_pcc_state_bound_extension")
         elif operation_id == "security.baseline" and "enterprise_firewall" in generation_extensions:
             evidence.append("enterprise_firewall_generation_extension")
         elif operation_id == "qos.policy" and "qos" in generation_extensions:
             evidence.append("qos_generation_extension")
+        elif operation_id == "switching.vlan.segmentation" and _accepted_state_bound_extension(
+            state_bound_extensions, "vlan_segmentation"
+        ):
+            evidence.append("vlan_segmentation_state_bound_extension")
+        elif operation_id == "routing.pbr.rules" and _accepted_state_bound_extension(
+            state_bound_extensions, "policy_routing"
+        ):
+            evidence.append("policy_routing_state_bound_extension")
 
         if evidence and operation_id not in blocked_by_id:
             status = RendererCoverageStatus.RENDERED
