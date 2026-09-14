@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Mapping
@@ -18,6 +19,141 @@ PREFIX = "routercfg:diagnostic:pcc-pristine:"
 SCRIPT_FILE = "routercfg-pcc-pristine-probe.rsc"
 VERDICT_FILE = "routercfg-pcc-pristine-probe-verdict.txt"
 TEMP_FILES = (SCRIPT_FILE, VERDICT_FILE)
+DEVICE_MODE_FEATURES = (
+    "bandwidth-test",
+    "container",
+    "email",
+    "fetch",
+    "hotspot",
+    "install-any-version",
+    "ipsec",
+    "l2tp",
+    "partitions",
+    "pptp",
+    "proxy",
+    "romon",
+    "routerboard",
+    "scheduler",
+    "smb",
+    "sniffer",
+    "socks",
+    "traffic-gen",
+    "zerotier",
+)
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _first_mapping(payload: Any) -> Mapping[str, Any]:
+    rows = base._rows(payload)
+    return rows[0] if rows else {}
+
+
+def _optional_get(admin: base.LoopbackCHRAdmin, path: str) -> tuple[int, Mapping[str, Any]]:
+    status, payload = admin.request("GET", path, allow_http_error=True)
+    return status, _first_mapping(payload)
+
+
+def _sanitize_license(payload: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "level": str(payload.get("level") or ""),
+        "limited_upgrades": base._is_true(payload.get("limited-upgrades")),
+    }
+    system_id = str(payload.get("system-id") or "").strip()
+    if system_id:
+        result["system_id_sha256"] = _sha256_text(system_id)
+    return result
+
+
+def _sanitize_device_mode(payload: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "mode": str(payload.get("mode") or ""),
+        "flagged": base._is_true(payload.get("flagged")),
+        "flagging_enabled": base._is_true(payload.get("flagging-enabled")),
+    }
+    features: dict[str, bool] = {}
+    for name in DEVICE_MODE_FEATURES:
+        if name in payload:
+            features[name] = base._is_true(payload.get(name))
+    result["features"] = features
+    return result
+
+
+def _sanitize_connection_tracking(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "enabled": str(payload.get("enabled") or ""),
+        "active_ipv4": base._is_true(payload.get("active-ipv4")),
+        "active_ipv6": base._is_true(payload.get("active-ipv6")),
+        "total_entries": str(payload.get("total-entries") or ""),
+        "total_ipv4_entries": str(payload.get("total-ip4-entries") or ""),
+        "total_ipv6_entries": str(payload.get("total-ip6-entries") or ""),
+        "max_entries": str(payload.get("max-entries") or ""),
+    }
+
+
+def _routing_table_fingerprint(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
+    status, payload = admin.request("GET", "routing/table", allow_http_error=True)
+    if status != 200:
+        return [{"http_status": status}]
+    rows: list[dict[str, Any]] = []
+    for raw in base._rows(payload):
+        row = dict(raw)
+        rows.append(
+            {
+                "name": str(row.get("name") or ""),
+                "dynamic": base._is_true(row.get("dynamic")),
+                "disabled": base._is_true(row.get("disabled")),
+                "invalid": base._is_true(row.get("invalid")),
+                "fib_key_present": "fib" in row,
+                "fib_raw": str(row.get("fib") or ""),
+                "keys": sorted(str(key) for key in row),
+            }
+        )
+    rows.sort(key=lambda row: row.get("name", ""))
+    return rows
+
+
+def _runtime_fingerprint(
+    admin: base.LoopbackCHRAdmin,
+    platform: Mapping[str, Any],
+) -> dict[str, Any]:
+    license_status, license_payload = _optional_get(admin, "system/license")
+    mode_status, mode_payload = _optional_get(admin, "system/device-mode")
+    tracking_status, tracking_payload = _optional_get(admin, "ip/firewall/connection/tracking")
+    initial_mangle = _rows(admin)
+    return {
+        "platform": {
+            "version": str(platform.get("version") or ""),
+            "architecture": str(platform.get("architecture-name") or ""),
+            "board_name": str(platform.get("board-name") or ""),
+            "build_time": str(platform.get("build-time") or ""),
+            "cpu_count": str(platform.get("cpu-count") or ""),
+            "total_memory": str(platform.get("total-memory") or ""),
+        },
+        "license": {
+            "http_status": license_status,
+            **(_sanitize_license(license_payload) if license_status == 200 else {}),
+        },
+        "device_mode": {
+            "http_status": mode_status,
+            **(_sanitize_device_mode(mode_payload) if mode_status == 200 else {}),
+        },
+        "connection_tracking": {
+            "http_status": tracking_status,
+            **(
+                _sanitize_connection_tracking(tracking_payload)
+                if tracking_status == 200
+                else {}
+            ),
+        },
+        "routing_tables": _routing_table_fingerprint(admin),
+        "initial_mangle_rule_count": len(initial_mangle),
+        "initial_mangle_dynamic_count": sum(
+            1 for row in initial_mangle if base._is_true(row.get("dynamic"))
+        ),
+    }
 
 
 def _rows(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
@@ -73,7 +209,11 @@ def _isolated_case(
         raise PCCPristineProbeError(
             f"isolated probe {name!r} expected one rule, observed {len(observed)}"
         )
-    result = {"name": name, "rows": observed}
+    result = {
+        "name": name,
+        "command_sha256": _sha256_text(command + "\n"),
+        "rows": observed,
+    }
     _delete_probe_rows(admin)
     return result
 
@@ -92,7 +232,11 @@ def _cumulative_case(
         raise PCCPristineProbeError(
             f"cumulative probe {name!r} expected {len(commands)} rules, observed {len(observed)}"
         )
-    result = {"name": name, "rows": observed}
+    result = {
+        "name": name,
+        "command_sha256": [_sha256_text(command + "\n") for command in commands],
+        "rows": observed,
+    }
     _delete_probe_rows(admin)
     return result
 
@@ -103,6 +247,7 @@ def probe(*, admin_url: str, output: Path) -> dict[str, Any]:
     for temp in TEMP_FILES:
         base._delete_file_if_present(admin, temp)
     _delete_probe_rows(admin)
+    runtime_fingerprint = _runtime_fingerprint(admin, platform)
 
     pcc0 = (
         f'/ip/firewall/mangle/add chain=prerouting action=accept '
@@ -152,7 +297,7 @@ def probe(*, admin_url: str, output: Path) -> dict[str, Any]:
 
     all_rows = [row for case in cases for row in case["rows"]]
     result = {
-        "schema_version": "chr-pcc-pristine-runtime-probe/1",
+        "schema_version": "chr-pcc-pristine-runtime-probe/2",
         "ok": True,
         "scope": "disposable_chr_pristine_runtime_diagnostic_only",
         "platform": {
@@ -160,6 +305,7 @@ def probe(*, admin_url: str, output: Path) -> dict[str, Any]:
             "architecture": str(platform.get("architecture-name") or ""),
             "board_name": str(platform.get("board-name") or ""),
         },
+        "runtime_fingerprint": runtime_fingerprint,
         "cases": cases,
         "invalid_observed": any(bool(row["invalid"]) for row in all_rows),
         "probe_rules_removed": True,
@@ -185,7 +331,7 @@ def main() -> int:
         return 0
     except (OSError, base.CHRRenderDryRunError, PCCPristineProbeError) as exc:
         failure = {
-            "schema_version": "chr-pcc-pristine-runtime-probe/1",
+            "schema_version": "chr-pcc-pristine-runtime-probe/2",
             "ok": False,
             "error": str(exc),
             "production_writer_available": False,
