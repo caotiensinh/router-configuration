@@ -4,8 +4,6 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUTPUT="${1:-${ROOT}/evidence/test-harness/common-fault-executor-selftest.json}"
 DNS_SCRIPT="$(mktemp)"
-DNS_PID_FILE="$(mktemp)"
-DNS_LAUNCHER_PID=""
 DNS_PID=""
 
 # shellcheck source=lab/common/network_lab.sh
@@ -17,10 +15,7 @@ cleanup() {
   if [[ -n "${DNS_PID}" ]]; then
     sudo kill "${DNS_PID}" 2>/dev/null || true
   fi
-  if [[ -n "${DNS_LAUNCHER_PID}" ]]; then
-    wait "${DNS_LAUNCHER_PID}" 2>/dev/null || true
-  fi
-  rm -f "${DNS_SCRIPT}" "${DNS_PID_FILE}"
+  rm -f "${DNS_SCRIPT}"
   NDH_ALLOW_FAULT_INJECTION=1 ndh_fault_recover_wan_primary_blackhole 2>/dev/null || true
   ndh_cleanup_standard_topology
 }
@@ -72,26 +67,26 @@ finally:
     sock.close()
 PY
 
-sudo ip netns exec "${NDH_NS_WAN_PRIMARY}" \
-  sh -c 'echo $$ > "$1"; exec python3 "$2"' _ "${DNS_PID_FILE}" "${DNS_SCRIPT}" &
-DNS_LAUNCHER_PID=$!
+# Start the listener as an orphaned namespace process and return its real PID.
+# stdout/stderr are redirected so command substitution cannot remain attached to
+# the long-running service process.
+DNS_PID="$(
+  sudo ip netns exec "${NDH_NS_WAN_PRIMARY}" \
+    sh -c 'python3 "$1" >/tmp/ndh-dns-selftest.log 2>&1 & echo $!' _ "${DNS_SCRIPT}"
+)"
 
 for _attempt in $(seq 1 40); do
-  if [[ -s "${DNS_PID_FILE}" ]] && \
+  if ndh_fault_pid_in_namespace "${NDH_NS_WAN_PRIMARY}" "${DNS_PID}" && \
      sudo ip netns exec "${NDH_NS_WAN_PRIMARY}" ss -H -lun | grep -Eq '(:|])1053[[:space:]]'; then
     break
   fi
   sleep 0.05
 done
 
-test -s "${DNS_PID_FILE}"
-DNS_PID="$(cat "${DNS_PID_FILE}")"
 ndh_fault_pid_in_namespace "${NDH_NS_WAN_PRIMARY}" "${DNS_PID}"
 sudo ip netns exec "${NDH_NS_WAN_PRIMARY}" ss -H -lun | grep -Eq '(:|])1053[[:space:]]'
 
 ndh_fault_stop_primary_dns_responder "${DNS_PID}"
-wait "${DNS_LAUNCHER_PID}" 2>/dev/null || true
-DNS_LAUNCHER_PID=""
 ndh_fault_assert_primary_dns_stopped "${DNS_PID}"
 if sudo ip netns exec "${NDH_NS_WAN_PRIMARY}" ss -H -lun | grep -Eq '(:|])1053[[:space:]]'; then
   echo "DNS test listener socket remained present after service-stop fault" >&2
