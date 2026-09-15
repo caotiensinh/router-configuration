@@ -1,8 +1,16 @@
 # Router Configuration
 
-Router Configuration is a clean-room, vendor-neutral network configuration control system.
+> **IMPORTANT — MANDATORY PROJECT GOVERNANCE**
+>
+> This repository is governed by `MASTER_RULES.md`. All humans, AI agents, sub-agents, automation workers, and future contributors MUST read the current `MASTER_RULES.md` before making technical changes. Task prompts do not need to repeat this requirement.
+>
+> After the Master Rules, read `AGENTS.md`, applicable files under `governance/`, and the relevant `vendors/<vendor>/VENDOR_RULES.md` before beginning scoped work.
 
-Its goal is to let an operator with basic router/network knowledge deploy a professional configuration through guided intent, deterministic planning, safety gates, verification and rollback instead of memorizing vendor CLI syntax.
+Router Configuration is a clean-room network automation platform with a shared safety/governance shell and **vendor-isolated implementation domains**. It must not evolve into one cross-vendor mega-compiler that guesses a lowest-common-denominator configuration model.
+
+Its goal is to let an operator with basic router/network knowledge deploy a professional configuration through guided intent, authoritative vendor knowledge, deterministic planning, safety gates, verification and rollback instead of memorizing vendor CLI syntax.
+
+Each vendor domain owns its own technical knowledge, command semantics, dependency/conflict rules, validation, execution constraints, backup behavior and operational documentation. Shared code is limited to truly vendor-neutral infrastructure primitives such as governance, evidence, secrets, audit and transaction contracts.
 
 ## Current focus
 
@@ -25,6 +33,17 @@ Target capabilities:
 - desired-state diff/drift;
 - backup, preflight, verify and rollback.
 
+## Governance
+
+Highest project authority:
+- `MASTER_RULES.md` — mandatory project rules and Project Entry Gate;
+- `AGENTS.md` — mandatory AI/automation bootstrap;
+- `CONTRIBUTING.md` — human contributor bootstrap;
+- `governance/` — scoped AI, knowledge, execution, security and documentation policies;
+- `vendors/mikrotik/VENDOR_RULES.md` — mandatory MikroTik-specific rules.
+
+Repository analysis may occur to discover applicable rules. Repository mutation and production execution are fail-closed when the current governance set has not been loaded/acknowledged or when a higher-priority rule conflicts with the requested task.
+
 ## Deployment harness
 
 All writes must eventually follow:
@@ -43,7 +62,9 @@ See:
 - `ROUTEROS_DISCOVERY.md` — RouterOS read-only discovery/evidence contract;
 - `PREFLIGHT.md` — guided profile-to-evidence safety checks;
 - `CHECKLIST.md` / `PROJECT_PROGRESS.json` — weighted completion measurement;
-- `AI_GATEWAY.md` — reserved advisory-only future AI boundary;
+- `AI_GATEWAY.md` — advisory-only AI boundary;
+- `MIKROTIK_AUTOMATION.md` — MikroTik vendor-isolated automation design;
+- `MIKROTIK_SCRIPT_COMPILER.md` — immutable primitive/order-only AI compiler boundary;
 - `THIRD_PARTY_RESEARCH.md` — clean-room research policy.
 
 ## Guided read-only workflow available now
@@ -143,27 +164,30 @@ It is not yet the production RouterOS renderer input path.
 
 **No production router writer is enabled yet.** Live CHR read-only acceptance remains a hard gate before RouterOS rendering/apply work is allowed to advance.
 
-## Ten capability modules
+## Capability areas
 
-1. M01 Intent & Device Engine
-2. M02 State / Diff / Drift Engine
-3. M03 Configuration Compiler & Secrets
-4. M04 Multi-WAN & Load Balancing
-5. M05 Resilience & WAN Health
-6. M06 Security Operations
-7. M07 Segmentation / PBR / VPN / QoS
-8. M08 Yamaha Adapter
-9. M09 Safe Automation Gate
-10. M10 Omada Adapter & API Compatibility
+Shared platform capabilities and vendor domains are tracked separately. The existence of a Yamaha/Omada/Fortinet or future vendor domain does not authorize reusing MikroTik command logic or vendor-specific technical assumptions across vendors.
 
-MikroTik is the first adapter to be completed as a production reference.
+Current capability areas include:
+1. Intent & Device Engine
+2. State / Diff / Drift Engine
+3. Configuration Compiler & Secrets
+4. Multi-WAN & Load Balancing
+5. Resilience & WAN Health
+6. Security Operations
+7. Segmentation / PBR / VPN / QoS
+8. Vendor-isolated MikroTik RouterOS domain
+9. Safe Automation / Governance Gate
+10. Future vendor-isolated domains
 
-## Future internal AI
+MikroTik is the first vendor domain being completed as the production reference.
 
-Only a gateway contract is reserved now. Future internal AI may analyze counters, flows, packet metadata, logs, WAN health and configuration evidence and may produce maintenance/capacity/security recommendations.
+## AI boundary
 
-AI has no direct router-write path. Any proposed intent must re-enter normal planning, validation, safety and approval.
+AI may interpret intent, retrieve approved offline vendor knowledge, propose ordering among immutable verified command primitives, explain evidence and generate documentation.
+
+AI has no direct router-write path and is not a RouterOS syntax or technical-truth authority. Any proposal must pass deterministic vendor-specific dependency/conflict validation, exact-version checks, dry-run/acceptance gates, changeset-specific approval, execution controls and post-state verification.
 
 ## Project status
 
-Configuration automation remains pre-production. Do not use this repository to mutate a production router until the RouterOS reference adapter passes live CHR discovery, lab apply/verify/rollback testing and physical CCR2116 acceptance evidence is recorded.
+Configuration automation remains pre-production. Do not use this repository to mutate a production router until the RouterOS reference domain passes live CHR discovery, lab apply/verify/rollback testing and required physical-device acceptance evidence is recorded.

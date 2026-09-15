@@ -1,0 +1,54 @@
+{
+  "automatic_target_matrix_admission": false,
+  "candidate_review_challenge_sha256": "46cb98b82ef6e1cabc27092dc6bb3172956c20adb052951adc9acb324f9a35f1",
+  "candidate_review_complete": false,
+  "challenge_payload": {
+    "challenge_schema": "routeros-p07-readonly-review-challenge/1",
+    "machine_evidence": {
+      "clean_readonly_admission": {
+        "artifact_digest": "sha256:cb3c876983674693cc6ae4ae6d1c521d0af58cbe072cce3d47f69052436d0915",
+        "artifact_id": 9830230324,
+        "normalized_state_sha256": "4ac53a6b66e9bfeac1cc502db89242a23c3f13f487980476ddd66fe229203413",
+        "workflow_run_id": 33586254728,
+        "workflow_sha": "004cf819dd4ff95988482a7d1b84c2dd6727e6b3"
+      },
+      "live_smoke": {
+        "artifact_digest": "sha256:3126429bd7c5f1b1dc5b7bb9922e29c3126922153493ce6b212d3bfb3d6fac78",
+        "artifact_id": 9828691931,
+        "job_id": 100097350679,
+        "workflow_run_id": 33581768613,
+        "workflow_sha": "1d00993307443d8c7e6b832224dd02c8f8269757"
+      },
+      "populated_high_value_surfaces": {
+        "artifact_digest": "sha256:8e15524d43847935dc4dac4cdd0c0e82771bcacee08ef31d70a2c8cb79e832df",
+        "artifact_id": 9830628071,
+        "job_id": 100114754888,
+        "workflow_run_id": 33587554602,
+        "workflow_sha": "854ac6bb911da83ccbd2427abd7a7be94588df64"
+      }
+    },
+    "requested_promotion": "verified_read_only",
+    "routeros_version": "7.24.1 (stable)",
+    "target_id": "chr-live-v7",
+    "target_kind": "routeros_chr",
+    "target_matrix_blob_sha": "0bd0b99ecc8185fd92979b12da4a4d462a58383a",
+    "technical_acceptance": {
+      "automatic_target_matrix_admission": false,
+      "clean_get_only_admission": true,
+      "https_certificate_verification": true,
+      "physical_router_claimed": false,
+      "populated_high_value_surfaces_verified": true,
+      "production_write_authorized": false,
+      "reader_write_denial_verified": true,
+      "secret_boundary_verified": true,
+      "write_authorized": false
+    },
+    "technical_source_commit": "0bbeabe670642af9c73a31a6093cc2e8742e87bc"
+  },
+  "challenge_payload_sha256": "4c760a4d4452ffbf66ae05afd3fa3300620b2bc2d23638bce50a119619ab2203",
+  "operator_attested": false,
+  "physical_router_claimed": false,
+  "production_write_authorized": false,
+  "schema_version": "routeros-p07-candidate-review/2",
+  "write_authorized": false
+}

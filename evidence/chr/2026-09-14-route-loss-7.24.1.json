@@ -1,0 +1,62 @@
+{
+  "schema_version": "chr-route-loss-acceptance/1",
+  "accepted": true,
+  "acceptance": "PASS",
+  "date": "2026-09-14",
+  "routeros_version": "7.24.1",
+  "source_sha": "2a89300e597992b6659d4d49a5c6f0af516ec490",
+  "workflow_run": 34812460392,
+  "job_id": 103876344042,
+  "artifact_id": 10335700314,
+  "artifact_digest": "sha256:ff93f270d3bf6be09933ef1ed01e17b2a44e2bb96e88a8ebb4fd1d9f971f9fe6",
+  "fault": {
+    "type": "default_route_loss",
+    "owned_wan10_route_ids": [
+      "*80000007",
+      "*80000008"
+    ],
+    "owned_wan10_comments": [
+      "routercfg:managed:default:lab-wan10g:1",
+      "routercfg:managed:default:lab-wan10g:2"
+    ],
+    "carrier_link_changed": false,
+    "upstream_blackhole_used": false
+  },
+  "flows": {
+    "normal": {
+      "requested": 30,
+      "successful": 30,
+      "egress": {
+        "WAN10": 30,
+        "WAN1": 0
+      }
+    },
+    "route_loss": {
+      "requested": 30,
+      "successful": 30,
+      "egress": {
+        "WAN10": 0,
+        "WAN1": 30
+      }
+    },
+    "recovery": {
+      "requested": 30,
+      "successful": 30,
+      "egress": {
+        "WAN10": 30,
+        "WAN1": 0
+      }
+    }
+  },
+  "semantics": {
+    "owned_wan10_defaults_disabled_only": true,
+    "routeros_wan10_link_remained_up": true,
+    "host_wan10_link_remained_up": true,
+    "namespace_wan10_link_remained_up": true,
+    "wan1_failover_complete": true,
+    "same_route_ids_restored": true,
+    "wan10_failback_complete": true
+  },
+  "production_writer_available": false,
+  "write_authorized": false
+}

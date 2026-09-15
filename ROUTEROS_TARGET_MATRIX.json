@@ -34,7 +34,7 @@
       "id": "chr-live-v7",
       "kind": "routeros_chr",
       "routeros_version": "7.24.1 (stable)",
-      "status": "technical_readonly_validated_pending_attestation",
+      "status": "verified_read_only",
       "evidence": [
         "evidence/chr/2026-09-02-live-smoke-7.24.1.json",
         "evidence/chr/2026-09-02-clean-readonly-7.24.1.json",
@@ -53,9 +53,20 @@
         "automatic_target_matrix_admission": false,
         "write_authorized": false
       },
-      "remaining_acceptance": [
-        "operator provenance attestation and candidate review"
-      ]
+      "remaining_acceptance": [],
+      "operator_review": {
+        "candidate_review_challenge_sha256": "46cb98b82ef6e1cabc27092dc6bb3172956c20adb052951adc9acb324f9a35f1",
+        "challenge_payload_sha256": "4c760a4d4452ffbf66ae05afd3fa3300620b2bc2d23638bce50a119619ab2203",
+        "review_mode": "preserved_evidence_review",
+        "direct_live_observation_claimed": false,
+        "observed_at": "2026-09-15T14:14:13+09:00",
+        "decision": "approve",
+        "operator_attested": true,
+        "candidate_review_complete": true,
+        "write_authorized": false,
+        "physical_router_claimed": false,
+        "production_write_authorized": false
+      }
     },
     {
       "id": "ccr2116-physical",

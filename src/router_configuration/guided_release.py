@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from .deployment_profile import DeploymentProfileValidator
 from .profile_builder import GuidedProfileBuilder, GuidedProfileRequest
-from .safe_subset_ir import SafeSubsetCompiler
+from .v1_extended_ir import V1ExtendedSafeSubsetCompiler
 
 
 class GuidedReleaseError(ValueError):
@@ -80,7 +80,7 @@ def build_guided_release_workspace(
     if profile.get("allow_write") is not False:
         raise GuidedReleaseError("guided workspace must keep allow_write=false")
 
-    ir = SafeSubsetCompiler().compile(profile).as_dict()
+    ir = V1ExtendedSafeSubsetCompiler().compile(profile).as_dict()
     if ir.get("vendor_commands_present") is not False:
         raise GuidedReleaseError("guided workspace IR must not contain vendor commands")
     if ir.get("write_transport_present") is not False:

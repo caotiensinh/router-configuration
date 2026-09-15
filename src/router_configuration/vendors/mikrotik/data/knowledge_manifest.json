@@ -1,0 +1,25 @@
+{
+  "schema_version": "mikrotik-knowledge-manifest/1",
+  "vendor": "mikrotik",
+  "runtime_network_required": false,
+  "structured_bundles": [
+    "knowledge_seed.json",
+    "knowledge_script.json"
+  ],
+  "full_snapshot_optional": true,
+  "full_snapshot_expected_files": [
+    "llms.txt",
+    "llms-full.txt",
+    "sitemap.xml",
+    "snapshot-manifest.json"
+  ],
+  "source_priority": [
+    "https://manual.mikrotik.com/docs/",
+    "https://manual.mikrotik.com/docs/cli-reference/",
+    "https://manual.mikrotik.com/llms.txt",
+    "https://manual.mikrotik.com/llms-full.txt",
+    "https://manual.mikrotik.com/sitemap.xml"
+  ],
+  "runtime_authority": "official structured knowledge plus observed RouterOS device evidence",
+  "ai_authority": "ordering_and_explanation_only"
+}

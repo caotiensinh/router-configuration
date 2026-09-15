@@ -1,0 +1,147 @@
+name: Network Device Test Lab
+
+on:
+  pull_request:
+    paths:
+      - "src/router_configuration/test_lab.py"
+      - "src/router_configuration/lab_probes.py"
+      - "lab/common/**"
+      - "tests/test_test_lab.py"
+      - "tests/test_lab_probes.py"
+      - ".github/workflows/network-device-test-lab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-substrate-selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    concurrency:
+      group: network-device-test-lab-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and host-network tools
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends iproute2
+          sudo -n true
+
+      - name: Validate shared lab syntax
+        run: |
+          set -euo pipefail
+          bash -n lab/common/network_lab.sh
+          bash -n lab/common/fault_executor.sh
+          bash -n lab/common/run_network_lab_selftest.sh
+          bash -n lab/common/run_fault_executor_selftest.sh
+          bash -n lab/common/run_probe_selftest.sh
+          python -m py_compile \
+            src/router_configuration/lab_probes.py \
+            lab/common/udp_tag_server.py \
+            lab/common/udp_flow_probe.py \
+            lab/common/dns_probe.py
+
+      - name: Run reusable Linux lab substrate self-test
+        run: |
+          set -euo pipefail
+          bash lab/common/run_network_lab_selftest.sh \
+            evidence/test-harness/network-lab-selftest.json
+
+      - name: Run reusable external fault self-test
+        run: |
+          set -euo pipefail
+          bash lab/common/run_fault_executor_selftest.sh \
+            evidence/test-harness/common-fault-executor-selftest.json
+
+      - name: Run reusable probe self-test
+        run: |
+          set -euo pipefail
+          bash lab/common/run_probe_selftest.sh \
+            evidence/test-harness/common-probe-selftest.json
+
+      - name: Verify safety boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          substrate = json.loads(
+              Path('evidence/test-harness/network-lab-selftest.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert substrate['acceptance'] == 'PASS'
+          assert substrate['scope'] == 'host_network_substrate_only_no_vendor_os'
+          assert substrate['vendor_os_acceptance_claimed'] is False
+          assert substrate['physical_hardware_claimed'] is False
+          assert substrate['production_writer_available'] is False
+          assert substrate['write_authorized'] is False
+          assert substrate['topology']['management_isolated'] is True
+          assert len(substrate['topology']['topology_sha256']) == 64
+
+          faults = json.loads(
+              Path('evidence/test-harness/common-fault-executor-selftest.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert faults['acceptance'] == 'PASS'
+          assert faults['scope'] == 'common_linux_lab_external_faults_only_no_vendor_os'
+          assert faults['fail_closed_without_explicit_fault_opt_in'] is True
+          assert faults['arbitrary_host_interface_targeting_available'] is False
+          assert faults['arbitrary_host_pid_targeting_available'] is False
+          assert faults['faults']['wan_primary_blackhole']['recovered'] is True
+          assert faults['faults']['dns_responder_stop']['probe_success_before_fault'] is True
+          assert faults['faults']['dns_responder_stop']['probe_failure_after_fault'] is True
+          assert faults['vendor_os_acceptance_claimed'] is False
+          assert faults['physical_hardware_claimed'] is False
+          assert faults['production_writer_available'] is False
+          assert faults['write_authorized'] is False
+
+          probes = json.loads(
+              Path('evidence/test-harness/common-probe-selftest.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert probes['acceptance'] == 'PASS'
+          assert probes['scope'] == 'common_linux_lab_probe_tools_only_no_vendor_os'
+          assert probes['udp']['requested_flows'] == 8
+          assert probes['udp']['successful_flows'] == 8
+          assert probes['udp']['observed_tags'] == {'WAN_PRIMARY': 8}
+          assert probes['router_forwarding_acceptance_claimed'] is False
+          assert probes['vendor_os_acceptance_claimed'] is False
+          assert probes['physical_hardware_claimed'] is False
+          assert probes['production_writer_available'] is False
+          assert probes['write_authorized'] is False
+
+          print(
+              json.dumps(
+                  {'substrate': substrate, 'faults': faults, 'probes': probes},
+                  indent=2,
+                  sort_keys=True,
+              )
+          )
+          PY
+
+      - name: Preserve common lab evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-device-test-lab-${{ github.sha }}
+          path: |
+            evidence/test-harness/network-lab-selftest.json
+            evidence/test-harness/common-fault-executor-selftest.json
+            evidence/test-harness/common-dns-before-fault.json
+            evidence/test-harness/common-dns-after-fault.json
+            evidence/test-harness/common-probe-selftest.json
+            evidence/test-harness/common-udp-flow.json
+          if-no-files-found: warn
+          retention-days: 14

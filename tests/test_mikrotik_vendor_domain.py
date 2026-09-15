@@ -1,0 +1,156 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from router_configuration.vendors.mikrotik.backup import backup_operations
+from router_configuration.vendors.mikrotik.finalization import finalize_verified_deployment
+from router_configuration.vendors.mikrotik.inference import MikroTikReasoningRequest, build_grounded_prompt
+from router_configuration.vendors.mikrotik.knowledge import MikroTikOfflineKnowledge
+from router_configuration.vendors.mikrotik.postdeploy import BackupArtifact
+from router_configuration.vendors.mikrotik.reference_measure import measure_pre_post
+from router_configuration.vendors.mikrotik.workflow import (
+    MikroTikDeploymentStage,
+    completion_requirements,
+    deployment_contract,
+)
+
+
+class MikroTikVendorDomainTests(unittest.TestCase):
+    def test_bundled_knowledge_is_offline_and_searchable(self):
+        store = MikroTikOfflineKnowledge.bundled()
+        hits = store.search("wireguard allowed-address keepalive")
+        self.assertTrue(hits)
+        self.assertEqual(hits[0].record.id, "wireguard-peers")
+        self.assertEqual(len(store.digest_sha256), 64)
+
+    def test_prompt_redacts_secret_bearing_fields(self):
+        prompt, ids = build_grounded_prompt(
+            MikroTikReasoningRequest(
+                task="secure WAN management firewall",
+                evidence={"username": "admin", "password": "danger", "nested": {"token": "x"}},
+            )
+        )
+        self.assertIn("<redacted>", prompt)
+        self.assertNotIn("danger", prompt)
+        self.assertNotIn('"x"', prompt)
+        self.assertTrue(ids)
+
+    def test_backup_contract_requires_two_distinct_artifact_types(self):
+        ops = backup_operations(phase="post_change")
+        self.assertEqual({item.kind.value for item in ops}, {"sanitized_export", "binary_system_backup"})
+        binary = next(item for item in ops if item.kind.value == "binary_system_backup")
+        self.assertTrue(binary.sensitive)
+        self.assertTrue(binary.requires_secret_reference)
+
+    def test_workflow_cannot_complete_without_handover_stage(self):
+        stages = [item.stage for item in deployment_contract()]
+        self.assertLess(stages.index(MikroTikDeploymentStage.VERIFY), stages.index(MikroTikDeploymentStage.POST_CHANGE_BACKUP))
+        self.assertLess(stages.index(MikroTikDeploymentStage.POST_CHANGE_BACKUP), stages.index(MikroTikDeploymentStage.GENERATE_HANDOVER))
+        self.assertLess(stages.index(MikroTikDeploymentStage.GENERATE_HANDOVER), stages.index(MikroTikDeploymentStage.COMPLETE))
+        self.assertIn("operations and maintenance guide generated", completion_requirements())
+
+    def _completed_record(self):
+        return {
+            "status": "completed",
+            "deployment_id": "dep-1",
+            "site": "lab",
+            "device": {"identity": "r1", "model": "CHR", "routeros_version": "7.24.1"},
+            "intent": {"kind": "secure_internet_gateway"},
+            "changes": ["firewall baseline"],
+            "verification": [{"name": "management_path_survives", "status": "pass"}],
+            "pre_state_sha256": "a",
+            "post_state_sha256": "b",
+        }
+
+    def _reference_comparison(self, *, post_ready=True):
+        keys = {
+            "routeros_version_recorded": True,
+            "knowledge_version_recorded": True,
+            "management_path_survives": True,
+            "post_state_matches_desired": True,
+            "established_related_preserved": True,
+            "invalid_state_dropped": True,
+            "unsolicited_wan_to_lan_denied": True,
+            "wan_management_denied": True,
+            "management_sources_restricted": True,
+            "lan_can_reach_internet": True,
+            "desired_state_idempotent": True,
+        }
+        pre = dict(keys)
+        pre["wan_management_denied"] = False
+        post = dict(keys)
+        if not post_ready:
+            post["post_state_matches_desired"] = False
+        return measure_pre_post(
+            intent_kind="secure_internet_gateway",
+            pre_evidence=pre,
+            post_evidence=post,
+        )
+
+    def test_finalization_refuses_nonconformant_reference_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            export = root / "router.rsc"
+            backup = root / "router.backup"
+            export.write_text("/system identity print\n", encoding="utf-8")
+            backup.write_bytes(b"binary-placeholder")
+            with self.assertRaisesRegex(ValueError, "official-reference post-state"):
+                finalize_verified_deployment(
+                    output_dir=root / "handover",
+                    deployment_record=self._completed_record(),
+                    backup_artifacts=[
+                        BackupArtifact("sanitized_export", export, False, "7.24.1"),
+                        BackupArtifact("binary_system_backup", backup, True, "7.24.1"),
+                    ],
+                    reference_comparison=self._reference_comparison(post_ready=False),
+                )
+
+    def test_finalization_refuses_missing_required_backup_type(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            backup = root / "router.backup"
+            backup.write_bytes(b"binary-placeholder")
+            with self.assertRaisesRegex(ValueError, "sanitized_export"):
+                finalize_verified_deployment(
+                    output_dir=root / "handover",
+                    deployment_record=self._completed_record(),
+                    backup_artifacts=[
+                        BackupArtifact("binary_system_backup", backup, True, "7.24.1")
+                    ],
+                    reference_comparison=self._reference_comparison(),
+                )
+
+    def test_finalization_hashes_both_backups_and_generates_documents(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            export = root / "router.rsc"
+            backup = root / "router.backup"
+            export.write_text("/system identity print\n", encoding="utf-8")
+            backup.write_bytes(b"binary-placeholder")
+            result = finalize_verified_deployment(
+                output_dir=root / "handover",
+                deployment_record=self._completed_record(),
+                backup_artifacts=[
+                    BackupArtifact("sanitized_export", export, False, "7.24.1"),
+                    BackupArtifact("binary_system_backup", backup, True, "7.24.1"),
+                ],
+                reference_comparison=self._reference_comparison(),
+            )
+            names = {path.name for path in result.files}
+            self.assertIn("00_deployment_completion.md", names)
+            self.assertIn("03_operations_maintenance.md", names)
+            self.assertIn("99_bundle_manifest.json", names)
+            manifest = json.loads((root / "handover" / "05_backup_manifest.json").read_text())
+            self.assertEqual(
+                {item["kind"] for item in manifest["artifacts"]},
+                {"sanitized_export", "binary_system_backup"},
+            )
+            binary_manifest = next(
+                item for item in manifest["artifacts"] if item["kind"] == "binary_system_backup"
+            )
+            self.assertTrue(binary_manifest["contains_sensitive_data"])
+
+
+if __name__ == "__main__":
+    unittest.main()

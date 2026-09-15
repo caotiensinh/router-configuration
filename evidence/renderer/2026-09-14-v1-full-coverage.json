@@ -1,0 +1,75 @@
+{
+  "schema_version": "routeros-v1-renderer-coverage-evidence/1",
+  "acceptance": "PASS",
+  "source_commit": "d3a7a60154c5f7943ea7824ecd9db87928c86502",
+  "exact_commit_gates": {
+    "ci_run_id": 34824591913,
+    "ci_conclusion": "success",
+    "governance_run_id": 34824591915,
+    "governance_conclusion": "success",
+    "mikrotik_script_compiler_run_id": 34824591904,
+    "mikrotik_script_compiler_conclusion": "success"
+  },
+  "canonical_product_path": {
+    "ir_compiler": "V1ExtendedSafeSubsetCompiler",
+    "operator_entrypoint": "routerctl routeros-render",
+    "generator": "generate_routeros_plan_v1",
+    "coverage_auditor": "assess_renderer_coverage"
+  },
+  "coverage": {
+    "renderer_complete": true,
+    "execution_deferred": true,
+    "coverage_blocked_operation_count": 0,
+    "wireguard_status": "deferred_execution_boundary",
+    "state_bound_extensions": [
+      "capacity_weighted_pcc",
+      "vlan_segmentation",
+      "policy_routing"
+    ],
+    "generation_extensions": [
+      "enterprise_firewall",
+      "qos"
+    ],
+    "deferred_generation_extensions": [
+      "wireguard"
+    ]
+  },
+  "independent_chr_acceptance_reused": {
+    "pbr_route_selection": {
+      "run_id": 33744535536,
+      "job_id": 100613883852,
+      "artifact_id": 9889110242,
+      "artifact_digest": "sha256:f7d54814298ad36f6a746b695258abce0dd0a2adc07375581989404a7cc26f7c"
+    },
+    "vlan_data_plane": {
+      "run_id": 33725564543,
+      "job_id": 100553643895,
+      "artifact_id": 9881848837,
+      "artifact_digest": "sha256:9f0a7663b99a37ea013bf469e2c17614c50a988d67e8926528062e3e6092ee42"
+    },
+    "wireguard_handshake": {
+      "run_id": 33745204176,
+      "job_id": 100615967147,
+      "artifact_id": 9889360503,
+      "artifact_digest": "sha256:215473721fc75298145c1b292234e8cb1286c3081958e68a07a7f58e1e97ca06"
+    },
+    "qos_global_siblings": {
+      "run_id": 33714864851,
+      "artifact_id": 9878150512,
+      "artifact_digest": "sha256:ffdf7880d5bf335b286240051967eb30fc21973f69e0850b392ca400177b5a3f"
+    }
+  },
+  "scope": {
+    "claim": "planned_v1_renderer_coverage_complete",
+    "routeros_command_semantics_changed": false,
+    "production_apply_ready": false,
+    "physical_router_acceptance_claimed": false
+  },
+  "safety": {
+    "secrets_resolved": false,
+    "transport_present": false,
+    "apply_available": false,
+    "production_writer_available": false,
+    "write_authorized": false
+  }
+}

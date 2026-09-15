@@ -1,0 +1,205 @@
+name: CHR Transaction Real Backup Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/router_configuration/transaction_backup_evidence.py"
+      - "src/router_configuration/transaction_backup_set.py"
+      - "lab/chr/verify_transaction_backup_acceptance.py"
+      - "lab/chr/verify_render_dry_run.py"
+      - "lab/chr/verify_render_dry_run_chunked.py"
+      - "tests/test_chr_transaction_backup_acceptance_contract.py"
+      - ".github/workflows/chr-transaction-backup-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  chr-transaction-real-backup:
+    concurrency:
+      group: router-config-chr-transaction-real-backup-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and CHR backup dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip openssh-client sshpass
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Download official MikroTik CHR image on cache miss
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -4 --http1.1 -fL \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --retry 1 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o "$CHR_ARCHIVE"
+
+      - name: Prepare official CHR image
+        run: |
+          set -euo pipefail
+          test -s "$CHR_ARCHIVE"
+          sha256sum "$CHR_ARCHIVE" > /tmp/chr-download.sha256
+          unzip -p "$CHR_ARCHIVE" > /tmp/chr.img
+          test -s /tmp/chr.img
+
+      - name: Persist verified CHR archive cache
+        if: success() && steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Boot isolated CHR with REST and SSH forwarding
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9780-:80,hostfwd=tcp:127.0.0.1:9822-:22 \
+            -device virtio-net-pci,netdev=net0 \
+            -netdev user,id=net1 \
+            -device virtio-net-pci,netdev=net1 \
+            -netdev user,id=net2 \
+            -device virtio-net-pci,netdev=net2 \
+            -display none \
+            -serial file:/tmp/chr-transaction-real-backup-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-transaction-real-backup.pid
+
+      - name: Wait for disposable CHR REST
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9780/rest/system/resource \
+              > /tmp/chr-transaction-real-backup-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo 'Disposable CHR REST did not become reachable' >&2
+            cat /tmp/chr-transaction-real-backup-serial.log >&2 || true
+            exit 1
+          fi
+
+      - name: Capture real sanitized export and encrypted binary backup
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python lab/chr/verify_transaction_backup_acceptance.py \
+            --admin-url http://127.0.0.1:9780 \
+            --ssh-port 9822 \
+            --workflow-sha "$GITHUB_SHA" \
+            --export-output evidence/chr-transaction-prechange-export.rsc \
+            --output evidence/chr-transaction-real-backup.json
+          test ! -e evidence/routercfg-prechange-system.backup
+
+      - name: Validate sanitized real-backup evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          evidence_path = Path("evidence/chr-transaction-real-backup.json")
+          export_path = Path("evidence/chr-transaction-prechange-export.rsc")
+          payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+          export_bytes = export_path.read_bytes()
+
+          assert payload["ok"] is True
+          assert payload["acceptance"] == "PASS"
+          assert payload["workflow_sha"] == "${{ github.sha }}"
+          assert payload["scope"] == "disposable_chr_real_dual_prechange_backup_acceptance"
+          assert payload["backup_set"]["production_backup_requirements_satisfied"] is True
+          assert payload["sanitized_export"]["kind"] == "sanitized_export"
+          assert payload["protected_binary"]["kind"] == "protected_ephemeral_binary"
+          assert hashlib.sha256(export_bytes).hexdigest() == payload["sanitized_export"]["sha256"]
+
+          proof = payload["capture_proof"]
+          assert proof["sanitized_export_bytes"] == len(export_bytes)
+          assert proof["sanitized_export_bytes"] > 0
+          assert proof["sanitized_export_sha256_from_bytes"] is True
+          assert proof["protected_binary_bytes"] >= 128
+          assert proof["protected_binary_sha256_from_downloaded_bytes"] is True
+          assert proof["protected_binary_encryption_requested"] == "aes-sha256"
+          assert proof["backup_password_persisted"] is False
+          assert proof["fetch_password_persisted"] is False
+          assert proof["router_binary_removed"] is True
+          assert proof["runner_binary_removed"] is True
+          assert proof["temporary_fetch_user_removed"] is True
+          assert proof["router_export_removed_after_capture"] is True
+
+          assert payload["binary_payload_in_repository"] is False
+          assert payload["secret_values_present"] is False
+          assert payload["production_writer_available"] is False
+          assert payload["transport_exposed_to_product"] is False
+          assert payload["physical_router_targeted"] is False
+          assert payload["production_allowed"] is False
+          assert payload["write_authorized"] is False
+
+          lowered_export = export_bytes.decode("utf-8").lower()
+          assert "private-key=" not in lowered_export
+          assert "preshared-key=" not in lowered_export
+          assert not Path("evidence/routercfg-prechange-system.backup").exists()
+          print(json.dumps({
+              "acceptance": payload["acceptance"],
+              "workflow_sha": payload["workflow_sha"],
+              "pre_state_sha256": payload["pre_state_sha256"],
+              "sanitized_export_sha256": payload["sanitized_export"]["sha256"],
+              "protected_binary_sha256": payload["protected_binary"]["sha256"],
+              "sanitized_export_bytes": proof["sanitized_export_bytes"],
+              "protected_binary_bytes": proof["protected_binary_bytes"],
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Preserve repository-safe dual-backup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-transaction-real-backup-${{ github.sha }}
+          path: |
+            evidence/chr-transaction-real-backup.json
+            evidence/chr-transaction-prechange-export.rsc
+            /tmp/chr-transaction-real-backup-resource.json
+            /tmp/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          rm -f evidence/routercfg-prechange-system.backup /tmp/routercfg-prechange-system.backup || true
+          if [ -f /tmp/chr-transaction-real-backup.pid ]; then
+            kill "$(cat /tmp/chr-transaction-real-backup.pid)" 2>/dev/null || true
+          fi

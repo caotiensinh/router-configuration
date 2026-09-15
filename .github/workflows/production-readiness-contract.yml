@@ -1,0 +1,83 @@
+name: Production Readiness Contract
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-readiness-contract:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'ci(prod-readiness):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: router-config-production-readiness-contract
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+
+      - name: Run production-readiness contract regression
+        run: |
+          set -euo pipefail
+          python -m unittest -v \
+            tests.test_production_transaction_readiness \
+            tests.test_routerctl_production_readiness
+
+      - name: Record synthetic contract rehearsal evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/production-readiness
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "schema_version": "routeros-production-readiness-rehearsal/1",
+              "acceptance": "PASS",
+              "source_commit": os.environ["GITHUB_SHA"],
+              "scope": "synthetic_contract_rehearsal_only",
+              "validated_contracts": [
+                  "dual_prechange_backup",
+                  "management_guard",
+                  "applicable_post_apply_verification",
+                  "verified_success_outcome",
+                  "rollback_recovery_outcome",
+                  "runtime_capability_rejection",
+              ],
+              "production_backup_captured": False,
+              "physical_router_acceptance_claimed": False,
+              "production_execution_claimed": False,
+              "safety": {
+                  "secrets_present": False,
+                  "transport_present": False,
+                  "apply_available": False,
+                  "production_writer_available": False,
+                  "write_authorized": False,
+              },
+          }
+          Path("evidence/production-readiness/rehearsal.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(payload, indent=2, sort_keys=True))
+          PY
+
+      - name: Preserve production-readiness rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-readiness-contract-${{ github.sha }}
+          path: evidence/production-readiness/
+          if-no-files-found: error
+          retention-days: 14

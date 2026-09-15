@@ -1,0 +1,37 @@
+{
+  "schema_version": "mikrotik-offline-knowledge/1",
+  "vendor": "mikrotik",
+  "runtime_network_required": false,
+  "authority_policy": "current official manual and CLI reference define RouterOS behavior and syntax",
+  "records": [
+    {
+      "id": "cli-reference",
+      "topic": "syntax-authority",
+      "title": "RouterOS CLI Reference as syntax authority",
+      "summary": "The current RouterOS CLI Reference is generated automatically from RouterOS and exposes the command menus, properties, argument types, flags and paths available to the platform. Automation should therefore treat official CLI metadata and deterministic RouterOS renderers as the syntax authority. A reasoning model may select and order validated primitives, but it must not invent production CLI syntax.",
+      "source_url": "https://manual.mikrotik.com/docs/cli-reference/",
+      "routeros_paths": ["/"],
+      "keywords": ["cli", "reference", "syntax", "command", "argument", "path", "generated", "routeros", "compiler"],
+      "safety_rules": [
+        "AI may order or explain validated command primitives but must not invent RouterOS syntax",
+        "record the target RouterOS version before generation",
+        "production commands must originate from deterministic vendor renderers or validated tool schemas"
+      ]
+    },
+    {
+      "id": "scripting-import-validation",
+      "topic": "script-validation",
+      "title": "Sequential RouterOS script execution and import dry-run",
+      "summary": "RouterOS scripts execute commands sequentially. Configuration scripts can be imported from .rsc files, and verbose dry-run import can validate the script without changing configuration. This makes dependency-aware command ordering and dry-run validation mandatory gates before approval or execution.",
+      "source_url": "https://manual.mikrotik.com/docs/getting-started/configuration-management/",
+      "routeros_paths": ["/import", "/system/script"],
+      "keywords": ["script", "rsc", "import", "dry-run", "verbose", "sequence", "order", "validation", "dependency"],
+      "safety_rules": [
+        "run import verbose dry-run before any generated .rsc is authorized for apply",
+        "preserve explicit dependency ordering between configuration primitives",
+        "a dry-run error blocks approval and execution",
+        "AI ordering output references immutable command IDs rather than raw CLI"
+      ]
+    }
+  ]
+}

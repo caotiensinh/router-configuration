@@ -1,0 +1,108 @@
+{
+  "schema_version": "mikrotik-offline-knowledge/1",
+  "vendor": "mikrotik",
+  "runtime_network_required": false,
+  "authority_policy": "current official manual overrides legacy sources",
+  "records": [
+    {
+      "id": "rest-api",
+      "topic": "automation",
+      "title": "RouterOS REST API semantics",
+      "summary": "RouterOS REST is a JSON wrapper over RouterOS API/CLI behavior. GET maps to print/read, PATCH to set/update, PUT to add/create, DELETE to remove, and POST can invoke console commands. HTTPS should be preferred; plain HTTP is lab-only because credentials can be exposed.",
+      "source_url": "https://manual.mikrotik.com/docs/developer-guides/rest-api/",
+      "routeros_paths": ["/rest", "/ip/service"],
+      "keywords": ["rest", "api", "get", "put", "patch", "delete", "post", "automation", "https"],
+      "safety_rules": ["prefer www-ssl/HTTPS", "do not embed credentials in URLs", "writes require normal project admission and transaction gates"]
+    },
+    {
+      "id": "api",
+      "topic": "automation",
+      "title": "RouterOS native API",
+      "summary": "The native API is intended for information gathering, configuration adjustment, and router management and closely follows CLI syntax. Secure API service is preferred for production use.",
+      "source_url": "https://manual.mikrotik.com/docs/developer-guides/api/",
+      "routeros_paths": ["/ip/service"],
+      "keywords": ["api", "8728", "8729", "automation", "management"],
+      "safety_rules": ["prefer secure transport", "grant only the policies required by the selected micro-tools"]
+    },
+    {
+      "id": "safe-mode",
+      "topic": "transaction-safety",
+      "title": "Safe Mode and management survival",
+      "summary": "Safe Mode is designed to reduce lockout risk. Configuration changes made while Safe Mode is active are automatically undone if the session terminates abnormally. The history is finite, so management-critical changes should be small and verified incrementally.",
+      "source_url": "https://manual.mikrotik.com/docs/management-tools/console/",
+      "routeros_paths": ["/system/history"],
+      "keywords": ["safe mode", "rollback", "lockout", "history", "management path"],
+      "safety_rules": ["make management-critical changes in small verified batches", "never treat Safe Mode as protection for reboot-required operations"]
+    },
+    {
+      "id": "configuration-backup",
+      "topic": "backup",
+      "title": "Binary backup and text export",
+      "summary": "RouterOS supports binary system backup and human-readable configuration export. Binary backups contain sensitive device configuration and should be encrypted and stored securely. Text export does not include every sensitive or auxiliary data set and should be treated as a complementary artifact, not a substitute for binary backup.",
+      "source_url": "https://manual.mikrotik.com/docs/getting-started/configuration-management/backup/",
+      "routeros_paths": ["/system/backup", "/export", "/file"],
+      "keywords": ["backup", "export", "restore", "rsc", "binary", "handover"],
+      "safety_rules": ["encrypt binary backups", "record RouterOS version with every backup", "keep sanitized export and binary backup as separate artifacts"]
+    },
+    {
+      "id": "configuration-management",
+      "topic": "configuration-management",
+      "title": "Configuration management invariants",
+      "summary": "RouterOS records configuration actions in system history and supports undo/redo, Safe Mode, export/import, reset, and backup/restore. Import/export compatibility depends on RouterOS command availability, so version provenance must be recorded with deployment artifacts.",
+      "source_url": "https://manual.mikrotik.com/docs/getting-started/configuration-management/",
+      "routeros_paths": ["/system/history", "/export", "/import", "/system/backup"],
+      "keywords": ["configuration", "history", "undo", "redo", "import", "export", "version"],
+      "safety_rules": ["record RouterOS version", "verify idempotency before declaring deployment complete"]
+    },
+    {
+      "id": "firewall-stateful",
+      "topic": "security",
+      "title": "Stateful firewall baseline",
+      "summary": "RouterOS firewall supports stateful filtering through connection tracking. Established and related traffic can be recognized, invalid traffic should be dropped, and firewall/NAT policy must protect both the router input plane and forwarded LAN traffic.",
+      "source_url": "https://manual.mikrotik.com/docs/firewall-and-quality-of-service/firewall/",
+      "routeros_paths": ["/ip/firewall/filter", "/ip/firewall/nat", "/ip/firewall/connection"],
+      "keywords": ["firewall", "connection tracking", "established", "related", "invalid", "nat", "input", "forward"],
+      "safety_rules": ["preserve established/related return traffic", "drop invalid state", "deny unsolicited WAN access by default", "separate router-input policy from forwarding policy"]
+    },
+    {
+      "id": "router-hardening",
+      "topic": "security",
+      "title": "Management-plane hardening",
+      "summary": "Router management exposed from WAN must be minimized and source-restricted. Interface identity matters: applying a rule to the wrong public interface can cause lockout or unintended exposure. Strong credentials, least privilege, logging, and current RouterOS are part of the hardening baseline.",
+      "source_url": "https://manual.mikrotik.com/docs/getting-started/securing-your-router/",
+      "routeros_paths": ["/ip/service", "/user", "/ip/firewall/filter"],
+      "keywords": ["security", "hardening", "management", "wan", "ip service", "user", "ssh", "winbox"],
+      "safety_rules": ["deny WAN management unless explicitly required", "restrict management sources", "verify the actual WAN interface before applying policy"]
+    },
+    {
+      "id": "wireguard-peers",
+      "topic": "vpn",
+      "title": "WireGuard peer routing and keepalive",
+      "summary": "WireGuard allowed-address controls accepted source networks and peer-directed destinations; ranges cannot overlap on one interface. Persistent keepalive is used only when needed to keep a stateful firewall or NAT mapping alive. Handshake, RX/TX counters, and current endpoint are useful verification evidence.",
+      "source_url": "https://manual.mikrotik.com/docs/cli-reference/interface/wireguard/peers/",
+      "routeros_paths": ["/interface/wireguard", "/interface/wireguard/peers"],
+      "keywords": ["wireguard", "peer", "allowed-address", "persistent-keepalive", "handshake", "vpn", "nat"],
+      "safety_rules": ["reject overlapping allowed-address ranges", "do not route Internet default through site-to-site VPN unless explicitly requested", "verify a recent handshake and LAN-to-LAN reachability"]
+    },
+    {
+      "id": "bridge-vlan",
+      "topic": "switching",
+      "title": "Bridge VLAN filtering deployment order",
+      "summary": "Bridge VLAN filtering controls VLAN-aware Layer-2 forwarding. VLAN membership and management access must be prepared before vlan-filtering is enabled because enabling it can filter traffic to the CPU and lock out management. Hardware-offload behavior varies by switch chip and RouterOS version.",
+      "source_url": "https://manual.mikrotik.com/docs/bridging-and-switching/",
+      "routeros_paths": ["/interface/bridge", "/interface/bridge/port", "/interface/bridge/vlan"],
+      "keywords": ["bridge", "vlan", "vlan-filtering", "pvid", "tagged", "untagged", "management", "hardware offload"],
+      "safety_rules": ["configure management path before enabling vlan-filtering", "enable vlan-filtering last", "validate model/switch-chip capability before assuming hardware offload"]
+    },
+    {
+      "id": "first-time-backup",
+      "topic": "deployment",
+      "title": "Checkpoint backups during deployment",
+      "summary": "MikroTik recommends creating backups after major configuration sections. Automation should therefore create versioned checkpoints around management-critical milestones instead of only taking one backup at the end.",
+      "source_url": "https://manual.mikrotik.com/docs/getting-started/first-time-configuration/",
+      "routeros_paths": ["/export", "/system/backup"],
+      "keywords": ["first time", "checkpoint", "backup", "deployment", "milestone"],
+      "safety_rules": ["create pre-change backup", "create post-change verified backup", "retain milestone metadata"]
+    }
+  ]
+}

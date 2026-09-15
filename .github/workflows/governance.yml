@@ -1,0 +1,33 @@
+name: Governance Gate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate mandatory project governance
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python tools/governance/check_governance.py \
+            --root . \
+            --vendor mikrotik \
+            --json-output evidence/project-governance.json
+      - name: Preserve governance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-evidence-${{ github.sha }}
+          path: evidence/project-governance.json
+          if-no-files-found: warn
+          retention-days: 30

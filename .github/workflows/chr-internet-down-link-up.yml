@@ -1,0 +1,68 @@
+name: CHR Internet Down Link Up
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chr-internet-down-link-up:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'ci(chr-linkup):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: router-config-chr-link-up-failure
+      cancel-in-progress: false
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+      EVIDENCE_DIR: ${{ github.workspace }}/evidence/chr-internet-down-link-up
+      FLOW_COUNT: "220"
+      FLOW_TIMEOUT: "0.25"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and packet-flow lab dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils unzip iproute2
+          sudo -n true
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Run Internet-down while link remains up acceptance
+        run: |
+          set -euo pipefail
+          bash lab/chr/run_packet_flow_link_up_failure.sh
+
+      - name: Persist verified CHR archive cache
+        if: success() && steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Preserve link-up failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-internet-down-link-up-${{ github.sha }}
+          path: |
+            evidence/chr-internet-down-link-up/
+            /tmp/chr-packet-flow-serial.log
+            /tmp/chr-packet-flow-wan10-server.log
+            /tmp/chr-packet-flow-wan1-server.log
+          if-no-files-found: warn
+          retention-days: 14

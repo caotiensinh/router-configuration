@@ -1,0 +1,9 @@
+# Governance and vendor-rule ownership.
+# Enforcement requires repository branch/ruleset settings to require code-owner review.
+/MASTER_RULES.md @caotiensinh
+/AGENTS.md @caotiensinh
+/CONTRIBUTING.md @caotiensinh
+/governance/ @caotiensinh
+/vendors/*/VENDOR_RULES.md @caotiensinh
+/.github/workflows/governance.yml @caotiensinh
+/.github/pull_request_template.md @caotiensinh

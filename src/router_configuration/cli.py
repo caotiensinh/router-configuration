@@ -22,7 +22,7 @@ from .routeros_discovery import (
 )
 from .routeros_evidence import build_routeros_discovery_evidence
 from .routeros_state_contract import verify_routeros_discovery_evidence
-from .safe_subset_ir import SafeSubsetCompiler
+from .v1_extended_ir import V1ExtendedSafeSubsetCompiler
 
 
 def _load_json(path: str) -> Any:
@@ -198,7 +198,7 @@ def command_profile_check(args: argparse.Namespace) -> int:
 
 def command_profile_compile_ir(args: argparse.Namespace) -> int:
     try:
-        payload = SafeSubsetCompiler().compile(_load_json(args.profile)).as_dict()
+        payload = V1ExtendedSafeSubsetCompiler().compile(_load_json(args.profile)).as_dict()
         if args.output:
             _write_private_json(args.output, payload)
     except Exception as exc:  # noqa: BLE001 - bounded compiler error for guided CLI
