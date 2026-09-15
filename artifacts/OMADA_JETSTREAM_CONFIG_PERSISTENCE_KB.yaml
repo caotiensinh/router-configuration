@@ -1,0 +1,180 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_config_persistence_kb
+task: '4.02'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_MANAGED_SWITCH_GUIDE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+  - id: OMADA_MANAGED_SWITCH_CLI_GUIDE_2026
+    url: https://support.omadanetworks.com/us/document/4943/
+    document_url: https://static.tp-link.com/upload/manual/2026/202607/20260724/1900003588_Managed%20SwitchMulti-model_CLI.pdf
+    title: Managed Switch_CLI Guide
+    source_type: CLI_REFERENCE_GUIDE
+    portal_date: '2026-07-24'
+    document_revision: REV2.0.0
+    document_date: 'May 2026'
+    scope_note: Multi-model Managed Switch CLI guide; the preface defines the device as Managed Switch and notes regional model availability.
+  - id: OMADA_JETSTREAM_CLI_EXAMPLES_13117
+    url: https://support.omadanetworks.com/hk/document/13117/
+    title: Typical CLI Configuration Examples for TP-Link JetStream Switch
+    source_type: CONFIGURATION_GUIDE
+    scope_note: Generic JetStream CLI examples; exact model/firmware applicability is not inferred.
+
+governance:
+  no_model_inference: true
+  no_firmware_inference: true
+  no_management_mode_inference: true
+  exact_device_cli_support_required_before_execution: true
+  production_write_requires_human_approval: true
+  unmanaged_inventory_only_denied: true
+  hardware_reboot_persistence_requires_physical_or_protocol_evidence: true
+
+state_model:
+  running_config:
+    normalized_state: RUNNING_CONFIG
+    vendor_semantics: Current operating configuration of the system, unit or port in the current CLI guide scope.
+    persistence_semantics: >-
+      Changes are not treated as durable until saved to startup configuration.
+      The official JetStream example guide warns that unsaved configurations are lost on power-off or reboot.
+    source_ids:
+      - OMADA_MANAGED_SWITCH_CLI_GUIDE_2026
+      - OMADA_JETSTREAM_CLI_EXAMPLES_13117
+  startup_config:
+    normalized_state: STARTUP_CONFIG
+    vendor_semantics: Current configuration saved in the switch.
+    persistence_semantics: Official guide states the saved configuration will not be lost the next time the switch reboots.
+    source_ids:
+      - OMADA_MANAGED_SWITCH_CLI_GUIDE_2026
+
+commands:
+  - operation: SAVE_RUNNING_TO_STARTUP
+    command: copy running-config startup-config
+    abbreviation_from_example_guide: copy run start
+    command_mode: PRIVILEGED_EXEC
+    privilege_requirement:
+      roles:
+        - ADMIN
+        - OPERATOR
+      source: OMADA_MANAGED_SWITCH_CLI_GUIDE_2026
+    effect: Save current settings from running configuration to startup configuration.
+    write_risk: PERSISTENT_CONFIGURATION_WRITE
+    approval_required: true
+    exact_applicability_required: true
+  - operation: READ_RUNNING_CONFIG
+    command: show running-config
+    command_mode:
+      - PRIVILEGED_EXEC
+      - ANY_CONFIGURATION_MODE
+    privilege_requirement:
+      roles:
+        - ADMIN
+      source: OMADA_MANAGED_SWITCH_CLI_GUIDE_2026
+    effect: Display current operating configuration.
+    write_risk: READ_ONLY
+    exact_applicability_required: true
+  - operation: READ_STARTUP_CONFIG
+    command: show startup-config
+    command_mode:
+      - PRIVILEGED_EXEC
+      - ANY_CONFIGURATION_MODE
+    privilege_requirement:
+      roles:
+        - ADMIN
+      source: OMADA_MANAGED_SWITCH_CLI_GUIDE_2026
+    effect: Display the configuration currently saved in the switch.
+    write_risk: READ_ONLY
+    exact_applicability_required: true
+  - operation: WEB_GUI_SAVE
+    action: Click Save in the local Web GUI
+    source: OMADA_JETSTREAM_CLI_EXAMPLES_13117
+    effect: Save configuration through the Web GUI in the generic example-guide scope.
+    exact_applicability_required: true
+    note: Do not infer controller/cloud persistence semantics from this local-Web-GUI statement.
+
+privilege_asymmetry:
+  observed: true
+  statement: >-
+    The 2026 CLI guide allows Admin and Operator for copy running-config startup-config,
+    while show running-config and show startup-config are documented as Admin-only.
+  automation_consequence: >-
+    An Operator-role save may execute without permission to perform the canonical CLI read-back.
+    Such a transaction must remain EXECUTED_UNVERIFIED until an Admin or another exact, official verification path confirms the intended startup state.
+
+persistence_semantics:
+  unsaved_on_reboot_or_power_off:
+    normalized_result: LOST
+    source: OMADA_JETSTREAM_CLI_EXAMPLES_13117
+    boundary: Applies only where the generic JetStream example guide is applicable; do not universalize to unsupported models or unrelated runtime state.
+  saved_startup_on_next_reboot:
+    normalized_result: RETAINED
+    source: OMADA_MANAGED_SWITCH_CLI_GUIDE_2026
+    boundary: Vendor statement covers saved configuration at next reboot; it does not by itself prove every runtime subsystem state or external controller state.
+
+derived_behavior:
+  - id: RUNNING_STARTUP_CAN_DIVERGE
+    basis:
+      - running-config is current operating configuration
+      - startup-config is saved configuration
+      - explicit copy command saves running to startup
+    rule: Treat the two states as potentially different until a successful save and verification path establishes intended persistence.
+  - id: SAVE_IS_NOT_VERIFICATION
+    basis:
+      - save is a persistent write
+      - show commands provide independent read surfaces
+      - documented privilege requirements differ
+    rule: Command acceptance alone does not satisfy project PASS criteria for persistence when read-back is unavailable.
+
+safe_automation_contract:
+  preconditions:
+    - Resolve exact model/hardware/region/firmware/management-mode scope.
+    - Confirm the exact device is a supported managed-switch CLI target and is not unmanaged/inventory-only.
+    - Confirm authenticated role and CLI command applicability.
+    - Capture the intended configuration delta and obtain required production-write approval.
+  transaction:
+    - step: PRE_READ_RUNNING
+      operation: READ_RUNNING_CONFIG
+      required_when_role_allows: true
+    - step: PRE_READ_STARTUP
+      operation: READ_STARTUP_CONFIG
+      required_when_role_allows: true
+    - step: SAVE
+      operation: SAVE_RUNNING_TO_STARTUP
+      mutating: true
+    - step: POST_READ_STARTUP
+      operation: READ_STARTUP_CONFIG
+      required_for_verified_pass: true
+    - step: VERIFY_INTENDED_STATE
+      rule: Verify intended keys/objects semantically; do not assume byte-for-byte equality without exact-device canonicalization evidence.
+  outcomes:
+    verified: POST_READ_STARTUP confirms intended persisted configuration under applicable exact scope.
+    executed_unverified: Save command executed but authorized post-read evidence is unavailable or inconclusive.
+    blocked_by_privilege: Required save/read operation is not authorized for the authenticated role.
+    blocked_by_applicability: Exact device/firmware/management-mode support is unresolved or denied.
+
+rollback_boundary:
+  statement: >-
+    Task 4.02 normalizes persistence state and save/read behavior only. Backup files,
+    restore workflows, checkpoint rollback, firmware upgrade and disaster-recovery procedures
+    remain under later backup/restore/upgrade tasks unless needed as evidence boundaries.
+  deferred_task: '4.19'
+
+validation_cases:
+  - id: SAVE_ADMIN_WITH_READBACK
+    role: ADMIN
+    expected: VERIFIED when exact applicability is confirmed and post-save startup read-back contains intended state.
+  - id: SAVE_OPERATOR_WITHOUT_SHOW_PERMISSION
+    role: OPERATOR
+    expected: EXECUTED_UNVERIFIED until authorized read-back is obtained.
+  - id: UNSAVED_CHANGE_BEFORE_REBOOT
+    expected: Treat as volatile and at risk of loss; do not certify persistence.
+  - id: UNMANAGED_SWITCH
+    expected: NOT_APPLICABLE for CLI persistence automation.
+  - id: UNKNOWN_EXACT_FIRMWARE_SUPPORT
+    expected: BLOCKED_BY_APPLICABILITY; fail closed.
+
+closure:
+  task_4_02_complete: true
+  boundary: >-
+    Running/startup semantics, save command, read-back commands, reboot/power-off persistence,
+    privilege asymmetry and exact-scope fail-closed rules are normalized for official managed-switch guide scope.
+  next_task: 4.03 Physical port status / speed / duplex

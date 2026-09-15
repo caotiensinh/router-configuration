@@ -1,0 +1,47 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_config_persistence
+task: '4.02'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_OFFICIAL_MANAGED_SWITCH_GUIDE_SCOPE
+authority: TP-Link / Omada official documentation only
+scope:
+  product_family: JetStream / Omada managed switches
+  source_scope: >-
+    Multi-model Managed Switch CLI Reference Guide REV2.0.0 plus the official
+    Typical CLI Configuration Examples guide. Exact model, hardware, firmware,
+    region, management mode, privilege and runtime support must be verified
+    before execution.
+configuration_state_enum:
+  - RUNNING_CONFIG
+  - STARTUP_CONFIG
+persistence_action_enum:
+  - READ_RUNNING_CONFIG
+  - READ_STARTUP_CONFIG
+  - SAVE_RUNNING_TO_STARTUP
+  - WEB_GUI_SAVE
+verification_state_enum:
+  - VERIFIED
+  - EXECUTED_UNVERIFIED
+  - BLOCKED_BY_PRIVILEGE
+  - BLOCKED_BY_APPLICABILITY
+  - NOT_APPLICABLE
+  - UNKNOWN
+required_scope_fields:
+  - exact_model
+  - hardware_revision
+  - region_scope
+  - firmware_release
+  - management_mode
+  - access_method
+  - authenticated_role
+rules:
+  - Never infer persistence-command support solely from switch-family membership.
+  - Never promote unmanaged or inventory-only switches into CLI configuration targets.
+  - RUNNING_CONFIG means the current operating configuration in the official guide scope.
+  - STARTUP_CONFIG means the configuration saved in the switch that persists across the next reboot in the official guide scope.
+  - Unsaved changes must be treated as volatile with respect to reboot or power-off when the official guide applies.
+  - SAVE_RUNNING_TO_STARTUP is a write operation and requires production-write approval under project governance.
+  - A successful save command is not sufficient for PASS when read-back is unavailable; record EXECUTED_UNVERIFIED until an authorized verification path succeeds.
+  - Do not require byte-for-byte running/startup output equality unless exact-device output canonicalization has been separately verified.
+  - Controller-managed persistence semantics are not inferred from local CLI/Web GUI behavior.
+  - Virtual validation may verify workflow logic but cannot certify physical reboot/power-loss persistence.
