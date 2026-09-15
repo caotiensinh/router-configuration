@@ -56,23 +56,25 @@ class CHRPacketFlowContractTests(unittest.TestCase):
         self.assertIn("--tag WAN10", source)
         self.assertIn("--tag WAN1", source)
 
-    def test_harness_is_fail_closed_and_runs_runtime_invalid_rule_diagnostic(self):
+    def test_harness_is_fail_closed_and_keeps_acceptance_pristine(self):
         source = HARNESS.read_text(encoding="utf-8")
         self.assertIn("set -Eeuo pipefail", source)
         self.assertNotIn("set +e", source)
-        self.assertIn("ensure_connection_tracking_ready.py", source)
-        self.assertIn("connection-tracking-readiness.json", source)
-        self.assertIn("probe_pcc_pristine_runtime.py", source)
-        self.assertIn("--fingerprint-mode none", source)
-        self.assertLess(
-            source.index("ensure_connection_tracking_ready.py"),
-            source.index("probe_pcc_pristine_runtime.py"),
-        )
-        self.assertIn("pcc-pristine-runtime.json", source)
+        # The hard acceptance must start from a clean CHR and apply only the
+        # managed product fixture.  Mutation-heavy readiness/pristine probes
+        # are separate RCA tools because RouterOS 7.24.1 can retain runtime
+        # registration state after those probe objects are deleted.
+        self.assertNotIn("ensure_connection_tracking_ready.py", source)
+        self.assertNotIn("probe_pcc_pristine_runtime.py", source)
+        self.assertIn("verify_packet_flow_behavior.py\" prepare", source)
         self.assertIn("diagnose_pcc_runtime.py", source)
         self.assertIn("pcc-runtime-diagnostic.json", source)
         self.assertIn("managed_invalid_count", source)
         self.assertIn("raise SystemExit(19)", source)
+        self.assertLess(
+            source.index("verify_packet_flow_behavior.py\" prepare"),
+            source.index("diagnose_pcc_runtime.py"),
+        )
 
     def test_harness_measures_normal_failure_and_recovery_without_live_credentials(self):
         source = HARNESS.read_text(encoding="utf-8")
@@ -98,7 +100,9 @@ class CHRPacketFlowContractTests(unittest.TestCase):
         self.assertIn("LoopbackCHRAdmin", source)
         self.assertIn("assert_disposable_chr", source)
         self.assertIn("_delete_diagnostics(admin)", source)
+        self.assertIn("managed_rule_runtime_readback_without_synthetic_mutation", source)
         self.assertIn("routeros_cli_import_existing_mark_and_modulus_matrix", source)
+        self.assertIn("--deep", source)
         self.assertIn("mc_existing_plain", source)
         self.assertIn("mc_existing_pcc_2_1", source)
         self.assertIn("mc_existing_pcc_11_1", source)
@@ -184,6 +188,8 @@ class CHRPacketFlowContractTests(unittest.TestCase):
         source = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("ci(chr-flow):", source)
         self.assertIn("run_packet_flow_acceptance.sh", source)
+        # Diagnostic tools remain workflow trigger dependencies, but the hard
+        # harness itself must not execute the mutation-heavy pristine probe.
         self.assertIn('lab/chr/probe_pcc_pristine_runtime.py', source)
         self.assertIn("qemu-system-x86", source)
         self.assertIn("iproute2", source)
