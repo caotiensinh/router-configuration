@@ -126,6 +126,22 @@ The resulting plan records:
 
 The last field is deliberate: planning a lane does not claim a worker has been launched.
 
+## Activation semantics
+
+The 500-lane manifest means that `LANE-0001` through `LANE-0500` are **available scheduling slots**. A lane becomes active only when a real external worker has received a concrete task assignment for that lane.
+
+The scheduler must distinguish three numbers:
+
+```text
+lane_capacity          = 500
+assigned_lane_count    = number of assignments in the current wave
+active_worker_count    = number of workers actually confirmed running
+```
+
+`active_worker_count` must never be inferred from `lane_capacity` or `assigned_lane_count`. If the execution environment supplies only 20 workers, a 500-lane plan can still be generated, but only those 20 workers are active at that moment.
+
+This distinction prevents synthetic concurrency claims while still allowing the repository to scale immediately when more workers become available.
+
 ## Worker protocol
 
 An external AI/worker consuming a lane should:
