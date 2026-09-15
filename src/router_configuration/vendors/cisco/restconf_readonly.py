@@ -16,7 +16,10 @@ from xml.etree import ElementTree as ET
 from .knowledge import CiscoOfflineKnowledge
 
 MAX_RESTCONF_BODY_BYTES = 512 * 1024
+MAX_CAPABILITY_URI_LENGTH = 4096
 XRD_NS = "http://docs.oasis-open.org/ns/xri/xrd-1.0"
+RESTCONF_MONITORING_NS = "urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring"
+FIELDS_CAPABILITY = "urn:ietf:params:restconf:capability:fields:1.0"
 
 _SENSITIVE_KEY_PARTS = (
     "password",
@@ -62,6 +65,13 @@ class RestconfRootEvidence:
 
 
 @dataclass(frozen=True)
+class RestconfCapabilityInventory:
+    capabilities: tuple[str, ...]
+    supports_fields: bool
+    digest_sha256: str
+
+
+@dataclass(frozen=True)
 class RestconfNativeIdentity:
     hostname: str
     iosxe_version: str
@@ -102,6 +112,7 @@ def validate_restconf_request(
     headers: Mapping[str, str],
     verify_tls: bool,
     allow_redirects: bool,
+    observed_capabilities: RestconfCapabilityInventory | None = None,
     knowledge: CiscoOfflineKnowledge | None = None,
 ) -> RestconfReadOnlyRequestDecision:
     try:
@@ -140,6 +151,24 @@ def validate_restconf_request(
             method=normalized_method,
             reason="RESTCONF evidence requests must not follow redirects",
         )
+
+    if query_id == "native-identity":
+        if observed_capabilities is None:
+            return RestconfReadOnlyRequestDecision(
+                allowed=False,
+                status="CAPABILITY_EVIDENCE_REQUIRED",
+                query_id=query_id,
+                method=normalized_method,
+                reason="native identity fields query requires observed RESTCONF capabilities",
+            )
+        if not observed_capabilities.supports_fields:
+            return RestconfReadOnlyRequestDecision(
+                allowed=False,
+                status="REQUIRED_CAPABILITY_MISSING",
+                query_id=query_id,
+                method=normalized_method,
+                reason="server did not advertise RESTCONF fields capability",
+            )
 
     parsed = urlsplit(url)
     if parsed.scheme.lower() != "https" or not parsed.hostname:
@@ -215,6 +244,17 @@ def _bounded_text(body: str | bytes) -> str:
     return text
 
 
+def _parse_safe_xml(body: str | bytes, label: str) -> ET.Element:
+    text = _bounded_text(body)
+    upper = text.upper()
+    if "<!DOCTYPE" in upper or "<!ENTITY" in upper:
+        raise CiscoRestconfEvidenceError("DTD/entity declarations are not accepted")
+    try:
+        return ET.fromstring(text)
+    except ET.ParseError as exc:
+        raise CiscoRestconfEvidenceError(f"invalid {label} XML: {exc}") from exc
+
+
 def parse_restconf_root_discovery(
     *,
     status_code: int,
@@ -225,14 +265,7 @@ def parse_restconf_root_discovery(
         raise CiscoRestconfEvidenceError("RESTCONF root discovery requires HTTP 200")
     if _media_type(content_type) != "application/xrd+xml":
         raise CiscoRestconfEvidenceError("RESTCONF root discovery content type mismatch")
-    text = _bounded_text(body)
-    upper = text.upper()
-    if "<!DOCTYPE" in upper or "<!ENTITY" in upper:
-        raise CiscoRestconfEvidenceError("DTD/entity declarations are not accepted")
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError as exc:
-        raise CiscoRestconfEvidenceError(f"invalid RESTCONF root XRD: {exc}") from exc
+    root = _parse_safe_xml(body, "RESTCONF root XRD")
     if root.tag != f"{{{XRD_NS}}}XRD":
         raise CiscoRestconfEvidenceError("RESTCONF root discovery expected an XRD document")
     links = [
@@ -246,6 +279,51 @@ def parse_restconf_root_discovery(
     return RestconfRootEvidence(
         root_href="/restconf",
         digest_sha256=_canonical_sha256({"root_href": "/restconf"}),
+    )
+
+
+def parse_restconf_capabilities_xml(
+    *,
+    status_code: int,
+    content_type: str,
+    body: str | bytes,
+) -> RestconfCapabilityInventory:
+    if status_code != 200:
+        raise CiscoRestconfEvidenceError("RESTCONF capability discovery requires HTTP 200")
+    if _media_type(content_type) != "application/yang-data+xml":
+        raise CiscoRestconfEvidenceError("RESTCONF capability content type mismatch")
+    root = _parse_safe_xml(body, "RESTCONF capabilities")
+    expected_root = f"{{{RESTCONF_MONITORING_NS}}}capabilities"
+    expected_child = f"{{{RESTCONF_MONITORING_NS}}}capability"
+    if root.tag != expected_root:
+        raise CiscoRestconfEvidenceError("RESTCONF capability response expected capabilities container")
+    if root.attrib:
+        raise CiscoRestconfEvidenceError("RESTCONF capabilities container has unexpected attributes")
+
+    values: set[str] = set()
+    for child in list(root):
+        if child.tag != expected_child or child.attrib or list(child):
+            raise CiscoRestconfEvidenceError("RESTCONF capability response contains unexpected structure")
+        value = (child.text or "").strip()
+        if not value:
+            raise CiscoRestconfEvidenceError("RESTCONF capability URI is empty")
+        if len(value) > MAX_CAPABILITY_URI_LENGTH:
+            raise CiscoRestconfEvidenceError("RESTCONF capability URI exceeds bounded length")
+        if any(character.isspace() for character in value):
+            raise CiscoRestconfEvidenceError("RESTCONF capability URI contains whitespace")
+        values.add(value)
+
+    capabilities = tuple(sorted(values))
+    if not capabilities:
+        raise CiscoRestconfEvidenceError("RESTCONF capability inventory is empty")
+    evidence = {
+        "capabilities": capabilities,
+        "supports_fields": FIELDS_CAPABILITY in values,
+    }
+    return RestconfCapabilityInventory(
+        capabilities=capabilities,
+        supports_fields=evidence["supports_fields"],
+        digest_sha256=_canonical_sha256(evidence),
     )
 
 

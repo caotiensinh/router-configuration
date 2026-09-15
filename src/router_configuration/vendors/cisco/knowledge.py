@@ -262,8 +262,16 @@ class CiscoOfflineKnowledge:
         if not isinstance(queries, list) or not queries:
             raise CiscoKnowledgeError("Cisco RESTCONF catalog must define evidence queries")
         query_ids: set[str] = set()
-        allowed_accept = {"application/xrd+xml", "application/yang-data+json"}
-        allowed_response_kind = {"restconf_root_xrd", "native_identity_json"}
+        allowed_accept = {
+            "application/xrd+xml",
+            "application/yang-data+xml",
+            "application/yang-data+json",
+        }
+        allowed_response_kind = {
+            "restconf_root_xrd",
+            "restconf_capabilities_xml",
+            "native_identity_json",
+        }
         for query in queries:
             query_id = query.get("id")
             if not isinstance(query_id, str) or not query_id or query_id in query_ids:
@@ -288,6 +296,36 @@ class CiscoOfflineKnowledge:
                 raise CiscoKnowledgeError(
                     f"Cisco RESTCONF query must be bounded to secret-safe evidence: {query_id}"
                 )
+
+        expected_capability_query = {
+            "relative_uri": "/restconf/data/ietf-restconf-monitoring:restconf-state/capabilities",
+            "accept": "application/yang-data+xml",
+            "response_kind": "restconf_capabilities_xml",
+        }
+        capability_query = next(
+            (query for query in queries if query.get("id") == "restconf-capabilities"),
+            None,
+        )
+        if capability_query is None or any(
+            capability_query.get(key) != value
+            for key, value in expected_capability_query.items()
+        ):
+            raise CiscoKnowledgeError(
+                "Cisco RESTCONF catalog must source-bind capability discovery"
+            )
+
+        fields_capability = "urn:ietf:params:restconf:capability:fields:1.0"
+        identity_query = next(
+            (query for query in queries if query.get("id") == "native-identity"),
+            None,
+        )
+        if (
+            identity_query is None
+            or identity_query.get("required_observed_capabilities") != [fields_capability]
+        ):
+            raise CiscoKnowledgeError(
+                "Cisco RESTCONF native identity query must require observed fields capability"
+            )
 
         admission = restconf_catalog.get("admission_boundaries", {})
         if admission.get("live_target_required_for_c04_completion") is not True:

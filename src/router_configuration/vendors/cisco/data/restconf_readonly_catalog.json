@@ -38,10 +38,24 @@
       "secret_safe_scope": true
     },
     {
+      "id": "restconf-capabilities",
+      "relative_uri": "/restconf/data/ietf-restconf-monitoring:restconf-state/capabilities",
+      "accept": "application/yang-data+xml",
+      "response_kind": "restconf_capabilities_xml",
+      "source_ids": [
+        "CISCO-IOSXE-17.18-RESTCONF",
+        "CISCO-IOSXE-26-RESTCONF"
+      ],
+      "secret_safe_scope": true
+    },
+    {
       "id": "native-identity",
       "relative_uri": "/restconf/data/Cisco-IOS-XE-native:native?fields=hostname;version",
       "accept": "application/yang-data+json",
       "response_kind": "native_identity_json",
+      "required_observed_capabilities": [
+        "urn:ietf:params:restconf:capability:fields:1.0"
+      ],
       "source_ids": [
         "CISCO-IOSXE-17.18-RESTCONF",
         "CISCO-IOSXE-26-RESTCONF",
