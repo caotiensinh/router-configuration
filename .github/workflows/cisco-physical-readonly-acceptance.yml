@@ -1,0 +1,70 @@
+name: Cisco Physical Read-Only Acceptance Contract
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/physical_acceptance.py"
+      - "src/router_configuration/vendors/cisco/data/physical_acceptance_catalog.json"
+      - "tests/test_cisco_physical_acceptance.py"
+      - "docs/cisco/PHYSICAL_READONLY_ACCEPTANCE.md"
+      - ".github/workflows/cisco-physical-readonly-acceptance.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/physical_acceptance.py"
+      - "src/router_configuration/vendors/cisco/data/physical_acceptance_catalog.json"
+      - "tests/test_cisco_physical_acceptance.py"
+      - "docs/cisco/PHYSICAL_READONLY_ACCEPTANCE.md"
+      - ".github/workflows/cisco-physical-readonly-acceptance.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run C11 physical read-only contract tests
+        run: python -m unittest tests.test_cisco_physical_acceptance -v
+      - name: Record contract-only C11 evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from router_configuration.vendors.cisco.physical_acceptance import physical_acceptance_catalog_digest
+
+          result = {
+              "schema_version": "cisco-c11-contract-evidence/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "physical_readonly_acceptance_contract_ready_human_attested_live_evidence_required",
+              "catalog_digest_sha256": physical_acceptance_catalog_digest(),
+              "human_attestation_required": True,
+              "live_physical_evidence_observed": False,
+              "synthetic_fixture_can_complete_c11": False,
+              "virtual_evidence_can_complete_c11": False,
+              "eligible_claim_validated": False,
+              "c11_complete": False,
+              "physical_device_verified": False,
+              "production_write_authorized": False,
+          }
+          with open("evidence/cisco/c11-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - name: Preserve C11 contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-physical-readonly-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c11-contract.json
+          if-no-files-found: error
+          retention-days: 30

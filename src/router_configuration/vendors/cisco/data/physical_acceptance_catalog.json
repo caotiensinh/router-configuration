@@ -1,0 +1,36 @@
+{
+  "schema_version": "cisco-iosxe-physical-readonly-acceptance/1",
+  "vendor": "Cisco",
+  "os_family": "IOS XE",
+  "target_kinds": [
+    "physical_router",
+    "physical_switch"
+  ],
+  "transports": [
+    "netconf",
+    "restconf"
+  ],
+  "human_attestation_required": true,
+  "read_only_required": true,
+  "synthetic_fixture_can_complete_c11": false,
+  "virtual_evidence_can_complete_c11": false,
+  "automatic_physical_device_verification": false,
+  "production_write_authorized": false,
+  "required_sanitized_fields": [
+    "target_kind",
+    "model",
+    "iosxe_version",
+    "transport",
+    "source_sha",
+    "schema_inventory_digest_sha256",
+    "observation_digest_sha256",
+    "target_identity_digest_sha256",
+    "human_attestation_digest_sha256",
+    "evidence_origin",
+    "human_attested",
+    "read_only",
+    "write_attempted",
+    "virtualization"
+  ],
+  "acceptance_boundary": "Validator eligibility is not final C11 acceptance. A human must review an identified physical IOS XE read-only evidence bundle. Contract CI and synthetic fixtures cannot award C11 points."
+}
