@@ -1,0 +1,133 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "9284185238c87c156d8697896b1c4f4899a96e26",
+  "purpose": "Parallel official-source research/review for Omada Phase 4.08 before one serialized integration write.",
+  "tasks": [
+    {
+      "task_id": "OMADA-4.08-CLI-VLAN1-DEFAULT-IP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.08-CLI-STATIC-DHCP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.08-CLI-SVI-CREATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.08-CONTROLLER-VLAN-INTERFACE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.08-CONTROLLER-MGMT-VLAN",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.08-CONTROLLER-STATIC-IP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.08-ADOPTION-PRESERVATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.08-ROUTING-DEPENDENCY",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.08-READBACK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.08-MGMT-PATH-CUTOVER",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.08-ROLLBACK-PERSISTENCE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.08-APPLICABILITY-VALIDATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.08-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_VLAN_INTERFACE_MANAGEMENT_IP_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_VLAN_INTERFACE_MANAGEMENT_IP_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_VLAN_INTERFACE_MANAGEMENT_IP_KB.md",
+        "orchestration/OMADA_PHASE4_08_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_08_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.08-CLI-VLAN1-DEFAULT-IP",
+        "OMADA-4.08-CLI-STATIC-DHCP",
+        "OMADA-4.08-CLI-SVI-CREATION",
+        "OMADA-4.08-CONTROLLER-VLAN-INTERFACE",
+        "OMADA-4.08-CONTROLLER-MGMT-VLAN",
+        "OMADA-4.08-CONTROLLER-STATIC-IP",
+        "OMADA-4.08-ADOPTION-PRESERVATION",
+        "OMADA-4.08-ROUTING-DEPENDENCY",
+        "OMADA-4.08-READBACK",
+        "OMADA-4.08-MGMT-PATH-CUTOVER",
+        "OMADA-4.08-ROLLBACK-PERSISTENCE",
+        "OMADA-4.08-APPLICABILITY-VALIDATION"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.08"
+      ],
+      "priority": 110
+    }
+  ]
+}

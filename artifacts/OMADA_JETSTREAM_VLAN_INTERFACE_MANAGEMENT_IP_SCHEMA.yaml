@@ -1,0 +1,63 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_vlan_interface_management_ip
+task: '4.08'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_OFFICIAL_VLAN_INTERFACE_MANAGEMENT_IP_SCOPE
+authority: TP-Link / Omada official documentation only
+scope:
+  product_family: Omada / JetStream managed-switch VLAN-interface and management-IP knowledge
+  source_scope: Official generic JetStream CLI examples plus current Omada Controller VLAN-interface, Management VLAN, static-IP
+    and adoption guidance. Exact model, hardware revision, region, firmware, management mode, L3 capability, privilege, controller
+    version and runtime support remain execution gates.
+normalized_fields:
+- vlan_id
+- interface_role
+- ip_address_mode
+- ipv4_address
+- subnet_mask
+- management_vlan
+- management_interface
+- dhcp_state
+- routing_dependency
+- management_path_state
+- verification_state
+- persistence_state
+interface_role_enum:
+- VLAN_INTERFACE
+- MANAGEMENT_INTERFACE
+- BOTH
+- UNKNOWN
+ip_address_mode_enum:
+- STATIC
+- DHCP
+- UNKNOWN
+verification_state_enum:
+- VERIFIED
+- EXECUTED_UNVERIFIED
+- BLOCKED_BY_APPLICABILITY
+- BLOCKED_BY_CAPABILITY
+- BLOCKED_BY_PRIVILEGE
+- BLOCKED_BY_MANAGEMENT_PATH_RISK
+- BLOCKED_BY_ROUTING_DEPENDENCY
+- NOT_APPLICABLE
+- UNKNOWN
+rules:
+- A VLAN interface/SVI is a Layer-3 interface associated with a VLAN; it is not automatically the switch management interface.
+- The management VLAN/interface is tracked separately from other VLAN interfaces and determines the management path only where
+  the applicable source documents that behavior.
+- Generic JetStream CLI examples document VLAN 1 with DHCP addressing and fallback 192.168.0.1 in that source scope; never
+  promote this to an exact-device invariant without model/firmware evidence.
+- Generic CLI static addressing uses interface vlan <ID> plus ip address <IPv4> <mask>; DHCP mode uses ip address-alloc dhcp.
+- show ip interface is the canonical generic CLI read-back surface used here for interface state, address and DHCP/static
+  origin.
+- Creating additional VLAN interfaces may provide inter-VLAN routing only on exact devices/scopes that support the documented
+  L3 behavior; do not infer L3 capability from VLAN membership alone.
+- Changing management VLAN or management IP can sever the active session. Require a verified alternate/recovery path before
+  mutation.
+- Do not infer Controller object semantics from standalone CLI syntax or vice versa.
+- Static/default routing needed for off-subnet management is a dependency; detailed routing configuration remains task 4.17.
+- Controller V6 adoption-preservation behavior must remain firmware/applicability scoped and must not be generalized to Agile
+  switches or incompatible firmware.
+- Standalone CLI running-state success is not reboot durability; persistence follows task 4.02 after semantic verification.
+- Rollback restores exact observed pre-change interface role, management VLAN, IP mode/address/mask and relevant uplink dependencies;
+  never assume fallback/default addresses are the correct rollback target.

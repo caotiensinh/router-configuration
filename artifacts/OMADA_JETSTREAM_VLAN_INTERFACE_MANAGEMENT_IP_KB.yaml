@@ -1,0 +1,188 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_vlan_interface_management_ip_kb
+task: '4.08'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_VLAN_INTERFACE_MANAGEMENT_IP_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: OMADA_JETSTREAM_TYPICAL_CLI_2026
+  url: https://support.omadanetworks.com/us/document/13117/?app=tapo_website
+  title: Typical CLI Configuration Examples for TP-Link JetStream Switch
+  source_type: CONFIGURATION_GUIDE
+  retrieved_at: '2026-09-15'
+  scope_note: Generic CLI VLAN-interface and switch-IP examples. Exact model/interface/L3 applicability is not inferred.
+- id: OMADA_CONTROLLER_VLAN_INTERFACES_STATIC_ROUTES
+  url: https://support.omadanetworks.com/jp/document/13183/
+  title: How to configure VLAN Interfaces and Static Routes on Omada Switches
+  source_type: CONFIGURATION_GUIDE
+  page_date: '2025-07-31'
+  scope_note: Controller workflow for Omada Smart, L2+ and L3 switches with Controller v5.9+; routing syntax remains outside
+    task 4.08.
+- id: OMADA_MANAGEMENT_VLAN_V6_2
+  url: https://support.omadanetworks.com/uk/document/110372/
+  title: How to configure Management VLAN for Omada Devices
+  source_type: CONFIGURATION_GUIDE
+  page_date: '2026-05-08'
+  scope_note: Controller v6.2+ management-VLAN workflow for Omada AP/Switch. Controller-mode semantics only.
+- id: OMADA_CONTROLLER_STATIC_IP
+  url: https://support.omadanetworks.com/en/document/13074/?app=tether
+  title: How to assign Static IP addresses for Omada Devices with Omada SDN Controller
+  source_type: CONFIGURATION_GUIDE
+  retrieved_at: '2026-09-15'
+  scope_note: Controller-managed switch static IP is configured on the Management VLAN interface.
+- id: OMADA_V6_ADOPTION_PRESERVATION
+  url: https://support.omadanetworks.com/en/document/110873/?app=tether
+  title: How to Maintain Management VLAN and Port Settings When Adopting Switches on Omada Network V6
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-08-18'
+  scope_note: Omada Network V6 plus compatible switch firmware; excludes Omada Agile switches in the cited guidance.
+parallel_lane_execution:
+  task_manifest: orchestration/OMADA_PHASE4_08_PARALLEL_TASKS.json
+  plan: orchestration/OMADA_PHASE4_08_PARALLEL_PLAN.json
+  wave_1_read_only_lanes: 12
+  wave_2_integration_lanes: 1
+  external_worker_processes_claimed: 0
+  rule: Parallel evidence lanes are assignment slots; write ownership remains serialized.
+canonical_semantics:
+  vlan_interface: Layer-3 interface associated with a VLAN; may be assigned a static address or obtain one through DHCP in
+    documented scopes.
+  management_interface: The VLAN interface/network used for device management in the applicable management plane; it is not
+    automatically every configured SVI.
+  separation_rule: VLAN membership/PVID, VLAN-interface IP state, and management-VLAN designation are separate state planes
+    and must be discovered/verified independently.
+  routing_boundary: Additional SVI creation can introduce L3 forwarding on capable devices. Routing/default-route/static-route
+    requirements are dependencies only here; detailed routing remains 4.17.
+standalone_cli:
+  source_scoped_default:
+    interface: VLAN 1 IP interface
+    address_mode: DHCP
+    fallback_ipv4: 192.168.0.1
+    normalization: GENERIC_GUIDE_SCOPE_ONLY_NOT_EXACT_DEVICE_INVARIANT
+  read_back:
+    command: show ip interface
+    required_observations:
+    - interface VLAN identity
+    - interface up/down and line-protocol state where shown
+    - primary IPv4/prefix
+    - address origin such as DHCP/static where shown
+  static_address:
+    sequence:
+    - interface vlan <VLAN_ID>
+    - ip address <IPv4_ADDRESS> <SUBNET_MASK>
+    boundary: Exact command support, VLAN-interface existence/creation semantics, privilege and model capability remain runtime
+      gates.
+  dhcp_address:
+    sequence:
+    - interface vlan <VLAN_ID>
+    - ip address-alloc dhcp
+    boundary: DHCP server reachability must be verified before changing a live management interface.
+  new_vlan_interface:
+    entry: interface vlan <VLAN_ID>
+    examples:
+      vlan20_static: 192.168.20.1/24
+      vlan30_dhcp: true
+    l3_boundary: The generic guide states that IP interfaces on different VLANs can implement inter-VLAN routing in its scope;
+      never infer this capability for unmanaged or exact models without positive evidence.
+  prompt_boundary: The example page contains prompt-label inconsistencies around VLAN-interface mode. Normalize the documented
+    command sequence, not the literal prompt text, and revalidate exact syntax before execution.
+controller_mode:
+  vlan_interface_workflow:
+    applicability_from_guide:
+    - Omada Smart switches
+    - Omada L2+ switches
+    - Omada L3 switches
+    - Omada Controller v5.9+
+    operations:
+    - Create VLAN/network object
+    - Enable corresponding VLAN Interface on target switch
+    - Choose IP Address Mode such as Static on documented interface
+    - Configure DHCP mode only when explicitly required by the design
+    routing_dependency: Static routes/default route may be required for internet/off-subnet reachability; detailed route creation
+      is deferred to 4.17.
+  management_vlan_v6_2:
+    controller_minimum: v6.2+
+    default_semantics: The cited guide states the management VLAN is the LAN network by default in centrally managed Omada
+      SDN Controller.
+    custom_workflow:
+    - Create the management network/VLAN
+    - Enable its VLAN Interface on the switch
+    - Enable Management VLAN on that interface
+    - Ensure the controller/device uplink tagging/PVID design preserves reachability
+    - Allow time for the device to obtain/use its new management IP
+    cloud_boundary: The cited guide says Cloud-Based Controller does not require this management-VLAN configuration because
+      management and user data are separated; retain that statement only in this guide scope.
+  static_ip:
+    path: Devices > Switch > Manage Device > Config > VLAN Interface > Management VLAN interface
+    mode: Static
+    behavior: Once a static IP is assigned in the cited controller workflow, the device no longer requests its address through
+      DHCP.
+  adoption_preservation:
+    scope: Omada Network V6+ with compatible switch firmware; cited guide excludes Omada Agile switches.
+    preserved_preconfiguration:
+    - Management VLAN and Interface
+    - Static IP of the Interface
+    - Static routes
+    - Native VLAN on the port
+    - Port speed
+    safety: Never assume preservation when controller/firmware compatibility is unresolved.
+management_path_safety:
+  preconditions:
+  - Resolve exact model/hardware/region/firmware/management mode and L3 capability.
+  - Discover current management VLAN/interface, IP mode/address/mask and current reachable management IP.
+  - Discover current port tagged/untagged/PVID path carrying management traffic.
+  - If changing to DHCP, prove DHCP availability on the target management VLAN.
+  - If off-subnet access is required, resolve gateway/static-route dependency without inventing 4.17 syntax.
+  - Establish a verified alternate or recovery path before changing live management addressing/VLAN.
+  - Obtain production-write approval.
+  write:
+  - Apply only the intended VLAN-interface or management-IP delta.
+  - Do not implicitly change unrelated port VLAN membership/PVID.
+  - Do not implicitly add/delete static routes; 4.17 owns route syntax.
+  - Do not disable the previous management interface until new-path verification proves recovery is safe unless an exact approved
+    workflow explicitly requires coordinated cutover.
+  verify:
+  - Read back interface address/mode from the applicable management plane.
+  - Verify the target management IP is reachable through the intended VLAN/path.
+  - Verify controller adoption/heartbeat remains healthy where applicable.
+  - Verify old-path removal only if it was explicitly requested and new-path verification already passed.
+  - Record EXECUTED_UNVERIFIED rather than PASS if semantic read-back or reachability verification is incomplete.
+  persist: For standalone CLI, use the task 4.02 running-to-startup save contract only after the new management path is verified.
+rollback:
+  required_pre_state:
+  - previous management VLAN/interface
+  - previous IP mode
+  - previous IPv4 address/subnet mask
+  - previous reachable management IP
+  - previous relevant uplink tagged/untagged/PVID state
+  - DHCP availability/lease expectation
+  - routing dependency required for management reachability
+  policy: Restore the exact observed pre-change management interface/IP/path state. Do not rely on 192.168.0.1 fallback or
+    VLAN 1 unless that exact state was observed and applicable.
+validation_cases:
+- id: CLI_STATIC_VLAN1
+  expected: PASS only after show ip interface confirms intended static address and management reachability remains acceptable.
+- id: CLI_DHCP_MGMT_WITHOUT_DHCP
+  expected: BLOCKED_BY_MANAGEMENT_PATH_RISK until DHCP availability/recovery path is verified.
+- id: NEW_SVI_ON_UNVERIFIED_L2_MODEL
+  expected: BLOCKED_BY_CAPABILITY; VLAN membership support does not prove routed VLAN-interface capability.
+- id: CONTROLLER_CUSTOM_MGMT_VLAN
+  expected: PASS only after VLAN Interface + Management VLAN designation + uplink tagging/PVID + new management IP/controller
+    heartbeat are verified.
+- id: MGMT_IP_CHANGE_NO_RECOVERY
+  expected: BLOCKED_BY_MANAGEMENT_PATH_RISK.
+- id: OFF_SUBNET_MGMT_NO_ROUTE
+  expected: BLOCKED_BY_ROUTING_DEPENDENCY; do not invent a route in 4.08.
+- id: ADOPTION_COMPATIBILITY_UNKNOWN
+  expected: Do not assume preservation of standalone management IP/VLAN; fail closed until controller/firmware compatibility
+    is verified.
+- id: RUNNING_ONLY
+  expected: Standalone running-state VERIFIED may remain non-durable until the 4.02 save contract succeeds.
+deferred_boundaries:
+  '4.09': STP/RSTP/MSTP
+  '4.17': Static routing / L3 switch features beyond the VLAN-interface facts normalized here
+closure:
+  task_4_08_complete: true
+  boundary: VLAN-interface/SVI creation and addressing, management-interface distinction, static/DHCP management IP, Controller
+    management-VLAN cutover, adoption-preservation, read-back, management-path safety, rollback and persistence are normalized
+    without consuming detailed static-routing work.
+  next_task: 4.09 STP/RSTP/MSTP
