@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "scope": "Cisco IOS XE router and switch automation domain",
+  "measurement_rule": "Total weight is fixed at 100 points. completed_points may increase only when repository evidence exists and the stated acceptance gate is met. Planning, documentation-only work, synthetic-only evidence, waiting CI, and unsupported feature assumptions do not earn points.",
+  "items": [
+    {
+      "id": "C01",
+      "title": "Cisco governance, vendor isolation, and official-source manifest",
+      "weight": 6,
+      "completed_points": 6,
+      "status": "done",
+      "evidence": [
+        "vendors/cisco/VENDOR_RULES.md",
+        "src/router_configuration/vendors/cisco/data/official_sources.json",
+        "src/router_configuration/vendors/cisco/knowledge.py",
+        "GitHub Actions Governance Gate run 34938186075 PASS",
+        "GitHub Actions CI run 34938207344 PASS"
+      ],
+      "next_gate": "Keep Cisco IOS XE separate from NX-OS/IOS XR and expand only from approved Cisco sources."
+    },
+    {
+      "id": "C02",
+      "title": "IOS XE router/switch platform and version admission",
+      "weight": 6,
+      "completed_points": 6,
+      "status": "done",
+      "evidence": [
+        "src/router_configuration/vendors/cisco/platforms.py",
+        "src/router_configuration/vendors/cisco/data/platform_matrix.json",
+        "tests/test_cisco_iosxe_domain.py",
+        "GitHub Actions CI run 34938207344 PASS"
+      ],
+      "next_gate": "Admission remains documentation-scoped and read-only; unknown platform/version fails closed."
+    },
+    {
+      "id": "C03",
+      "title": "NETCONF read-only capability and identity discovery",
+      "weight": 10,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Parse device NETCONF hello/YANG capabilities and prove read-only identity/version/interface discovery on an identified IOS XE target."
+    },
+    {
+      "id": "C04",
+      "title": "RESTCONF read-only discovery",
+      "weight": 8,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "HTTPS RESTCONF read-only discovery with certificate verification, capability binding, secret exclusion, and least privilege."
+    },
+    {
+      "id": "C05",
+      "title": "Router normalized state",
+      "weight": 10,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Normalize interfaces, addressing, routing and relevant router operational state from validated IOS XE models."
+    },
+    {
+      "id": "C06",
+      "title": "Switch normalized state",
+      "weight": 10,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Normalize interfaces, VLAN/trunk and relevant L2 operational state from validated IOS XE models."
+    },
+    {
+      "id": "C07",
+      "title": "Deterministic Cisco desired-state and renderer catalog",
+      "weight": 15,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Feature-by-feature YANG/CLI operations must be authoritative-source bound, dependency aware, version gated, and non-AI-authored."
+    },
+    {
+      "id": "C08",
+      "title": "Cisco deterministic validation and change approval binding",
+      "weight": 10,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Validate exact candidate changeset, bind state/version/knowledge/render hashes, and reject stale approval."
+    },
+    {
+      "id": "C09",
+      "title": "IOS XE virtual lab acceptance",
+      "weight": 10,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Run identified IOS XE virtual target with read/apply/verify/fault evidence without claiming physical hardware."
+    },
+    {
+      "id": "C10",
+      "title": "Transaction backup, rollback, and recovery",
+      "weight": 8,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Prove backup, management survival, induced failure, rollback, restored-state verification, and recovery."
+    },
+    {
+      "id": "C11",
+      "title": "Physical Cisco read-only acceptance",
+      "weight": 4,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Human-attested physical-router/switch read-only evidence; virtual evidence cannot satisfy this gate."
+    },
+    {
+      "id": "C12",
+      "title": "Production write and handover gate",
+      "weight": 3,
+      "completed_points": 0,
+      "status": "not_started",
+      "evidence": [],
+      "next_gate": "Explicit production authorization, exact changeset approval, post-change verification, backups, and handover evidence."
+    }
+  ],
+  "completed_points": 12,
+  "total_points": 100,
+  "overall_percent": 12,
+  "remaining_percent": 88,
+  "production_write_authorized": false,
+  "physical_device_verified": false
+}
