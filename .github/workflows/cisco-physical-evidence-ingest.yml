@@ -1,0 +1,66 @@
+name: Cisco Physical Evidence Ingest Contract
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/physical_acceptance.py"
+      - "src/router_configuration/vendors/cisco/physical_evidence_ingest.py"
+      - "tests/test_cisco_physical_acceptance.py"
+      - "tests/test_cisco_physical_evidence_ingest.py"
+      - "docs/cisco/PHYSICAL_EVIDENCE_INGEST.md"
+      - ".github/workflows/cisco-physical-evidence-ingest.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/physical_acceptance.py"
+      - "src/router_configuration/vendors/cisco/physical_evidence_ingest.py"
+      - "tests/test_cisco_physical_acceptance.py"
+      - "tests/test_cisco_physical_evidence_ingest.py"
+      - "docs/cisco/PHYSICAL_EVIDENCE_INGEST.md"
+      - ".github/workflows/cisco-physical-evidence-ingest.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run C11 physical evidence tests
+        run: |
+          python -m unittest tests.test_cisco_physical_acceptance -v
+          python -m unittest tests.test_cisco_physical_evidence_ingest -v
+      - name: Record fail-closed C11 ingest status
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json, os
+          result = {
+              "schema_version": "cisco-c11-physical-ingest-contract-status/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "virtual_family_rejected": True,
+              "human_attestation_required": True,
+              "repository_physical_evidence_accepted": False,
+              "c11_complete": False,
+              "physical_device_verified": False,
+              "production_write_authorized": False,
+          }
+          with open("evidence/cisco/c11-physical-ingest-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cisco-c11-physical-ingest-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c11-physical-ingest-contract.json
+          if-no-files-found: error
+          retention-days: 30

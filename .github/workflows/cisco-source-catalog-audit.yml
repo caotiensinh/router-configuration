@@ -1,0 +1,59 @@
+name: Cisco Source Catalog Audit
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/source_catalog_audit.py"
+      - "src/router_configuration/vendors/cisco/data/desired_state_catalog.json"
+      - "src/router_configuration/vendors/cisco/data/switch_state_catalog.json"
+      - "src/router_configuration/vendors/cisco/data/physical_acceptance_catalog.json"
+      - "tests/test_cisco_source_catalog_audit.py"
+      - "docs/cisco/SOURCE_CATALOG_AUDIT.md"
+      - ".github/workflows/cisco-source-catalog-audit.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/source_catalog_audit.py"
+      - "src/router_configuration/vendors/cisco/data/desired_state_catalog.json"
+      - "src/router_configuration/vendors/cisco/data/switch_state_catalog.json"
+      - "src/router_configuration/vendors/cisco/data/physical_acceptance_catalog.json"
+      - "tests/test_cisco_source_catalog_audit.py"
+      - "docs/cisco/SOURCE_CATALOG_AUDIT.md"
+      - ".github/workflows/cisco-source-catalog-audit.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run source-catalog audit tests
+        run: python -m unittest tests.test_cisco_source_catalog_audit -v
+      - name: Emit catalog-audit evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json, os
+          from router_configuration.vendors.cisco.source_catalog_audit import audit_current_cisco_source_catalogs
+          result = audit_current_cisco_source_catalogs().as_dict()
+          result["source_sha"] = os.environ["SOURCE_SHA"]
+          with open("evidence/cisco/source-catalog-audit.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cisco-source-catalog-audit-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/source-catalog-audit.json
+          if-no-files-found: error
+          retention-days: 30

@@ -1,88 +1,62 @@
 {
   "c07_complete": false,
   "documentation_trains": {
-    "17.18": {
-      "schema": "vendor/cisco/xe/17181/Cisco-IOS-XE-interfaces.yang"
-    },
-    "26": {
-      "schema": "vendor/cisco/xe/2611/Cisco-IOS-XE-interfaces.yang"
-    }
+    "17.18": {"schema": "vendor/cisco/xe/17181/Cisco-IOS-XE-interfaces.yang"},
+    "26": {"schema": "vendor/cisco/xe/2611/Cisco-IOS-XE-interfaces.yang"}
   },
   "features": [
     {
       "id": "interface.description.set",
       "interface_type": "GigabitEthernet",
       "module": "Cisco-IOS-XE-native",
-      "renderer_constraints": {
-        "interface_name_ascii_subset": true,
-        "interface_name_max_length": 64,
-        "nonempty_description": true
-      },
-      "required_capabilities": [
-        "urn:ietf:params:netconf:capability:candidate:1.0"
-      ],
+      "renderer_constraints": {"interface_name_ascii_subset": true, "interface_name_max_length": 64, "nonempty_description": true},
+      "required_capabilities": ["urn:ietf:params:netconf:capability:candidate:1.0"],
       "required_module_advertisement": true,
-      "roles": [
-        "router",
-        "switch"
-      ],
-      "source_ids": [
-        "CISCO-IOSXE-17.18-NETCONF",
-        "CISCO-IOSXE-26-NETCONF"
-      ],
+      "roles": ["router", "switch"],
+      "source_ids": ["CISCO-IOSXE-17.18-NETCONF", "CISCO-IOSXE-26-NETCONF"],
       "target_datastore": "candidate",
       "transport": "netconf",
-      "yang_constraints": {
-        "description_length": [
-          0,
-          200
-        ]
-      },
+      "yang_constraints": {"description_length": [0, 200]},
       "yang_path": "/native/interface/GigabitEthernet[name]/description"
     },
     {
       "id": "interface.mtu.set",
       "interface_type": "GigabitEthernet",
       "module": "Cisco-IOS-XE-native",
-      "renderer_constraints": {
-        "interface_name_ascii_subset": true,
-        "interface_name_max_length": 64
-      },
-      "required_capabilities": [
-        "urn:ietf:params:netconf:capability:candidate:1.0"
-      ],
+      "renderer_constraints": {"interface_name_ascii_subset": true, "interface_name_max_length": 64},
+      "required_capabilities": ["urn:ietf:params:netconf:capability:candidate:1.0"],
       "required_module_advertisement": true,
-      "roles": [
-        "router",
-        "switch"
-      ],
-      "source_ids": [
-        "CISCO-IOSXE-17.18-NETCONF",
-        "CISCO-IOSXE-26-NETCONF"
-      ],
+      "roles": ["router", "switch"],
+      "source_ids": ["CISCO-IOSXE-17.18-NETCONF", "CISCO-IOSXE-26-NETCONF"],
       "target_datastore": "candidate",
       "transport": "netconf",
-      "yang_constraints": {
-        "mtu_range": [
-          64,
-          18000
-        ]
-      },
+      "yang_constraints": {"mtu_range": [64, 18000]},
       "yang_path": "/native/interface/GigabitEthernet[name]/mtu"
+    },
+    {
+      "id": "interface.shutdown.set",
+      "interface_type": "GigabitEthernet",
+      "module": "Cisco-IOS-XE-native",
+      "renderer_constraints": {"interface_name_ascii_subset": true, "interface_name_max_length": 64},
+      "required_capabilities": ["urn:ietf:params:netconf:capability:candidate:1.0"],
+      "required_module_advertisement": true,
+      "roles": ["router", "switch"],
+      "source_ids": ["CISCO-IOSXE-17.18-NETCONF", "CISCO-IOSXE-26-NETCONF"],
+      "target_datastore": "candidate",
+      "transport": "netconf",
+      "yang_constraints": {"yang_type": "empty", "delete_semantics_admitted": false},
+      "yang_path": "/native/interface/GigabitEthernet[name]/shutdown"
     }
   ],
   "os_family": "IOS XE",
   "production_write_authorized": false,
   "runtime_ai_rendering": false,
   "schema_provenance": {
-    "cisco_reference_source_ids": [
-      "CISCO-IOSXE-17.18-NETCONF",
-      "CISCO-IOSXE-26-NETCONF"
-    ],
+    "cisco_reference_source_ids": ["CISCO-IOSXE-17.18-NETCONF", "CISCO-IOSXE-26-NETCONF"],
     "yangmodels_commit": "a4ea86b06aa63512e280f1665db6eaf8116bf059",
     "yangmodels_repository": "YangModels/yang"
   },
-  "schema_version": "cisco-iosxe-desired-state-catalog/2",
+  "schema_version": "cisco-iosxe-desired-state-catalog/3",
   "vendor": "Cisco",
   "write_authorized": false
 }
