@@ -1,0 +1,240 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_port_state_speed_duplex_kb
+task: '4.03'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_MANAGED_SWITCH_CLI_GUIDE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+  - id: OMADA_MANAGED_SWITCH_CLI_GUIDE_2026
+    url: https://support.omadanetworks.com/us/document/4943/
+    document_url: https://static.tp-link.com/upload/manual/2026/202607/20260724/1900003588_Managed%20SwitchMulti-model_CLI.pdf
+    title: Managed Switch_CLI Guide
+    source_type: CLI_REFERENCE_GUIDE
+    portal_date: '2026-07-24'
+    document_revision: REV2.0.0
+    document_date: 'May 2026'
+    chapter: 12 Interface Configuration Commands
+
+governance:
+  no_model_inference: true
+  no_firmware_inference: true
+  no_port_capability_inference: true
+  no_interface_class_inference_from_speed: true
+  exact_device_cli_support_required_before_execution: true
+  exact_physical_port_capability_required_before_mutation: true
+  production_write_requires_human_approval: true
+  unmanaged_inventory_only_denied: true
+
+interface_identity:
+  command_classes_published_by_guide:
+    - cli_token: fastEthernet
+      normalized_class: FAST_ETHERNET
+      vendor_definition: 100M Ethernet port
+    - cli_token: gigabitEthernet
+      normalized_class: GIGABIT_ETHERNET
+      vendor_definition: Gigabit Ethernet port
+    - cli_token: two-gigabitEthernet
+      normalized_class: TWO_GIGABIT_ETHERNET
+      vendor_definition: 2.5-Gigabit Ethernet port
+    - cli_token: ten-gigabitEthernet
+      normalized_class: TEN_GIGABIT_ETHERNET
+      vendor_definition: 10-Gigabit Ethernet port
+    - cli_token: port-channel
+      normalized_class: PORT_CHANNEL
+      vendor_definition: Ethernet channel / port channel where the command explicitly allows it
+  safety_boundary: >-
+    The guide publishes these CLI classes for Chapter 12. It does not authorize inventing a CLI token
+    for 5-Gigabit, 25-Gigabit or any other physical interface class absent from the applicable command syntax.
+    A speed value and an interface-class token are independent facts.
+
+read_operations:
+  - operation: READ_INTERFACE_STATUS
+    command: show interface status
+    description: Display connection status of Ethernet ports and port channels.
+    supported_selectors_in_guide:
+      - fastEthernet
+      - gigabitEthernet
+      - two-gigabitEthernet
+      - ten-gigabitEthernet
+      - port-channel
+    command_mode:
+      - PRIVILEGED_EXEC
+      - ANY_CONFIGURATION_MODE
+    privilege_requirement: NONE_PUBLISHED
+    risk: READ_ONLY
+    normalized_plane: OPERATIONAL_CONNECTION_STATE
+  - operation: READ_INTERFACE_CONFIGURATION
+    command: show interface configuration
+    description: >-
+      Display port/port-channel configuration including Port-status, Flow Control,
+      Negotiation Mode and Port-description.
+    supported_selectors_in_guide:
+      - fastEthernet
+      - gigabitEthernet
+      - two-gigabitEthernet
+      - ten-gigabitEthernet
+      - port-channel
+    command_mode:
+      - PRIVILEGED_EXEC
+      - ANY_CONFIGURATION_MODE
+    privilege_requirement: NONE_PUBLISHED
+    risk: READ_ONLY
+    normalized_plane: CONFIGURED_STATE
+  - operation: READ_INTERFACE_COUNTERS
+    command: show interface counters
+    description: Display statistics information of ports and port channels.
+    supported_selectors_in_guide:
+      - fastEthernet
+      - gigabitEthernet
+      - two-gigabitEthernet
+      - ten-gigabitEthernet
+      - port-channel
+    command_mode:
+      - PRIVILEGED_EXEC
+      - ANY_CONFIGURATION_MODE
+    privilege_requirement: NONE_PUBLISHED
+    risk: READ_ONLY
+    normalized_plane: STATISTICS_STATE
+
+write_operations:
+  - operation: SET_SPEED
+    command: speed { 10 | 100 | 1000 | 2500 | 5000 | 10000 | auto }
+    reset_command: no speed
+    description: Configure Speed Mode for an Ethernet port; no speed returns to default configuration.
+    published_values_mbps:
+      - 10
+      - 100
+      - 1000
+      - 2500
+      - 5000
+      - 10000
+    published_symbolic_values:
+      - auto
+    vendor_default_statement: Auto negotiation mode is the default for the speed command.
+    command_mode: INTERFACE_CONFIGURATION
+    published_contexts:
+      - fastEthernet
+      - gigabitEthernet
+      - two-gigabitEthernet
+      - ten-gigabitEthernet
+      - interface_range_of_these_classes
+      - port-channel
+      - port-channel_range
+    privilege_requirement:
+      roles:
+        - ADMIN
+        - OPERATOR
+    risk: PORT_NEGOTIATION_CONFIGURATION_WRITE
+    capability_boundary: >-
+      The command grammar lists the global set of accepted speed keywords. It is not treated as proof that
+      every exact physical port can operate at every listed rate. Exact port/media capability must gate a write.
+  - operation: SET_DUPLEX
+    command: duplex { auto | full | half }
+    reset_command: no duplex
+    description: Configure Duplex Mode for an Ethernet port; no duplex returns to default configuration.
+    published_values:
+      - auto
+      - full
+      - half
+    vendor_default_statement: The guide explicitly states that the Gigabit Ethernet port defaults to auto-negotiation mode.
+    command_mode: INTERFACE_CONFIGURATION
+    published_contexts:
+      - gigabitEthernet
+      - gigabitEthernet_range
+      - port-channel
+      - port-channel_range
+    privilege_requirement:
+      roles:
+        - ADMIN
+        - OPERATOR
+    risk: PORT_NEGOTIATION_CONFIGURATION_WRITE
+    capability_boundary: >-
+      Do not broaden the guide's published command context or Gigabit-specific default statement to Fast,
+      2.5-Gigabit, 10-Gigabit or other interface classes without exact applicable evidence.
+
+range_execution_semantics:
+  source_command: interface range
+  vendor_behavior: >-
+    Commands in Interface Range gigabitEthernet Mode execute independently on all ports in the range;
+    an error on one port does not affect execution on the other ports.
+  automation_consequence: >-
+    Never treat a range command's partial execution as atomic success. Verify every intended member port
+    individually and report mixed success/failure explicitly.
+
+state_model:
+  configured_state:
+    sources:
+      - show interface configuration
+    includes_published_fields:
+      - Port-status
+      - Flow Control
+      - Negotiation Mode
+      - Port-description
+    rule: This plane describes configured values and must not be substituted for live connection state.
+  operational_connection_state:
+    sources:
+      - show interface status
+    rule: Use this plane to determine current connection/link status as exposed by the applicable CLI.
+  statistics_state:
+    sources:
+      - show interface counters
+    rule: Counters are diagnostic evidence and are not configuration state.
+
+safe_automation_contract:
+  preconditions:
+    - Resolve exact model, hardware revision, region, firmware and management mode.
+    - Resolve the exact physical port identity, media type and vendor CLI interface class from official or runtime evidence.
+    - Confirm the exact port supports the requested rate and duplex combination; fail closed if capability is unresolved.
+    - Confirm authenticated role permits the intended mutation.
+    - Obtain required production-write approval.
+  discovery:
+    - Read show interface configuration for configured negotiation state when applicable.
+    - Read show interface status for current connection state when applicable.
+    - Optionally read show interface counters when diagnostics or impact comparison is needed.
+  transaction:
+    - Apply speed and/or duplex only to the exact intended interface.
+    - Avoid range mutation unless every member is pre-resolved and per-port result collection is available.
+    - Read back interface configuration after the write.
+    - Re-read interface status to detect link loss, renegotiation failure or unexpected operational state.
+    - Verify intended semantic values and required link outcome; do not infer success from command acceptance alone.
+  outcomes:
+    verified: Intended configured value is read back and required operational connection state is acceptable.
+    executed_unverified: Write was accepted but configured-state or operational verification is unavailable/inconclusive.
+    blocked_by_capability: Requested speed/duplex is not positively supported for the exact port/media scope.
+    blocked_by_applicability: Exact model/firmware/interface CLI applicability is unresolved or denied.
+    blocked_by_privilege: Authenticated role cannot perform the required write.
+
+failure_and_rollback_boundary:
+  immediate_safety: >-
+    A speed/duplex change can disrupt the management path if the active management link is modified or negotiation fails.
+    Production automation must identify management-path dependency before mutation and preserve a recovery path.
+  rollback_command_policy: >-
+    Use exact previously observed configured values for rollback when command support is verified. The no speed/no duplex
+    forms restore vendor defaults, but default restoration is not equivalent to restoring a non-default prior configuration.
+  persistence_boundary: >-
+    Task 4.03 verifies the running interface state. Durability across reboot requires the 4.02 save contract and must not
+    be assumed merely because the interface write and read-back succeeded.
+
+validation_cases:
+  - id: READ_ONLY_PORT_DISCOVERY
+    expected: PASS when exact CLI applicability is confirmed and status/configuration reads succeed without mutation.
+  - id: UNSUPPORTED_RATE_REQUEST
+    expected: BLOCKED_BY_CAPABILITY rather than attempting a rate because it appears in the generic speed grammar.
+  - id: DUPLEX_ON_UNPROVEN_INTERFACE_CLASS
+    expected: BLOCKED_BY_CAPABILITY; do not generalize Gigabit command context.
+  - id: RANGE_PARTIAL_FAILURE
+    expected: Mixed per-port results; never normalize the whole range to PASS.
+  - id: WRITE_READBACK_LINK_OK
+    expected: VERIFIED when configured value is read back and required operational connection state remains acceptable.
+  - id: WRITE_ACCEPTED_LINK_DOWN
+    expected: Not PASS; record operational regression and execute the verified recovery plan when authorized.
+  - id: UNMANAGED_SWITCH
+    expected: NOT_APPLICABLE for CLI port configuration automation.
+
+closure:
+  task_4_03_complete: true
+  boundary: >-
+    Physical-port identity classes, configured versus operational state, speed/duplex command semantics,
+    read-only diagnostics, range partial-execution behavior, write verification and exact-capability gates
+    are normalized for the official Managed Switch CLI guide scope.
+  next_task: 4.04 VLAN 802.1Q fundamentals
