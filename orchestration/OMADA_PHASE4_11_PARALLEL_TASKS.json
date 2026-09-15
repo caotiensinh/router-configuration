@@ -1,0 +1,133 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "70a4a7fece3a678abc560eb4ad97184214fce3eb",
+  "purpose": "Parallel official-source research/review for Omada Phase 4.11 before one serialized integration write.",
+  "tasks": [
+    {
+      "task_id": "OMADA-4.11-CONCEPT-MEMBERSHIP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.11-CLI-GLOBAL",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.11-CLI-VLAN",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.11-CLI-QUERIER",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.11-CLI-FAST-LEAVE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.11-ROUTER-PORT-UNKNOWN",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.11-STATIC-GROUP-REPORT-SUPPRESSION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.11-STANDALONE-GUI",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.11-CONTROLLER-CURRENT",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.11-READBACK-TROUBLESHOOT",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.11-TOPOLOGY-SAFETY-ROLLBACK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.11-APPLICABILITY-VALIDATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.11-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_IGMP_SNOOPING_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_IGMP_SNOOPING_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_IGMP_SNOOPING_KB.md",
+        "orchestration/OMADA_PHASE4_11_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_11_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.11-CONCEPT-MEMBERSHIP",
+        "OMADA-4.11-CLI-GLOBAL",
+        "OMADA-4.11-CLI-VLAN",
+        "OMADA-4.11-CLI-QUERIER",
+        "OMADA-4.11-CLI-FAST-LEAVE",
+        "OMADA-4.11-ROUTER-PORT-UNKNOWN",
+        "OMADA-4.11-STATIC-GROUP-REPORT-SUPPRESSION",
+        "OMADA-4.11-STANDALONE-GUI",
+        "OMADA-4.11-CONTROLLER-CURRENT",
+        "OMADA-4.11-READBACK-TROUBLESHOOT",
+        "OMADA-4.11-TOPOLOGY-SAFETY-ROLLBACK",
+        "OMADA-4.11-APPLICABILITY-VALIDATION"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.11"
+      ],
+      "priority": 110
+    }
+  ]
+}

@@ -1,0 +1,318 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_igmp_snooping_querier_fast_leave_kb
+task: '4.11'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_IGMP_SNOOPING_EVIDENCE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: OMADA_MANAGED_SWITCH_CLI_2026
+  url: https://static.tp-link.com/upload/manual/2026/202607/20260724/1900003588_Managed%20SwitchMulti-model_CLI.pdf
+  title: CLI Reference Guide — Managed Switches
+  source_type: CLI_REFERENCE_GUIDE
+  revision: REV2.0.0
+  document_date: 2026-05
+  scope_note: Chapter 27 IGMP Snooping Commands. Parsed official PDF text used; required screenshot retrieval returned cache-miss.
+- id: OMADA_STANDALONE_IGMP_NEW_GUI_2026
+  url: https://support.omadanetworks.com/jp/document/12988/
+  title: How to Configure IGMP Snooping for IPTV Network on L2 Managed Switches Using the New GUI
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-08-13'
+  scope_note: Current standalone example explicitly enables IGMP Snooping globally, for the target VLAN, and on target ports;
+    applies to the listed legacy L2 managed models/revisions.
+- id: OMADA_HOTEL_IPTV_CONTROLLER_2026
+  url: https://support.omadanetworks.com/en/document/13168/?app=decoiSpyConnect
+  title: How to Configure IGMP Snooping on Omada Switches for Hotel IPTV Scenario
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-09-02'
+  scope_note: Current Controller v6.0+ hotel IPTV workflow for all Omada switches except Agile; includes Querier, unknown
+    multicast policy, Report Suppression, Fast Leave and verification.
+- id: OMADA_MULTICAST_VIDEO_TROUBLESHOOT_2026
+  url: https://support.omadanetworks.com/us/document/13300/?app=decoWelcome
+  title: Troubleshooting Guide for Multicast Video Issues on Omada Switches
+  source_type: TROUBLESHOOTING_GUIDE
+  published: '2026-08-21'
+  scope_note: Current Omada Smart/L2+/L3 troubleshooting guidance for multicast-group stability, port counters and forwarding-path
+    diagnosis.
+- id: OMADA_TYPICAL_CLI_EXAMPLES
+  url: https://support.omadanetworks.com/us/document/13117/?app=tapo_website
+  title: Typical CLI Configuration Examples for TP-Link JetStream Switch
+  source_type: CONFIGURATION_GUIDE
+  scope_note: Generic examples for per-VLAN Snooping, Querier and Fast Leave. Exact model/firmware support remains execution-gated.
+parallel_lane_execution:
+  task_manifest: orchestration/OMADA_PHASE4_11_PARALLEL_TASKS.json
+  plan: orchestration/OMADA_PHASE4_11_PARALLEL_PLAN.json
+  wave_1_read_only_lanes: 12
+  wave_2_integration_lanes: 1
+  external_worker_processes_claimed: 0
+  rule: Parallel evidence lanes are assignment slots; write ownership remains serialized.
+concepts:
+  igmp_snooping: Layer-2 IPv4 multicast control that learns multicast receiver membership from IGMP control traffic and constrains
+    forwarding to intended ports.
+  querier: Periodically generates IGMP queries so membership state can be refreshed where the applicable design requires a
+    snooping querier.
+  fast_leave: Immediately removes a receiving port from a multicast group after a Leave in the applicable scope; unsafe on
+    shared/cascaded ports.
+  router_port: Port toward a multicast router/querier; may be dynamically learned or statically configured depending on device/workflow.
+  report_suppression: Forwards the first report for a group during a query interval and suppresses subsequent duplicate reports
+    in the cited CLI scope.
+cli_2026:
+  evidence_quality:
+    parsed_pdf_text: true
+    required_screenshot_pages_attempted:
+    - 324
+    - 328
+    - 332
+    - 340
+    - 352
+    screenshot_result: CACHE_MISS_ALL_ATTEMPTS
+    visual_screenshot_verified: false
+  global:
+    enable:
+      commands:
+      - ip igmp snooping
+      - no ip igmp snooping
+      mode: Global Configuration Mode
+      privilege:
+      - Admin
+      - Operator
+      - Power User
+    version:
+      syntax: ip igmp snooping version { v1 | v2 | v3 }
+      reset: no ip igmp snooping version
+      published_default: v3
+      behavior:
+        v1: process IGMPv1 host messages only
+        v2: process IGMPv1/v2 host messages; ignore v3
+        v3: process IGMPv1/v2/v3 host messages
+    unknown_multicast:
+      discard_syntax: ip igmp snooping drop-unknown
+      reset: no ip igmp snooping drop-unknown
+      published_default: Forward
+  vlan:
+    enable_and_timers:
+      syntax: ip igmp snooping vlan-config <VLAN_LIST> [ rtime <router-time> | mtime <member-time> | ltime <leave-time> ]
+      reset: no ip igmp snooping vlan-config <VLAN_LIST> [ rtime | mtime | ltime ]
+      vlan_id_range: 1..4094
+      router_port_aging_default_seconds: 300
+    fast_leave:
+      syntax: ip igmp snooping vlan-config <VLAN_LIST> immediate-leave
+      reset: no ip igmp snooping vlan-config <VLAN_LIST> immediate-leave
+      published_default: disabled
+    report_suppression:
+      syntax: ip igmp snooping vlan-config <VLAN_LIST> report-suppression
+      reset: no ip igmp snooping vlan-config <VLAN_LIST> report-suppression
+      published_default: disabled
+    static_router_port:
+      syntax: ip igmp snooping vlan-config <VLAN_LIST> rport interface { gigabitEthernet <PORT_LIST> | port-channel <PORT_CHANNEL_LIST>
+        }
+      reset: no ip igmp snooping vlan-config <VLAN_LIST> rport interface { gigabitEthernet <PORT_LIST> | port-channel <PORT_CHANNEL_LIST>
+        }
+    forbidden_router_port:
+      syntax: ip igmp snooping vlan-config <VLAN_LIST> router-ports-forbidd interface { gigabitEthernet <PORT_LIST> | port-channel
+        <PORT_CHANNEL_LIST> }
+      boundary: Retain vendor spelling exactly; do not silently correct command token.
+    static_group:
+      syntax: ip igmp snooping vlan-config <VLAN_LIST> static <MULTICAST_IPV4> interface { gigabitEthernet <PORT_LIST> | port-channel
+        <PORT_CHANNEL_LIST> }
+      reset: no ip igmp snooping vlan-config <VLAN_LIST> static <MULTICAST_IPV4> interface { gigabitEthernet <PORT_LIST> |
+        port-channel <PORT_CHANNEL_LIST> }
+    querier:
+      syntax: ip igmp snooping vlan-config <VLAN_LIST> querier [ max-response-time <1..25> | query-interval <10..300> | general-query
+        source-ip <UNICAST_IPV4> | last-member-query-count <1..5> | last-member-query-interval <1..5> ]
+      reset: no ip igmp snooping vlan-config <VLAN_LIST> querier [ <parameter> ]
+      published_defaults:
+        max_response_time_seconds: 10
+        query_interval_seconds: 60
+        general_query_source_ip: 0.0.0.0
+        last_member_query_count: 2
+        last_member_query_interval_seconds: 1
+      privilege:
+      - Admin
+      - Operator
+      - Power User
+      example_anomaly: The PDF example renders 'query interval' while the formal syntax is 'query-interval'; compiler authority
+        is the syntax record, with runtime revalidation.
+    querier_election:
+      syntax: ip igmp snooping vlan-config <VLAN_LIST> querier-election
+      reset: no ip igmp snooping vlan-config <VLAN_LIST> querier-election
+      published_default: disabled
+      robustness:
+        syntax: ip igmp snooping vlan-config <VLAN_LIST> querier robustness <1..255>
+        published_default: 2
+    unknown_multicast:
+      discard:
+        syntax: ip igmp snooping vlan-config <VLAN_LIST> drop-unknown
+        capability_note: CLI reference marks command available only on certain devices.
+      router_port_first:
+        syntax: ip igmp snooping vlan-config <VLAN_LIST> route-unknown
+        meaning: Forward unregistered multicast only to IGMP snooping router ports.
+        capability_note: CLI reference marks command available only on certain devices.
+  port:
+    snooping_enable:
+      commands:
+      - ip igmp snooping
+      - no ip igmp snooping
+      published_contexts:
+      - interface gigabitEthernet
+      - interface range gigabitEthernet
+      - interface port-channel
+      - interface range port-channel
+      privilege:
+      - Admin
+      - Operator
+      - Power User
+    fast_leave:
+      commands:
+      - ip igmp snooping immediate-leave
+      - no ip igmp snooping immediate-leave
+      published_contexts:
+      - interface gigabitEthernet
+      - interface range gigabitEthernet
+      - interface port-channel
+      - interface range port-channel
+      privilege:
+      - Admin
+      - Operator
+      - Power User
+  read_back:
+    commands:
+    - show ip igmp snooping vlan [ <VLAN_ID> ]
+    - show ip igmp snooping groups [ vlan <VLAN_ID> ] [ <MULTICAST_ADDR> | count | dynamic | dynamic count | static | static
+      count ]
+    published_privilege: None
+    modes: Privileged EXEC Mode and Any Configuration Mode
+    required_observations:
+    - global/VLAN/port enable state through applicable management plane
+    - querier state and relevant timers/source
+    - dynamic/static router-port state where exposed
+    - dynamic/static multicast group entries and receiver ports
+    - unknown multicast policy
+    - Fast Leave and Report Suppression state
+    - stream forwarding and required management/controller reachability
+standalone_gui:
+  guide_scope: How to Configure IGMP Snooping for IPTV Network on L2 Managed Switches Using the New GUI, 2026-08-13; exact
+    listed models/revisions only.
+  workflow:
+  - Create/verify IPTV VLAN and correct tagged/untagged/PVID state.
+  - Enable IGMP Snooping globally.
+  - Enable IGMP Snooping for the target VLAN.
+  - Enable IGMP Snooping on intended receiver/router-facing ports.
+  - Save/apply and verify operational multicast membership.
+  default_boundary: The guide's example leaves many VLAN parameters at default. Do not promote example defaults to unrelated
+    models/firmware.
+controller_mode:
+  hotel_iptv_2026:
+    controller_minimum: v6.0+
+    applicability: All Omada switches except Agile switches in the cited guide.
+    path: Site View > Network Config > Network Settings > LAN > Multicast Snooping
+    unknown_multicast:
+      Forward: Flood unknown multicast within the VLAN.
+      Discard: Drop unknown multicast packets.
+      Router Port First: Forward to static/dynamic router ports if present; otherwise flood within VLAN.
+    querier:
+      best_practice: The cited hotel IPTV guide says exactly one IGMP Querier should operate in the multicast network.
+      placement: Enable on the aggregation switch closest to the multicast source in the cited topology.
+      scope_rule: Topology recommendation, not a universal exact-device default.
+    report_suppression:
+      optional: true
+      guidance: Recommended in the cited guide, especially for large IPTV deployments.
+    fast_leave:
+      port_profile: true
+      safe_scope: Only positively verified ports with a single TV/STB behind the port.
+      forbidden_examples:
+      - switch cascades
+      - AP cascades
+      - shared downstream ports with multiple receivers
+      risk: A Leave from one downstream receiver can immediately remove the shared port and interrupt other receivers watching
+        the same group.
+    router_port:
+      guidance: Automatic router-port selection is normally sufficient in the cited hotel guide; static router port is optional,
+        not mandatory.
+    verification:
+    - Inspect running configuration through Controller.
+    - Use Device Terminal to inspect multicast groups.
+    - Verify intended receivers can join/leave streams and unrelated ports do not receive unintended traffic.
+troubleshooting:
+  current_2026:
+  - Check multicast-group table stability; group expiry during stable playback indicates a membership/control issue.
+  - Verify group member ports correspond to intended receiver-side ports.
+  - Verify the router port exists where multicast/queries should enter or leave.
+  - Compare receive/forward interface counters repeatedly to identify packet loss; exact counter command spelling is applicability-scoped.
+  - If Layer-3 multicast routing is involved, IGMP/PIM/mroute diagnostics are a separate routing plane and are not synthesized
+    by 4.11.
+safe_transaction:
+  preconditions:
+  - Resolve exact model, hardware revision, region, firmware, management mode, Controller version and port/LAG identity.
+  - Verify the target VLAN and tagged/untagged/PVID path from tasks 4.04-4.08.
+  - Read current global/VLAN/port IGMP Snooping state.
+  - Read current multicast groups and router ports.
+  - Resolve whether a querier already exists and whether querier election is in use.
+  - Classify each Fast Leave target as single-receiver edge or shared/cascaded; block unknown/shared targets.
+  - Resolve unknown-multicast policy and capability before changing it.
+  - Obtain production-write approval.
+  write:
+  - Apply only the intended IGMP Snooping/Querier/Fast Leave/router-port/report-suppression/unknown-policy delta.
+  - Do not synthesize MLD, MVR or PIM.
+  - Do not enable Fast Leave on shared/cascaded ports.
+  - Do not create a competing querier when an existing querier/election design is unresolved.
+  - Do not silently rewrite VLAN/PVID/LAG state.
+  verify:
+  - Read back configuration in the exact management plane.
+  - Verify dynamic/static group entries and receiver ports.
+  - Verify router-port/querier state.
+  - Verify join/leave behavior and multicast delivery.
+  - Check for unintended multicast flooding/drops and packet-loss symptoms.
+  - Record EXECUTED_UNVERIFIED rather than PASS if operational membership/forwarding evidence is incomplete.
+  persist: For standalone CLI, apply task 4.02 running-to-startup save only after running-state multicast verification.
+rollback:
+  required_pre_state:
+  - global/VLAN/port snooping enable state
+  - IGMP version
+  - querier state/timers/source/election
+  - Fast Leave VLAN/port state
+  - Report Suppression
+  - unknown multicast policy
+  - static/dynamic router-port observations
+  - static multicast groups
+  - relevant VLAN/LAG path
+  policy: Restore exact observed pre-change multicast-control state, then re-verify group formation, forwarding and reachability.
+    Do not use blanket disable-IGMP-Snooping as a generic rollback.
+validation_cases:
+- id: THREE_PLANE_STANDALONE
+  expected: PASS only when the applicable standalone workflow has required global/VLAN/port snooping state and operational
+    group forwarding is verified.
+- id: FAST_LEAVE_SINGLE_STB
+  expected: PASS only on positively verified single-receiver edge port with correct leave behavior.
+- id: FAST_LEAVE_CASCADE
+  expected: BLOCKED_BY_FAST_LEAVE_SAFETY.
+- id: NO_QUERIER_AGING
+  expected: NOT PASS for a design requiring sustained dynamic membership when no valid querier/election source exists.
+- id: COMPETING_QUERIER_UNKNOWN
+  expected: BLOCKED_BY_DEPENDENCY until existing querier/election design is resolved.
+- id: DROP_UNKNOWN_UNSUPPORTED
+  expected: BLOCKED_BY_CAPABILITY if exact device support is unresolved.
+- id: ROUTE_UNKNOWN_UNSUPPORTED
+  expected: BLOCKED_BY_CAPABILITY; CLI marks route-unknown as only on certain devices.
+- id: STATIC_GROUP_ONLY
+  expected: Do not treat static membership as proof of dynamic IGMP listener behavior.
+- id: WRONG_VLAN_PATH
+  expected: NOT PASS even if IGMP state is correct when VLAN/PVID/LAG forwarding path is wrong.
+- id: GROUP_TABLE_MISSING
+  expected: EXECUTED_UNVERIFIED when configuration is accepted but intended group/member state cannot be observed.
+- id: MLD_REQUEST
+  expected: DEFER; IPv6 MLD is outside task 4.11.
+- id: MVR_REQUEST
+  expected: DEFER; MVR is outside task 4.11.
+- id: RUNNING_ONLY
+  expected: Running-state VERIFIED may remain non-durable until task 4.02 save verification succeeds.
+deferred_boundaries:
+  '4.12': ACL
+  MLD: IPv6 multicast snooping
+  MVR: Multicast VLAN Registration
+  PIM: Layer-3 multicast routing
+closure:
+  task_4_11_complete: true
+  boundary: IGMP Snooping global/VLAN/port state, Querier/election parameters, Fast Leave safety, Report Suppression, router/static
+    group controls, unknown-multicast policies, standalone/Controller mappings, read-back, troubleshooting, rollback and persistence
+    are normalized without consuming MLD, MVR, PIM or ACL.
+  next_task: 4.12 ACL
