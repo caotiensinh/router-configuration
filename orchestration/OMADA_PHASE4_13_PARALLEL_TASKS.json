@@ -1,0 +1,169 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "2a7c8bf78d498eb9492d2bb19aa4e628617091f7",
+  "purpose": "Parallel multi-method official-source research/review for Omada Phase 4.13 before one serialized integration write.",
+  "tasks": [
+    {
+      "task_id": "OMADA-4.13-QOS-CONCEPT-TRUST",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.13-CLI-DOT1P-MAP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.13-CLI-DSCP-MAP-REMAP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.13-CLI-SCHEDULER",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.13-CLI-QUEUE-BANDWIDTH",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.13-CLI-VLAN-QOS-HOOKS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.13-BANDWIDTH-CONTROL",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.13-STORM-CONTROL-DEPENDENCY",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.13-STANDALONE-GUI",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.13-CONTROLLER-6.1",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.13-CONTROLLER-VERSION-DRIFT",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.13-LAG-SCOPE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.13-TCAM-RESOURCE-CONFLICT",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.13-READBACK-VERIFICATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.13-ROLLBACK-SAFETY",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.13-APPLICABILITY-VALIDATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.13-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_QOS_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_QOS_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_QOS_KB.md",
+        "orchestration/OMADA_PHASE4_13_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_13_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.13-QOS-CONCEPT-TRUST",
+        "OMADA-4.13-CLI-DOT1P-MAP",
+        "OMADA-4.13-CLI-DSCP-MAP-REMAP",
+        "OMADA-4.13-CLI-SCHEDULER",
+        "OMADA-4.13-CLI-QUEUE-BANDWIDTH",
+        "OMADA-4.13-CLI-VLAN-QOS-HOOKS",
+        "OMADA-4.13-BANDWIDTH-CONTROL",
+        "OMADA-4.13-STORM-CONTROL-DEPENDENCY",
+        "OMADA-4.13-STANDALONE-GUI",
+        "OMADA-4.13-CONTROLLER-6.1",
+        "OMADA-4.13-CONTROLLER-VERSION-DRIFT",
+        "OMADA-4.13-LAG-SCOPE",
+        "OMADA-4.13-TCAM-RESOURCE-CONFLICT",
+        "OMADA-4.13-READBACK-VERIFICATION",
+        "OMADA-4.13-ROLLBACK-SAFETY",
+        "OMADA-4.13-APPLICABILITY-VALIDATION"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.13"
+      ],
+      "priority": 110
+    }
+  ]
+}

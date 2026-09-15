@@ -1,0 +1,92 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_qos
+task: '4.13'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_OFFICIAL_QOS_SCOPE
+authority: TP-Link / Omada official documentation only
+scope:
+  product_family: Omada / JetStream managed-switch QoS / CoS knowledge
+  source_scope: Official 2026 Managed Switch CLI Reference Chapter 63 QoS and Chapter
+    64 Bandwidth Control, current standalone switch QoS guidance, current Controller
+    6.1 Switch QoS guidance, Controller V6 user guide, and source-scoped Agile/Easy
+    Managed QoS guidance.
+  applicability_gate: Exact model, hardware revision, region, firmware, management
+    mode, Controller version, interface/LAG support, global-vs-per-port scheduler
+    scope, TCAM/resource state and runtime command support remain execution gates.
+state_planes:
+- trust_classification
+- priority_mapping
+- remarking
+- queue_selection
+- queue_scheduler
+- queue_bandwidth
+- bandwidth_limit
+- storm_control_dependency
+- controller_qos_rule
+- resource_plane
+- verification_plane
+trust_mode_enum:
+- PORT_UNTRUST
+- TRUST_8021P
+- TRUST_DSCP
+- UNKNOWN
+scheduler_enum:
+- SP
+- WRR
+- HYBRID
+- UNKNOWN
+verification_state_enum:
+- VERIFIED
+- EXECUTED_UNVERIFIED
+- BLOCKED_BY_APPLICABILITY
+- BLOCKED_BY_CAPABILITY
+- BLOCKED_BY_RESOURCE
+- BLOCKED_BY_CONFLICT
+- BLOCKED_BY_SCOPE
+- NOT_APPLICABLE
+- UNKNOWN
+rules:
+- QoS classification/trust, mapping/remap, queue selection, scheduling, bandwidth
+  controls and Controller QoS rules are separate state planes; do not collapse them
+  into one priority field.
+- Standalone CLI default trust in the cited 2026 guide is port-priority/untrust, while
+  current Controller 6.1 automatically pushes trust DSCP after adoption; management
+  mode/version must be resolved before compiling intent.
+- 802.1p is an L2 VLAN-tag priority (0..7); DSCP is an IP-header priority (0..63).
+  Untagged traffic does not carry 802.1p in the cited standalone explanation.
+- The switch exposes eight forwarding queues TC0..TC7; queue mapping and scheduler
+  configuration are independent.
+- SP can starve lower queues under sustained higher-priority load; WRR uses weights;
+  hybrid SP+WRR is supported in cited standalone/controller scopes.
+- 'Scheduler scope is model-dependent: some devices configure globally, others per
+  interface. Exact model scope is mandatory before writes.'
+- CLI qos dscp-remap formal description and syntax text contain an inconsistency;
+  preserve the documented command-family evidence and require runtime validation rather
+  than inventing syntax.
+- Bandwidth Control / storm control are adjacent but distinct from QoS classification.
+  Port rate-limit and storm-control conflicts remain source/device scoped and must
+  not be silently resolved.
+- 'LAG is a logical interface dependency: where QoS applies to port-channel/LAG, do
+  not independently mutate members without exact read-back.'
+- TCAM/resource priority conflicts can prevent simultaneous features from taking effect;
+  configuration acceptance alone is not proof of effective QoS.
+- PASS requires read-back of trust/mapping/scheduler/rule state plus traffic/counter
+  behavior where observable; Apply/command acceptance alone is EXECUTED_UNVERIFIED.
+- Standalone CLI persistence follows task 4.02 only after running-state QoS verification.
+- Rollback restores exact observed pre-change trust, mappings, scheduler, weights,
+  rate limits and Controller rule bindings; do not reset the whole QoS subsystem generically.
+cli_evidence_quality:
+  pdf: Managed SwitchMulti-model_CLI.pdf REV2.0.0 May 2026
+  chapters:
+  - 63 QoS Commands
+  - 64 Bandwidth Control Commands
+  text_extraction: PARSED_OFFICIAL_PDF_TEXT
+  visual_screenshot_attempt: FAILED_TOOL_CACHE_MISS_ON_REPRESENTATIVE_PAGES
+  normalization_policy: Do not claim visual screenshot verification; exact runtime
+    support remains mandatory.
+deferred_boundaries:
+  '4.14': Port security / 802.1X / authentication
+  '4.16': DHCP Snooping / ARP Inspection / anti-spoofing
+  '4.17': Static routing / L3 / PBR
+  advanced_policer_shaper: Only exact documented QoS/rate-control semantics are normalized
+    here; do not synthesize unsupported policy engines.

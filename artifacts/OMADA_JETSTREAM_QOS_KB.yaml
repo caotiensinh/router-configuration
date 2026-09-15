@@ -1,0 +1,287 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_qos_kb
+task: '4.13'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_QOS_EVIDENCE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: OMADA_MANAGED_SWITCH_CLI_2026
+  url: https://static.tp-link.com/upload/manual/2026/202607/20260724/1900003588_Managed%20SwitchMulti-model_CLI.pdf
+  title: CLI Reference Guide — Managed Switches
+  revision: REV2.0.0
+  document_date: 2026-05
+  scope: Chapter 63 QoS Commands and Chapter 64 Bandwidth Control. Parsed official
+    PDF text used; screenshot calls returned cache miss.
+- id: OMADA_STANDALONE_QOS_2026
+  url: https://support.omadanetworks.com/us/document/106188/
+  title: How to configure QoS on Omada Switches in Standalone Mode
+  published: '2026-04-04'
+  scope: Current standalone workflow for port priority, trust 802.1p, trust DSCP,
+    eight TC queues and SP/WRR scheduler with model-specific global/per-port scope.
+- id: OMADA_CONTROLLER_SWITCH_QOS_2026
+  url: https://support.omadanetworks.com/en/document/112040/?app=web
+  title: How to Configure Switch QoS in Controller Mode
+  published: '2026-08-17'
+  scope: Controller 6.1+ Switch QoS; DSCP default trust after adoption, DSCP mapping,
+    queue scheduling and Network/Port/Custom QoS rules.
+- id: OMADA_CONTROLLER_USER_GUIDE_V6
+  url: https://support.omadanetworks.com/en/document/111217/
+  title: Omada Controller User Guide_V6.0
+  scope: DSCP-to-802.1p mapping and Queue Scheduler Profile behavior; retained as
+    version-scoped Controller evidence.
+- id: OMADA_CONTROLLER_COS_2024
+  url: https://support.omadanetworks.com/en/document/13255/?app=deco
+  title: How to configure Class of Service (CoS) through Omada Controller
+  published: '2024-10-22'
+  scope: Controller V5.9+ CoS explanation and scheduler scope warnings; historical/version-scoped
+    corroboration only.
+- id: OMADA_AGILE_EASY_GUIDE
+  url: https://support.omadanetworks.com/en/document/46791/
+  title: Omada Agile (Easy Managed) Switch (New VI)_User Guide
+  scope: Family-scoped QoS Basic, Rate Limit and Storm Control interactions; never
+    generalized to all JetStream devices.
+parallel_lane_execution:
+  task_manifest: orchestration/OMADA_PHASE4_13_PARALLEL_TASKS.json
+  plan: orchestration/OMADA_PHASE4_13_PARALLEL_PLAN.json
+  wave_1_read_only_lanes: 16
+  wave_2_integration_lanes: 1
+  external_worker_processes_claimed: 0
+  methods:
+  - current_web_guides
+  - parsed_official_pdf
+  - required_pdf_screenshot_attempt
+  - library_cross_check
+  - repo_hash_and_ci_verification
+  rule: Evidence lanes are conflict-free read-only assignments; artifact writes remain
+    serialized.
+concepts:
+  qos: Classification and queue scheduling used to prioritize traffic during congestion;
+    it does not increase link bandwidth.
+  trust_mode: 'Defines which ingress priority source is authoritative: configured
+    port priority, 802.1p tag, or DSCP field.'
+  mapping: Translates input priority values to internal/egress priority and TC queue
+    state.
+  scheduler: Controls service among TC queues; SP is strict-priority and WRR is weighted
+    service.
+  bandwidth_control: Separate rate-limit plane for ingress/egress traffic; not identical
+    to queue classification.
+cli_2026:
+  evidence_quality:
+    parsed_pdf_text: true
+    required_screenshot_pages_attempted:
+    - 919
+    - 925
+    - 935
+    - 938
+    screenshot_result: CACHE_MISS_ALL_ATTEMPTS
+    visual_screenshot_verified: false
+  trust:
+    syntax: qos trust mode { dot1p | dscp | untrust }
+    published_default: trust port priority / untrust behavior
+    contexts:
+    - interface gigabitEthernet
+    - interface range gigabitEthernet
+    - interface port-channel
+    - interface range port-channel
+    privilege:
+    - Admin
+    - Operator
+    - Power User
+  port_priority:
+    syntax: qos port-priority <0..7>
+    reset: no qos port-priority
+    published_default: 0
+  dot1p_to_queue:
+    syntax: qos cos-map <0..7> <TC0..TC7>
+    reset: no qos cos-map
+    scope: global in cited CLI entry
+  dot1p_remap:
+    syntax: qos dot1p-remap <0..7> <0..7>
+    reset: no qos dot1p-remap
+    scope: global on some devices, per-interface on others
+  dscp_to_dot1p:
+    syntax: qos dscp-map <DSCP_LIST_0..63> <DOT1P_0..7>
+    reset: no qos dscp-map
+    scope: global on some devices, per-interface on others
+  dscp_remap:
+    description: DSCP to DSCP remap; values 0..63
+    formal_text_anomaly: The syntax line in parsed PDF says qos queue dscp-map while
+      examples use qos dscp-remap. Treat runtime syntax as unresolved until exact-device
+      CLI help/read-back confirms it.
+    scope: global on some devices, per-interface on others
+  queue_min_bandwidth:
+    syntax: qos queue <TC0..TC7> bandwidth <1..100>
+    reset: no qos queue <TC> bandwidth
+    default: 0
+    constraint: sum of guaranteed queue bandwidth values must not exceed 100%
+    capability: certain devices only
+    scope: interface/port-channel contexts in cited entry
+  scheduler:
+    syntax: qos queue <TC0..TC7> mode { sp | wrr } [ weight <1..127> ]
+    scope: global for some devices; per-interface for others
+    privilege:
+    - Admin
+    - Operator
+    - Power User
+    risk: SP can starve lower queues under sustained high-priority load.
+  vlan_hooks:
+    qos_localPri: VLAN-scoped egress queue selection in cited CLI
+    qos_cosPri: VLAN-scoped egress 802.1p priority in cited CLI
+    boundary: Treat as VLAN QoS hooks; do not rewrite VLAN membership/PVID.
+  read_back:
+  - show qos cos-map
+  - show qos dot1p-remap [interface]
+  - show qos dscp-map [interface]
+  - show qos dscp-remap [interface]
+  - show qos port-priority interface
+  - show qos trust interface
+  - show qos queue interface
+  - show qos rule
+  controller_rule_readback: show qos rule is documented for applied Controller-mode
+    QoS entries; QoS rules can only be configured in Controller mode in cited CLI
+    text.
+bandwidth_control_2026:
+  port_bandwidth:
+    syntax: bandwidth [ ingress <rate> ] [ egress <rate> ]
+    reset: no bandwidth { all | ingress | egress }
+    read_back: show bandwidth interface ...
+  storm_control:
+    scope: adjacent Chapter 64 feature, not queue classification
+    modes:
+    - kbps
+    - ratio
+    - pps_if_supported
+    actions:
+    - drop
+    - shutdown
+    read_back: show storm-control interface ...
+  source_scoped_conflict: Agile/Easy Managed guide states ingress rate control and
+    storm control cannot be enabled simultaneously on a port; retain as family-scoped
+    unless exact device docs prove broader behavior.
+standalone_gui_2026:
+  requirements:
+  - Omada Access
+  - Access Plus
+  - Access Pro
+  - Access Max
+  - Aggregation
+  - Campus
+  - S6500/S7500 series in cited guide
+  modes:
+    PORT_PRIORITY: map 802.1p to TC queue, set port Trust Mode Untrust, assign port
+      802.1p priority
+    TRUST_8021P: map 802.1p to queue, optionally remap 802.1p, trust packet 802.1p
+    TRUST_DSCP: map DSCP to 802.1p, map 802.1p to TC queue, trust packet DSCP
+  queues: TC0 lowest through TC7 highest
+  scheduler: SP, WRR, or mixed SP+WRR
+  scheduler_scope: Guide lists specific models/families with global scheduler and
+    others with per-port scheduler; exact model is mandatory.
+controller_mode:
+  current_6_1:
+    path: Network Config > Transmission > Switch QoS
+    requirements:
+    - Omada Access/Access Plus/Access Pro/Access Max/Aggregation/Campus
+    - Controller 6.1
+    adoption_behavior: Controller 6.1 automatically pushes trust DSCP after adoption
+      in cited guide.
+    dscp_mapping: DSCP values 0..63 can be mapped centrally to queues.
+    scheduler: Queues 0..7 use SP or WRR; WRR weight 1..127; hybrid supported.
+    rule_types:
+    - Network
+    - Port
+    - Custom
+    rule_fields:
+    - Rule Name
+    - IPv4/IPv6 selection
+    - Queue 0..7
+    - Network or Port/LAG or Custom protocol/ports
+    - Remark DSCP Value
+    boundary: Controller QoS rules are Controller objects; do not translate blindly
+      to standalone CLI.
+  versioned_legacy:
+    v6_user_guide: Documents DSCP -> 802.1p -> queue mapping and queue scheduler profiles.
+      Preserve as version-scoped evidence rather than assuming identical 6.1 object
+      model.
+    v5_9_cos: Historical CoS guide explains port/802.1p/DSCP classification and global-vs-per-port
+      scheduler differences; do not use it to override newer 6.1 behavior.
+resource_and_dependency:
+  tcam: CLI chapter notes Switch QoS Rule and OUI-based VLAN may compete for TCAM
+    priority so only one can take effect when both match; verify exact resource/effect
+    state.
+  acl_qos: Task 4.12 records ACL QoS hooks and shared resource dependencies; 4.13
+    must not silently alter ACL ordering/binding.
+  lag: Task 4.10 logical-LAG semantics apply. Controller Port QoS can target LAGs;
+    verify logical target rather than member ports.
+  vlan: 802.1p requires VLAN-tagged frames; QoS must not silently change VLAN membership/PVID.
+safe_transaction:
+  preconditions:
+  - resolve exact model/hardware/region/firmware/management mode/Controller version
+    and target port/LAG
+  - read current trust mode, priority mappings/remaps, scheduler/weights and rate
+    limits
+  - resolve global-vs-per-port scheduler scope
+  - read Controller QoS rules where applicable
+  - check TCAM/resource conflicts and active ACL/OUI policies
+  - identify critical/control/management traffic classes before SP or rate-limit changes
+  - obtain production-write approval
+  write:
+  - apply only intended trust/mapping/scheduler/rule/rate delta
+  - do not silently change VLAN/LAG/ACL state
+  - do not enable SP broadly without starvation analysis
+  - do not auto-change SDM/TCAM templates
+  - do not infer dscp-remap syntax across models where parsed CLI text conflicts
+  verify:
+  - read back trust/mapping/remap/queue/scheduler state
+  - read Controller QoS rules via applicable UI/CLI
+  - verify intended priority behavior under representative traffic/congestion when
+    feasible
+  - verify no unintended starvation or rate drop
+  - verify management/controller reachability remains healthy
+  - record EXECUTED_UNVERIFIED when enforcement cannot be semantically demonstrated
+  persist: For standalone CLI, apply task 4.02 running-to-startup save only after
+    running-state verification.
+rollback:
+  restore_exact:
+  - trust mode
+  - port priority
+  - 802.1p/DSCP maps and remaps
+  - queue mode/weights/minimum bandwidth
+  - VLAN QoS hooks
+  - port ingress/egress bandwidth limits
+  - Controller QoS rule bindings/remark state
+  - resource assumptions
+  forbidden_generic:
+  - reset all QoS
+  - trust all DSCP globally
+  - remove all rate limits
+validation_cases:
+  CONTROLLER_6_1_DSCP_TRUST: PASS only when Controller scope/version is exact and
+    post-adoption/read-back confirms DSCP trust intent.
+  STANDALONE_DEFAULT_ASSUMED_ON_CONTROLLER: BLOCKED_BY_SCOPE; standalone default trust
+    must not override Controller 6.1 behavior.
+  SCHEDULER_SCOPE_UNKNOWN: BLOCKED_BY_APPLICABILITY until global-vs-interface scope
+    is resolved for exact model.
+  SP_STARVATION_RISK: BLOCKED_BY_CONFLICT when sustained higher-priority load would
+    starve required lower-priority traffic without accepted design.
+  DSCP_REMAP_SYNTAX_CONFLICT: BLOCKED_BY_APPLICABILITY until exact runtime CLI help/read-back
+    resolves documented syntax anomaly.
+  TCAM_QOS_OUI_CONFLICT: BLOCKED_BY_RESOURCE/CONFLICT until effective feature installation
+    is proven.
+  QOS_RULE_APPLIED_NO_READBACK: EXECUTED_UNVERIFIED.
+  LAG_MEMBER_ONLY_CHANGE: NOT_PASS when logical LAG is authoritative and members are
+    changed independently.
+  RUNNING_ONLY: Running-state VERIFIED may remain non-durable until task 4.02 save
+    verification succeeds.
+deferred_boundaries:
+  '4.14': Port security / 802.1X / authentication
+  '4.16': DHCP Snooping / ARP Inspection / anti-spoofing
+  '4.17': Static routing / L3 and PBR
+  voice_vlan: OUI/Voice VLAN remains a separate feature dependency; do not synthesize
+    it from QoS priority alone.
+closure:
+  task_4_13_complete: true
+  boundary: QoS trust/classification, mappings/remaps, eight queues, SP/WRR scheduling,
+    Controller QoS rule objects, source-scoped rate controls, resource/LAG/VLAN dependencies,
+    read-back, rollback and persistence are normalized without consuming later authentication/routing
+    work.
+  next_task: 4.14 Port security / 802.1X / authentication
