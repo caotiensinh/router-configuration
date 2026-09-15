@@ -1,0 +1,170 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_vlan_8021q_fundamentals_kb
+task: '4.04'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_8021Q_GUIDE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+  - id: OMADA_SMART_MANAGED_8021Q_GUI_2026
+    url: https://support.omadanetworks.com/en/document/12981/
+    title: How to Configure 802.1Q VLAN on Smart and Managed Switches Using the New GUI
+    source_type: CONFIGURATION_GUIDE
+    published: '2026-08-13'
+    scope_note: Smart and Managed switches using the documented standalone GUI flow; exact-model applicability is not inferred.
+  - id: OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+    url: https://support.omadanetworks.com/en/document/46791/
+    title: Omada Agile (Easy Managed) Switch (New VI)_User Guide
+    source_type: USER_GUIDE
+    scope_note: Agile/Easy Managed product family; product-specific defaults and VLAN-count limits remain confined to this scope.
+  - id: OMADA_CONTROLLER_8021Q_SWITCH_2024
+    url: https://support.omadanetworks.com/en/document/13215/
+    title: How to Configure 802.1Q VLAN on Omada Switches in Controller Mode
+    source_type: CONFIGURATION_GUIDE
+    scope_note: Controller-mode workflow; current page states applicable Omada switch classes and Omada Controller v6.0+ requirements.
+  - id: OMADA_CONTROLLER_USER_GUIDE_V6
+    url: https://support.omadanetworks.com/en/document/111217/
+    title: Omada Controller User Guide_V6.0
+    source_type: CONTROLLER_USER_GUIDE
+    scope_note: Controller-side network/VLAN object semantics; standalone device behavior is not inferred from this source.
+
+governance:
+  no_model_inference: true
+  no_firmware_inference: true
+  no_management_mode_inference: true
+  no_default_vlan_generalization: true
+  no_vlan_capacity_generalization: true
+  no_write_authorization_from_concept_evidence: true
+  exact_device_support_required_before_execution: true
+
+fundamental_model:
+  logical_segmentation:
+    statement: 802.1Q VLAN logically divides a physical switched network into multiple VLAN/broadcast domains.
+    source_ids:
+      - OMADA_SMART_MANAGED_8021Q_GUI_2026
+      - OMADA_CONTROLLER_8021Q_SWITCH_2024
+  vlan_identifier:
+    normalized_field: VLAN_ID
+    published_range:
+      min: 1
+      max: 4094
+    semantics: Each VLAN is identified by its VLAN ID; current Controller guidance describes the VLAN ID as carried in the IEEE 802.1Q tag.
+    source_ids:
+      - OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+      - OMADA_CONTROLLER_USER_GUIDE_V6
+  tagged_ingress:
+    frame_state: TAGGED_FRAME
+    semantics: The switch checks the VID contained in the VLAN tag to determine VLAN membership where the Agile/Easy Managed guide applies.
+    source_ids:
+      - OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+  untagged_ingress:
+    frame_state: UNTAGGED_FRAME
+    semantics: The applicable Agile/Easy Managed guide inserts/associates a VLAN tag using the ingress port PVID as VID before forwarding in the VLAN context.
+    source_ids:
+      - OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+    boundary: PVID write syntax and access-port configuration are deferred to task 4.05.
+  tagged_egress:
+    membership_state: TAGGED_MEMBER
+    semantics: Traffic for the VLAN exits the member port with VLAN tag information present.
+    source_ids:
+      - OMADA_SMART_MANAGED_8021Q_GUI_2026
+      - OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+    boundary: Trunk/tagged write syntax is deferred to task 4.06.
+  untagged_egress:
+    membership_state: UNTAGGED_MEMBER
+    semantics: Traffic for the VLAN exits the member port without the VLAN tag; the applicable Agile/Easy Managed guide states the tag header is removed before sending.
+    source_ids:
+      - OMADA_SMART_MANAGED_8021Q_GUI_2026
+      - OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+    boundary: Access-port/PVID and membership write syntax are deferred to tasks 4.05 and 4.07.
+  non_member:
+    membership_state: NON_MEMBER
+    semantics: The port is excluded from the current VLAN in the applicable Agile/Easy Managed guide.
+    source_ids:
+      - OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+
+source_scoped_defaults_and_limits:
+  - id: AGILE_DEFAULT_VLAN_1_BEHAVIOR
+    source: OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+    scope: Agile/Easy Managed New-VI guide only
+    published_behavior:
+      - By default all ports are added to VLAN 1.
+      - A port can be removed from VLAN 1 only when it is also a member of another VLAN.
+      - If a port is removed from all current VLANs, the guide states it is added to VLAN 1 automatically.
+      - VLAN 1 cannot be deleted.
+    normalization_rule: SOURCE_SCOPED_ONLY_DO_NOT_GENERALIZE_TO_ALL_JETSTREAM
+  - id: AGILE_SIMULTANEOUS_VLAN_LIMIT
+    source: OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+    scope: Agile/Easy Managed guide only
+    published_limit: 32
+    unit: simultaneous_vlans
+    normalization_rule: MODEL_FAMILY_LIMIT_NOT_GLOBAL_SWITCH_LIMIT
+
+management_mode_boundaries:
+  standalone_smart_managed:
+    source: OMADA_SMART_MANAGED_8021Q_GUI_2026
+    observed_objects:
+      - vlan_id
+      - tagged_member_ports
+      - untagged_member_ports
+      - pvid
+    note: These GUI objects prove the conceptual model in the documented standalone scope only.
+  standalone_agile_easy_managed:
+    source: OMADA_AGILE_NEW_VI_USER_GUIDE_2026
+    observed_objects:
+      - vlan_id
+      - tagged_member_ports
+      - untagged_member_ports
+      - non_member_ports
+      - pvid
+      - ingress_checking
+    note: Agile/Easy Managed defaults and limits stay family-scoped.
+  controller_mode:
+    source: OMADA_CONTROLLER_8021Q_SWITCH_2024
+    observed_objects:
+      - vlan_network
+      - tagged_network
+      - untagged_or_native_network
+      - switch_port_assignment
+    note: Controller objects and version/applicability requirements are independent of standalone GUI/CLI syntax.
+
+safe_automation_contract:
+  preconditions:
+    - Resolve exact model, hardware revision, region, firmware and management mode.
+    - Confirm positive 802.1Q support for the exact device and target management plane.
+    - Resolve the exact physical/logical port identity before any membership operation.
+    - Keep source-scoped VLAN 1/default behavior and VLAN capacity limits attached to their product family.
+  read_model:
+    - Discover existing VLAN IDs and per-port tagged/untagged/non-member membership using an official applicable read surface.
+    - Discover current PVID separately from egress membership; do not assume they are equivalent.
+    - Preserve management VLAN and switch-management-IP dependencies for task 4.08 rather than inferring them here.
+  mutation_boundary:
+    - This task defines concepts only and authorizes no production VLAN write syntax.
+    - Access/PVID mutation belongs to 4.05.
+    - Tagged/trunk mutation belongs to 4.06.
+    - Membership removal/default-VLAN mutation belongs to 4.07.
+    - VLAN interface and management-IP mutation belongs to 4.08.
+  verification:
+    - Concept normalization is VERIFIED only when each asserted behavior is backed by the cited official source and its source scope is retained.
+    - Exact device execution remains BLOCKED_BY_APPLICABILITY until later task syntax plus model/firmware/management-mode evidence is resolved.
+
+validation_cases:
+  - id: VLAN_ID_RANGE
+    expected: Accept concept range 1-4094 only where current official source applies; do not infer per-device usable-count capacity from the numeric namespace.
+  - id: TAGGED_UNTAGGED_DISTINCTION
+    expected: Tagged and untagged egress remain distinct states; never collapse them into generic membership.
+  - id: PVID_IS_NOT_EGRESS_MEMBERSHIP
+    expected: PVID is an ingress/default VLAN classification field and must remain separate from tagged/untagged egress membership.
+  - id: AGILE_VLAN1_DEFAULT
+    expected: Retain VLAN 1 rules only in Agile/Easy Managed scope; do not promote them to all managed switches.
+  - id: AGILE_32_VLAN_LIMIT
+    expected: Retain 32 simultaneous VLANs only in the source scope; do not use it as a global Omada/JetStream limit.
+  - id: CONTROLLER_STANDALONE_SEPARATION
+    expected: Do not translate standalone GUI semantics directly into controller objects or vice versa without task-specific evidence.
+
+closure:
+  task_4_04_complete: true
+  boundary: >-
+    IEEE 802.1Q VLAN identity, tagged/untagged/non-member membership, ingress PVID role,
+    source-scoped VLAN 1/default behavior, family-scoped VLAN capacity limits, and management-mode
+    separation are normalized without promoting later-task write syntax.
+  next_task: 4.05 Access-port/PVID configuration

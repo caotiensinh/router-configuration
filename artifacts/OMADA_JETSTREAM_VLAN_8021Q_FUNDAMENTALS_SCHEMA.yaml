@@ -1,0 +1,43 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_vlan_8021q_fundamentals
+task: '4.04'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_OFFICIAL_8021Q_GUIDE_SCOPE
+authority: TP-Link / Omada official documentation only
+scope:
+  product_family: Omada / JetStream managed-switch VLAN knowledge
+  source_scope: >-
+    Current official Smart/Managed, Agile/Easy Managed, and Omada Controller documentation
+    used only for 802.1Q concepts and source-scoped defaults. Exact model, hardware revision,
+    region, firmware, management mode, port capability and runtime applicability remain mandatory.
+vlan_state_enum:
+  - TAGGED_MEMBER
+  - UNTAGGED_MEMBER
+  - NON_MEMBER
+frame_state_enum:
+  - TAGGED_FRAME
+  - UNTAGGED_FRAME
+normalized_identifier_fields:
+  - vlan_id
+  - pvid
+  - port_membership
+  - egress_tag_state
+  - management_mode
+verification_state_enum:
+  - VERIFIED
+  - BLOCKED_BY_APPLICABILITY
+  - BLOCKED_BY_CAPABILITY
+  - NOT_APPLICABLE
+  - UNKNOWN
+rules:
+  - IEEE 802.1Q VLAN identity is represented by VLAN ID; official current guides publish VLAN IDs in the range 1 through 4094.
+  - Tagged ingress classification uses the VID carried in the 802.1Q tag where the applicable guide documents this behavior.
+  - Untagged ingress classification may use the port PVID where the applicable guide documents this behavior.
+  - Tagged, untagged and non-member are distinct port-membership / egress states and must not be collapsed.
+  - Tagged egress means the frame leaves the port with VLAN tag information present; untagged egress means the applicable guide removes the VLAN tag before transmission.
+  - Product-specific VLAN 1/default-VLAN rules must remain scoped to the exact product family and guide that publishes them.
+  - Product-specific VLAN-count limits must never be generalized across switch families.
+  - 802.1Q concept support does not authorize exact CLI, GUI, controller or API write syntax.
+  - Access-port/PVID writes are deferred to 4.05; trunk/tagged writes to 4.06; membership/removal/default-VLAN writes to 4.07; VLAN interface/management-IP behavior to 4.08.
+  - Unmanaged/inventory-only devices are not promoted into configuration targets solely because a generic VLAN guide exists.
+  - Controller-mode semantics are not inferred from standalone-mode semantics, and vice versa.
