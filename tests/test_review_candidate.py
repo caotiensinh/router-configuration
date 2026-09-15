@@ -130,6 +130,23 @@ class ReviewCandidateTests(unittest.TestCase):
     def test_physical_target_stops_at_admission_until_chr_verified(self):
         with tempfile.TemporaryDirectory() as tmp:
             profile, evidence, manifest, attestation, matrix = self._files(Path(tmp))
+
+            # This test models the historical/precondition state explicitly.
+            # The repository target matrix may now legitimately have
+            # chr-live-v7=verified_read_only; physical admission must still be
+            # proven blocked when that prerequisite is absent.
+            matrix_payload = json.loads(matrix.read_text(encoding="utf-8"))
+            chr_target = next(
+                item
+                for item in matrix_payload["targets"]
+                if item.get("id") == "chr-live-v7"
+            )
+            chr_target["status"] = "technical_readonly_validated_pending_attestation"
+            matrix.write_text(
+                json.dumps(matrix_payload, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
             payload = json.loads(attestation.read_text(encoding="utf-8"))
             payload.update(
                 {
