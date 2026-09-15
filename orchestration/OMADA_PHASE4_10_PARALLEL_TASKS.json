@@ -1,0 +1,133 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "6db6401e9261a68cb7069cc61e2ed2ccd2e4e591",
+  "purpose": "Parallel official-source research/review for Omada Phase 4.10 before one serialized integration write.",
+  "tasks": [
+    {
+      "task_id": "OMADA-4.10-CONCEPT-STATIC-LACP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.10-CLI-GROUP-CONSTRUCTION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.10-CLI-LACP-CONTROLS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.10-HASH-LOAD-BALANCE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.10-STANDALONE-GUI",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.10-CONTROLLER-V6",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.10-MEMBER-COMPATIBILITY",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.10-VLAN-STP-DEPENDENCY",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.10-READBACK-OPERATIONAL",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.10-TOPOLOGY-MGMT-SAFETY",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.10-ROLLBACK-PERSISTENCE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.10-APPLICABILITY-VALIDATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.10-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_LAG_LACP_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_LAG_LACP_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_LAG_LACP_KB.md",
+        "orchestration/OMADA_PHASE4_10_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_10_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.10-CONCEPT-STATIC-LACP",
+        "OMADA-4.10-CLI-GROUP-CONSTRUCTION",
+        "OMADA-4.10-CLI-LACP-CONTROLS",
+        "OMADA-4.10-HASH-LOAD-BALANCE",
+        "OMADA-4.10-STANDALONE-GUI",
+        "OMADA-4.10-CONTROLLER-V6",
+        "OMADA-4.10-MEMBER-COMPATIBILITY",
+        "OMADA-4.10-VLAN-STP-DEPENDENCY",
+        "OMADA-4.10-READBACK-OPERATIONAL",
+        "OMADA-4.10-TOPOLOGY-MGMT-SAFETY",
+        "OMADA-4.10-ROLLBACK-PERSISTENCE",
+        "OMADA-4.10-APPLICABILITY-VALIDATION"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.10"
+      ],
+      "priority": 110
+    }
+  ]
+}

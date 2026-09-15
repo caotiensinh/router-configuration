@@ -1,0 +1,280 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_lag_lacp_kb
+task: '4.10'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_LAG_LACP_EVIDENCE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: OMADA_MANAGED_SWITCH_CLI_2026
+  url: https://static.tp-link.com/upload/manual/2026/202607/20260724/1900003588_Managed%20SwitchMulti-model_CLI.pdf
+  title: CLI Reference Guide — Managed Switches
+  source_type: CLI_REFERENCE_GUIDE
+  revision: REV2.0.0
+  document_date: 2026-05
+  scope_note: Chapter 17 Link Aggregation Commands. Parsed official PDF text used; screenshot retrieval returned cache-miss.
+    Exact device/firmware/interface applicability remains a runtime gate.
+- id: OMADA_STANDALONE_LACP_2026
+  url: https://support.omadanetworks.com/us/document/12920/
+  title: How to Configure LACP on Smart/Managed Switches
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-08-10'
+  scope_note: Current standalone LACP workflow; Active/Passive behavior, hash guidance, configure-LAG-before-dependent-features
+    guidance and logical-LAG precedence.
+- id: OMADA_CONTROLLER_LAG_LACP_2026
+  url: https://support.omadanetworks.com/en/document/13148/
+  title: How to configure LAG (LACP) on Omada Switches via Omada Controller
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-08-20'
+  scope_note: Controller V6+ workflow for Omada Smart, L2+ and L3 switches; same-mode requirement, Active/Passive guidance,
+    hash configuration and LAG status/statistics verification.
+- id: OMADA_LAG_VLAN_NEW_GUI_2026
+  url: https://support.omadanetworks.com/au/document/12996/
+  title: How to Configure 802.1Q VLAN for LAG Ports on Smart and Managed Switches Using the New GUI
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-07-22'
+  scope_note: Current example showing VLAN configuration against the logical LAG interface when VLAN and LAG are combined.
+- id: OMADA_AGILE_EASY_USER_GUIDE_2026
+  url: https://support.omadanetworks.com/en/document/46791/
+  title: Omada Agile (Easy Managed) Switch (New VI)_User Guide
+  source_type: USER_GUIDE
+  retrieved_at: '2026-09-15'
+  scope_note: Source-scoped LAG member compatibility constraints and per-device group/member capacity warning; not generalized
+    to all switch classes.
+parallel_lane_execution:
+  task_manifest: orchestration/OMADA_PHASE4_10_PARALLEL_TASKS.json
+  plan: orchestration/OMADA_PHASE4_10_PARALLEL_PLAN.json
+  wave_1_read_only_lanes: 12
+  wave_2_integration_lanes: 1
+  external_worker_processes_claimed: 0
+  rule: Parallel evidence lanes are assignment slots; write ownership remains serialized.
+concepts:
+  LAG: A logical interface built from multiple physical ports to increase aggregate link capacity and provide link redundancy
+    in the applicable design.
+  STATIC_LAG: Member selection is administratively fixed; the 2026 CLI uses channel-group <id> mode on.
+  LACP: Dynamic link aggregation using LACP protocol exchange; the 2026 CLI exposes active and passive modes.
+  mode_boundary: Static and LACP modes are not interchangeable. Peer mode/behavior must be compatible before PASS.
+cli_2026:
+  evidence_quality:
+    parsed_pdf_text: true
+    screenshot_attempted: true
+    screenshot_result: CACHE_MISS
+    visual_screenshot_verified: false
+  member_construction:
+    syntax: channel-group <group-id> mode { on | active | passive }
+    remove: no channel-group
+    mode_meaning:
+      'on': static LAG
+      active: active LACP
+      passive: passive LACP
+    group_id_ranges_source_scoped:
+      L2_L2PLUS: 1..8
+      L3_ACCESS: 1..64
+      L3_AGGREGATION: 1..120
+    published_interface_contexts:
+    - fastEthernet
+    - gigabitEthernet
+    - two-gigabitEthernet
+    - ten-gigabitEthernet
+    - interface range variants of the same classes
+    privilege:
+    - Admin
+    - Operator
+    - Power User
+    scope_rule: The reference publishes these class/range values generically; exact model/member capacity and interface support
+      remain mandatory gates.
+  hash_algorithm:
+    syntax: port-channel load-balance { src-mac | dst-mac | src-dst-mac | src-ip | dst-ip | src-dst-ip }
+    reset: no port-channel load-balance
+    published_default: src-dst-mac
+    mode: Global Configuration Mode
+    privilege:
+    - Admin
+    - Operator
+    - Power User
+    safety: A hash setting distributes traffic according to selected header fields. It is not proof that one flow receives
+      aggregate member bandwidth.
+  system_priority:
+    syntax: lacp system-priority <0..65535>
+    reset: no lacp system-priority
+    published_default: 32768
+    mode: Global Configuration Mode
+    privilege:
+    - Admin
+    - Operator
+    - Power User
+  port_priority:
+    syntax: lacp port-priority <0..65535>
+    reset: no lacp port-priority
+    published_default: 32768
+    published_context: interface gigabitEthernet / interface range gigabitEthernet
+    privilege:
+    - Admin
+    - Operator
+    - Power User
+    boundary: Do not broaden this command to other interface classes without exact applicable evidence.
+  timeout:
+    syntax: lacp timeout { long | short }
+    reset: no lacp timeout
+    published_default: long
+    mode: Interface Configuration Mode
+    privilege:
+    - Admin
+    - Operator
+    - Power User
+    rules:
+    - Configurable only on ports where LACP is enabled.
+    - It cannot be configured from Port-channel view in the cited CLI reference.
+    - If an LACP member is removed from LACP or converted to static LAG, its timeout reverts to default.
+    - For interface-range use, the setting applies only to ports with LACP enabled.
+    - At least one side must operate in LACP Active mode for the cited keepalive-transmission behavior to be affected.
+  read_back:
+    commands:
+    - show etherchannel [<group-id>] { detail | summary }
+    - show etherchannel load-balance
+    - show lacp [<group-id>] { internal | neighbor }
+    - show lacp sys-id
+    published_privilege: None for cited show commands
+    modes: Privileged EXEC Mode and Any Configuration Mode
+    required_pass_observations:
+    - expected logical group exists
+    - every intended member is present with expected operational state
+    - expected aggregation mode is active
+    - for LACP, local/internal and neighbor/partner state are coherent
+    - hash algorithm matches intent when changed
+    - management/uplink reachability remains healthy
+  port_channel_boundary: Do not treat an unrelated 'interface port-channel' command as a substitute for documented channel-group
+    member aggregation. Logical port-channel configuration is a dependent interface plane after/where the aggregation exists.
+standalone_gui:
+  current_lacp_2026:
+    workflow:
+    - Configure LAG/LACP before connecting all redundant physical links when an unaggregated loop would otherwise exist.
+    - Configure corresponding member ports on both devices.
+    - Use compatible LACP modes; current guide describes Active and Passive and suggests one side Active and the other Passive.
+    - Verify membership in the LAG table after links are connected.
+    - Configure hash algorithm only when the traffic design requires it.
+    system_priority_note: The current guide states lower numeric system-priority value has higher system priority; if equal,
+      smaller MAC address has higher priority.
+    default_hash_note: The current guide describes source+destination MAC as the normal/default hash in the cited scope.
+    logical_lag_precedence: The current guide recommends configuring LAG before VLAN/STP/QoS/GVRP/port attributes/MAC learning
+      and states LAG-group configuration has higher priority than configuration on its member ports in that scope.
+  vlan_dependency:
+    rule: When VLAN and LAG are combined in the cited New GUI workflow, configure/verify VLAN state on the logical LAG as
+      the authoritative target.
+    boundary: Do not automatically copy physical-member VLAN state to a LAG or vice versa without exact applicable read-back.
+controller_mode:
+  applicability:
+    switch_classes:
+    - Omada Smart
+    - Omada L2+
+    - Omada L3
+    controller_minimum: V6+
+  construction:
+    path: Devices > target switch > Ports > edit member > Profile Overrides > Aggregating
+    fields:
+    - aggregating member selection
+    - LAG ID
+    - LACP mode
+    peer_rule: Both ends of the aggregation link must use the same LAG mode.
+    lacp_guidance: Active sends LACP packets proactively; Passive sends after receiving LACP. Current guide suggests one side
+      Active and the other Passive.
+  hash: Controller private switch configuration exposes Hash Algorithm under Config > General in the cited workflow.
+  verification:
+  - Open Ports > LAG and verify LAG status on both switches.
+  - Inspect LAG statistics/rate after the link is up.
+  - If LAG fails, verify relevant member speed and duplex are matched as called out by current guidance.
+  topology_safety: The current guide instructs starting with one inter-switch cable, completing LAG configuration, then connecting
+    the additional cable(s).
+member_compatibility:
+  global_safe_minimum:
+  - resolve exact member-port capabilities
+  - verify intended peer ports and group ID/mode on both ends
+  - verify speed/duplex compatibility
+  - verify no prohibited feature conflict
+  - verify logical LAG VLAN/STP state after membership changes
+  agile_easy_source_scoped:
+  - same number of physical ports at both ends
+  - same speed and duplex mode
+  - same flow-control setting
+  - same QoS setting
+  - mirroring/mirrored ports cannot join the LAG
+  - maximum LAG-group/member counts vary by device
+  boundary: The stronger Agile/Easy requirements are retained as family-scoped evidence and are not generalized as universal
+    exact-device rules.
+dependency_planes:
+  vlan: Tasks 4.04–4.08 define VLAN/PVID/SVI semantics. Once aggregation exists, discover whether VLAN state is authoritative
+    on the logical LAG before changing members.
+  stp: Task 4.09 defines loop-prevention state. A LAG may participate in STP as a logical interface; member changes must not
+    silently bypass the intended spanning-tree topology.
+  qos_other: Standalone guidance warns that LAG configuration can take precedence over member-port QoS and related settings
+    in its scope; discover logical-interface state rather than assuming inheritance.
+  mlag: Multi-chassis LAG is a separate feature and is explicitly deferred.
+safe_transaction:
+  preconditions:
+  - Resolve exact model, hardware revision, region, firmware, management mode, Controller version and member-port identities.
+  - Read current member speed/duplex and current LAG/LACP membership on both ends.
+  - Read current VLAN/PVID and STP state for the candidate members and any existing logical LAG.
+  - Discover whether the current management/controller path traverses the candidate link or existing LAG.
+  - Verify peer LAG mode/group design and exact member compatibility.
+  - Keep redundant links physically open/unconnected if unaggregated parallel links would create a loop.
+  - Obtain production-write approval.
+  write:
+  - Apply only the intended member/group/mode delta.
+  - Do not mix static and LACP member intent within one group unless exact device evidence explicitly supports the requested
+    design.
+  - Do not silently overwrite VLAN/STP/QoS state on physical members or the logical LAG.
+  - Do not construct M-LAG/MLAG under ordinary LAG/LACP logic.
+  verify:
+  - Read back EtherChannel/LAG membership and operational state for every intended member.
+  - For LACP, verify internal and neighbor/partner state.
+  - Verify hash algorithm if changed.
+  - Verify logical LAG VLAN/STP state remains as designed.
+  - Verify traffic/link redundancy and management/controller reachability remain acceptable.
+  - Record EXECUTED_UNVERIFIED rather than PASS if any intended member or partner state lacks semantic operational evidence.
+  persist: For standalone CLI, use task 4.02 running-to-startup save only after running-state operational verification.
+rollback:
+  required_pre_state:
+  - previous LAG ID and mode for each member
+  - previous member speed/duplex and link state
+  - previous LACP system/port priority and timeout
+  - previous hash algorithm
+  - previous logical LAG VLAN/PVID/STP/QoS-relevant state
+  - previous management/uplink dependency
+  policy: Restore the exact observed pre-change group/member/protocol and dependent logical-interface state, then re-verify
+    partner state and reachability. Do not remove the entire LAG as a generic rollback when it carries live traffic or management.
+validation_cases:
+- id: STATIC_LAG_MATCHED
+  expected: PASS only after all intended members are read back in the static group and operational link/reachability are acceptable.
+- id: LACP_ACTIVE_PASSIVE
+  expected: PASS only after internal/neighbor read-back confirms the intended LACP aggregation on both ends.
+- id: BOTH_ENDS_MODE_MISMATCH
+  expected: BLOCKED_BY_PARTNER_MISMATCH.
+- id: MEMBER_SPEED_DUPLEX_MISMATCH
+  expected: BLOCKED_BY_MEMBER_COMPATIBILITY until corrected or exact capability evidence proves compatibility.
+- id: PARALLEL_LINKS_BEFORE_LAG
+  expected: BLOCKED_BY_TOPOLOGY_RISK when connecting redundant Layer-2 links would create a loop before aggregation/loop-prevention
+    is verified.
+- id: LACP_TIMEOUT_ON_STATIC_MEMBER
+  expected: BLOCKED_BY_APPLICABILITY; cited CLI permits timeout only on LACP-enabled ports.
+- id: RANGE_MIXED_LACP_STATE
+  expected: Mixed result; cited CLI applies LACP timeout only to LACP-enabled ports in a range, so verify per port.
+- id: LOGICAL_LAG_VLAN_DRIFT
+  expected: NOT PASS if member aggregation is correct but logical LAG VLAN/PVID state is not the intended design.
+- id: MANAGEMENT_LAG_DESTRUCTIVE_CHANGE
+  expected: BLOCKED_BY_MANAGEMENT_PATH_RISK until alternate/recovery path is verified.
+- id: HASH_CHANGED_NO_READBACK
+  expected: EXECUTED_UNVERIFIED until show etherchannel load-balance confirms the intended hash.
+- id: MLAG_REQUEST
+  expected: DEFER; ordinary 4.10 LAG/LACP does not normalize multi-chassis aggregation.
+- id: RUNNING_ONLY
+  expected: Running-state VERIFIED may remain non-durable until task 4.02 save verification succeeds.
+deferred_boundaries:
+  '4.11': IGMP Snooping / Querier / Fast Leave
+  MLAG: Separate multi-chassis aggregation feature
+  advanced_routed_port_channel: Exact Layer-3 port-channel/routing behavior remains capability-scoped and is not synthesized
+    from L2 LAG membership.
+closure:
+  task_4_10_complete: true
+  boundary: LAG/LACP concepts, static/LACP construction, member compatibility, hash behavior, priorities/timeouts, logical-LAG
+    VLAN/STP dependencies, standalone/Controller mappings, operational read-back, topology/management safety, rollback and
+    persistence are normalized without consuming M-LAG or later multicast work.
+  next_task: 4.11 IGMP Snooping / Querier / Fast Leave
