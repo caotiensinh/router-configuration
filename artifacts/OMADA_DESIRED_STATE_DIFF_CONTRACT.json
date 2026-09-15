@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "desired_state_diff_contract",
+  "task": "13.3",
+  "status": "IMPLEMENTED_AND_TESTED_CANDIDATE",
+  "implementation": "src/router_configuration/m02_state_engine.py::StateEngine.build_plan",
+  "properties": {
+    "deterministic_plan_id": "SHA-256 of canonical sorted operation representation, truncated to 16 hex characters",
+    "operation_order": "sorted by path then operation kind",
+    "mapping_semantics": {"desired_only": "CREATE", "actual_only": "DELETE", "different_value": "UPDATE"},
+    "sequence_semantics": "ordered sequences are treated atomically; any difference is UPDATE",
+    "noop": "empty operation list",
+    "risk": "every operation receives an explicit risk classification"
+  },
+  "safety": {
+    "no_execution": "Diff creation is read-only and must not mutate device state.",
+    "before_after_required": true,
+    "critical_path_tokens": ["management", "default_route", "default-route", "admin_access"],
+    "deletion_minimum_risk": "NETWORK_CHANGE"
+  },
+  "verification": {
+    "pass_requires": ["deterministic repeated plan", "explicit CREATE/UPDATE/DELETE", "before/after values", "noop detection", "risk classification"]
+  }
+}
