@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -19,6 +20,10 @@ MANAGED_PREFIX = "routercfg:managed:pcc-"
 SCRIPT_FILE = "routercfg-pcc-runtime-diagnostic.rsc"
 VERDICT_FILE = "routercfg-pcc-runtime-diagnostic-verdict.txt"
 TEMP_FILES = (SCRIPT_FILE, VERDICT_FILE)
+EXPECTED_MANAGED_RULES = 13
+READBACK_SETTLE_SECONDS = 3.0
+READBACK_INTERVAL_SECONDS = 0.10
+REQUIRED_STABLE_VALID_READS = 2
 
 
 def _bool(value: Any) -> bool:
@@ -55,6 +60,57 @@ def _summary(row: Mapping[str, Any]) -> dict[str, Any]:
         "new_routing_mark": str(row.get("new-routing-mark") or ""),
         "pcc": str(row.get("per-connection-classifier") or ""),
     }
+
+
+def _managed_rows(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
+    return [
+        _summary(row)
+        for row in _mangle_rows(admin)
+        if str(row.get("comment") or "").startswith(MANAGED_PREFIX)
+    ]
+
+
+def _wait_for_managed_convergence(
+    admin: base.LoopbackCHRAdmin,
+    *,
+    timeout_seconds: float = READBACK_SETTLE_SECONDS,
+    interval_seconds: float = READBACK_INTERVAL_SECONDS,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
+    """Observe RouterOS runtime validation until two consecutive valid reads.
+
+    RouterOS may expose freshly imported mangle rules before its runtime
+    registration flags have converged.  This path is deliberately read-only:
+    it never adds, enables, disables or rewrites a rule.  Acceptance requires
+    the full expected managed set to be valid on two consecutive snapshots;
+    persistent invalid state still fails closed.
+    """
+
+    deadline = time.monotonic() + timeout_seconds
+    snapshots: list[dict[str, Any]] = []
+    latest: list[dict[str, Any]] = []
+    stable_valid_reads = 0
+    attempt = 0
+
+    while True:
+        attempt += 1
+        latest = _managed_rows(admin)
+        invalid = [row for row in latest if row["invalid"]]
+        snapshot = {
+            "attempt": attempt,
+            "rule_count": len(latest),
+            "invalid_count": len(invalid),
+            "invalid_comments": [row["comment"] for row in invalid],
+        }
+        snapshots.append(snapshot)
+
+        complete_and_valid = len(latest) == EXPECTED_MANAGED_RULES and not invalid
+        stable_valid_reads = stable_valid_reads + 1 if complete_and_valid else 0
+        if stable_valid_reads >= REQUIRED_STABLE_VALID_READS:
+            return latest, snapshots, True
+
+        if time.monotonic() >= deadline:
+            return latest, snapshots, False
+        time.sleep(interval_seconds)
 
 
 def _routing_tables(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
@@ -149,16 +205,11 @@ def diagnose(*, admin_url: str, output: Path, deep: bool = False) -> dict[str, A
     admin = base.LoopbackCHRAdmin(admin_url)
     platform = admin.assert_disposable_chr()
 
-    # Hard acceptance needs only the runtime truth of the managed rules that
-    # were actually applied.  Do not add synthetic diagnostic rules on this
-    # path: under QEMU/TCG they can create avoidable CPU pressure and make a
-    # diagnostic workload, rather than the product dataplane, the failure
-    # source.  The heavier matrix remains available through --deep for RCA.
-    managed = [
-        _summary(row)
-        for row in _mangle_rows(admin)
-        if str(row.get("comment") or "").startswith(MANAGED_PREFIX)
-    ]
+    # RouterOS can expose a freshly imported mangle row before all runtime
+    # registration flags have converged.  Observe only: no synthetic mutation
+    # is allowed on the hard-acceptance path.  Require two consecutive complete
+    # and valid snapshots so a one-read transient cannot become a false PASS.
+    managed, convergence, converged = _wait_for_managed_convergence(admin)
     if not managed:
         raise PccRuntimeDiagnosticError("no managed PCC rules were present after apply")
 
@@ -169,8 +220,8 @@ def diagnose(*, admin_url: str, output: Path, deep: bool = False) -> dict[str, A
         import_result, created = _run_deep_matrix(admin)
 
     result = {
-        "schema_version": "chr-pcc-runtime-diagnostic/4",
-        "ok": True,
+        "schema_version": "chr-pcc-runtime-diagnostic/5",
+        "ok": converged,
         "method": (
             "routeros_cli_import_existing_mark_and_modulus_matrix"
             if deep
@@ -186,6 +237,10 @@ def diagnose(*, admin_url: str, output: Path, deep: bool = False) -> dict[str, A
         "managed_before": managed,
         "managed_rule_count": len(managed),
         "managed_invalid_count": sum(1 for row in managed if row["invalid"]),
+        "managed_runtime_converged": converged,
+        "managed_runtime_convergence": convergence,
+        "required_stable_valid_reads": REQUIRED_STABLE_VALID_READS,
+        "readback_settle_seconds": READBACK_SETTLE_SECONDS,
         "diagnostic_import": import_result,
         "diagnostic_variants": created,
         "diagnostic_invalid_count": sum(1 for row in created if row["invalid"]),
@@ -213,7 +268,7 @@ def main() -> int:
     try:
         result = diagnose(admin_url=args.admin_url, output=Path(args.output), deep=args.deep)
         print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+        return 0 if result["ok"] else 18
     except (OSError, base.CHRRenderDryRunError, PccRuntimeDiagnosticError) as exc:
         failure = {
             "ok": False,
