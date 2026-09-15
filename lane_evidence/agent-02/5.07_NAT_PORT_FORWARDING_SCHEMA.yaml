@@ -1,0 +1,35 @@
+schema_version: 1.0.0
+schema_id: omada.gateway_nat_port_forwarding_draft
+status: RESEARCH_DRAFT
+observed_at: '2026-09-15'
+authority: TP-Link / Omada official documentation only
+state_planes:
+  - base_nat_state
+  - port_forward_rule
+  - source_scope
+  - wan_interface_and_alias
+  - external_protocol_port
+  - internal_destination_ip_port
+  - rule_enable_state
+  - dmz_broad_forwarding
+  - verification
+rule_fields:
+  source_ip: explicit_or_any_only_if_intended
+  wan_interface: required
+  wan_ip_alias: optional_capability_gated
+  protocol: exact_supported_enum
+  external_port: exact
+  internal_ip: exact
+  internal_port: exact
+  status: enabled_or_disabled
+safety:
+  - Never infer Any source when user intent is narrower.
+  - DMZ is distinct from an ordinary single-port forward.
+  - Exact gateway model, firmware, management mode, WAN identity and existing conflicts are execution gates.
+  - Rule creation is not PASS without external positive and negative verification where feasible.
+verification_state_enum: [VERIFIED, EXECUTED_UNVERIFIED, BLOCKED_BY_APPLICABILITY, BLOCKED_BY_CONFLICT, BLOCKED_BY_SECURITY_SCOPE, UNKNOWN]
+sources:
+  - https://support.omadanetworks.com/jp/document/13312/
+  - https://support.omadanetworks.com/us/document/25697/
+  - https://support.omadanetworks.com/en/document/111217/
+  - https://support.omadanetworks.com/id/document/133077/
