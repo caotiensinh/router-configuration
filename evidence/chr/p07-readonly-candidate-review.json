@@ -1,0 +1,42 @@
+{
+  "schema_version": "routeros-p07-candidate-review/1",
+  "target_id": "chr-live-v7",
+  "target_kind": "routeros_chr",
+  "routeros_version": "7.24.1 (stable)",
+  "candidate_source_commit": "0bbeabe670642af9c73a31a6093cc2e8742e87bc",
+  "target_matrix_blob_sha": "0bd0b99ecc8185fd92979b12da4a4d462a58383a",
+  "technical_evidence": [
+    {
+      "run_id": 33581768613,
+      "job_id": 100097350679,
+      "artifact_id": 9828691931,
+      "claim": "live_smoke"
+    },
+    {
+      "run_id": 33586254728,
+      "artifact_id": 9830230324,
+      "claim": "clean_readonly_admission"
+    },
+    {
+      "run_id": 33587554602,
+      "job_id": 100114754888,
+      "artifact_id": 9830628071,
+      "claim": "populated_high_value_surfaces"
+    }
+  ],
+  "technical_acceptance": {
+    "clean_get_only_admission": true,
+    "https_certificate_verification": true,
+    "reader_write_denial_verified": true,
+    "populated_high_value_surfaces_verified": true,
+    "secret_boundary_verified": true,
+    "automatic_target_matrix_admission": false,
+    "write_authorized": false
+  },
+  "requested_promotion": "verified_read_only",
+  "candidate_review_challenge_sha256": "46cb98b82ef6e1cabc27092dc6bb3172956c20adb052951adc9acb324f9a35f1",
+  "operator_attested": false,
+  "candidate_review_complete": false,
+  "physical_router_claimed": false,
+  "production_write_authorized": false
+}
