@@ -1,0 +1,21 @@
+{
+  "schema_version": "routeros-provenance-attestation/1",
+  "target_id": "chr-live-v7",
+  "target_kind": "routeros_chr",
+  "evidence_origin": "live_chr",
+  "candidate_review_challenge_sha256": "46cb98b82ef6e1cabc27092dc6bb3172956c20adb052951adc9acb324f9a35f1",
+  "challenge_payload_sha256": "4c760a4d4452ffbf66ae05afd3fa3300620b2bc2d23638bce50a119619ab2203",
+  "operator_attested": true,
+  "decision": "approve",
+  "controlled_environment": true,
+  "write_operations_performed": false,
+  "review_mode": "preserved_evidence_review",
+  "direct_live_observation_claimed": false,
+  "observed_at": "2026-09-15T14:14:13+09:00",
+  "routeros_version": "7.24.1 (stable)",
+  "normalized_state_sha256": "4ac53a6b66e9bfeac1cc502db89242a23c3f13f487980476ddd66fe229203413",
+  "write_authorized": false,
+  "physical_router_claimed": false,
+  "production_write_authorized": false,
+  "note": "HUMAN_MASTER explicitly approved promotion of chr-live-v7 to verified_read_only based on the preserved hash-bound evidence. No direct live observation is claimed. No production write or physical-router authorization is granted."
+}
