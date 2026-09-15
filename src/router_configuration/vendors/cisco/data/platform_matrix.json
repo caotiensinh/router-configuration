@@ -1,0 +1,70 @@
+{
+  "schema_version": "cisco-iosxe-platform-matrix/1",
+  "vendor": "Cisco",
+  "os_family": "IOS XE",
+  "admission_mode": "documentation_scoped_read_only_first",
+  "verified_documentation_trains": ["17.18", "26"],
+  "families": [
+    {
+      "family": "Catalyst 8000V",
+      "role": "router",
+      "model_prefixes": ["C8000V", "CAT8000V"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG"]
+    },
+    {
+      "family": "Catalyst 8200",
+      "role": "router",
+      "model_prefixes": ["C8200"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG"]
+    },
+    {
+      "family": "Catalyst 8300",
+      "role": "router",
+      "model_prefixes": ["C8300"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG"]
+    },
+    {
+      "family": "Catalyst 8500",
+      "role": "router",
+      "model_prefixes": ["C8500"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG"]
+    },
+    {
+      "family": "Catalyst 9200",
+      "role": "switch",
+      "model_prefixes": ["C9200"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG"]
+    },
+    {
+      "family": "Catalyst 9300",
+      "role": "switch",
+      "model_prefixes": ["C9300"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG", "CISCO-C9300-CONFIG-INDEX"]
+    },
+    {
+      "family": "Catalyst 9400",
+      "role": "switch",
+      "model_prefixes": ["C9400"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG"]
+    },
+    {
+      "family": "Catalyst 9500",
+      "role": "switch",
+      "model_prefixes": ["C9500"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG"]
+    },
+    {
+      "family": "Catalyst 9600",
+      "role": "switch",
+      "model_prefixes": ["C9600"],
+      "documentation_scope": ["CISCO-IOSXE-26-PROG", "CISCO-IOSXE-17.18-PROG"]
+    }
+  ],
+  "boundaries": {
+    "nx_os_in_scope": false,
+    "ios_xr_in_scope": false,
+    "production_write_authorized": false,
+    "physical_device_verified": false,
+    "automatic_feature_support_inference": false
+  }
+}
