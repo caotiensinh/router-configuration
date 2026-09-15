@@ -24,7 +24,7 @@
       "title": "Programmability Configuration Guide, Cisco IOS XE 26.x.x - RESTCONF Protocol",
       "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/26x/26x-programmability-cg/restconf_protocol.html",
       "authority": "official_cisco",
-      "scope": "RESTCONF protocol for IOS XE 26.x.x"
+      "scope": "RESTCONF protocol, HTTPS methods, root discovery, URI behavior, and read operations for IOS XE 26.x.x"
     },
     {
       "id": "CISCO-IOSXE-17.18-PROG",
@@ -39,6 +39,13 @@
       "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1718/b-1718-programmability-cg/m_1718_prog_yang_netconf.html",
       "authority": "official_cisco",
       "scope": "NETCONF protocol, capability discovery, schema inventory, and Cisco-IOS-XE-native examples for IOS XE 17.18.x"
+    },
+    {
+      "id": "CISCO-IOSXE-17.18-RESTCONF",
+      "title": "Programmability Configuration Guide, Cisco IOS XE 17.18.x - RESTCONF Protocol",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1718/b-1718-programmability-cg/restconf_protocol.html",
+      "authority": "official_cisco",
+      "scope": "RESTCONF protocol, HTTPS methods, root discovery, URI behavior, fields query semantics, and read operations for IOS XE 17.18.x"
     },
     {
       "id": "CISCO-IOSXE-26-CONFIG-INDEX",

@@ -1,0 +1,64 @@
+{
+  "schema_version": "cisco-iosxe-restconf-readonly-catalog/1",
+  "vendor": "Cisco",
+  "os_family": "IOS XE",
+  "documentation_source_ids": [
+    "CISCO-IOSXE-17.18-RESTCONF",
+    "CISCO-IOSXE-26-RESTCONF",
+    "CISCO-IOSXE-17.18-NETCONF",
+    "CISCO-IOSXE-26-NETCONF"
+  ],
+  "transport": {
+    "scheme": "https",
+    "tls_certificate_verification_required": true,
+    "follow_redirects": false
+  },
+  "allowed_methods": [
+    {
+      "name": "GET",
+      "mutation": false
+    }
+  ],
+  "blocked_methods": [
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE"
+  ],
+  "evidence_queries": [
+    {
+      "id": "restconf-root-discovery",
+      "relative_uri": "/.well-known/host-meta",
+      "accept": "application/xrd+xml",
+      "response_kind": "restconf_root_xrd",
+      "source_ids": [
+        "CISCO-IOSXE-17.18-RESTCONF",
+        "CISCO-IOSXE-26-RESTCONF"
+      ],
+      "secret_safe_scope": true
+    },
+    {
+      "id": "native-identity",
+      "relative_uri": "/restconf/data/Cisco-IOS-XE-native:native?fields=hostname;version",
+      "accept": "application/yang-data+json",
+      "response_kind": "native_identity_json",
+      "source_ids": [
+        "CISCO-IOSXE-17.18-RESTCONF",
+        "CISCO-IOSXE-26-RESTCONF",
+        "CISCO-IOSXE-17.18-NETCONF",
+        "CISCO-IOSXE-26-NETCONF"
+      ],
+      "secret_safe_scope": true
+    }
+  ],
+  "admission_boundaries": {
+    "live_target_required_for_c04_completion": true,
+    "synthetic_fixture_can_complete_c04": false,
+    "tls_verification_can_be_disabled": false,
+    "redirect_following_allowed": false,
+    "production_write_authorized": false,
+    "physical_device_verified": false
+  },
+  "write_authorized": false,
+  "physical_device_verified": false
+}

@@ -1,0 +1,83 @@
+name: Cisco RESTCONF Read-Only Contract
+
+on:
+  push:
+    paths:
+      - "CISCO_PROGRESS.json"
+      - "src/router_configuration/vendors/cisco/knowledge.py"
+      - "src/router_configuration/vendors/cisco/restconf_readonly.py"
+      - "src/router_configuration/vendors/cisco/data/official_sources.json"
+      - "src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json"
+      - "tests/test_cisco_restconf_readonly.py"
+      - ".github/workflows/cisco-restconf-readonly.yml"
+  pull_request:
+    paths:
+      - "CISCO_PROGRESS.json"
+      - "src/router_configuration/vendors/cisco/knowledge.py"
+      - "src/router_configuration/vendors/cisco/restconf_readonly.py"
+      - "src/router_configuration/vendors/cisco/data/official_sources.json"
+      - "src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json"
+      - "tests/test_cisco_restconf_readonly.py"
+      - ".github/workflows/cisco-restconf-readonly.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Run Cisco RESTCONF read-only contracts
+        run: python -m unittest tests.test_cisco_restconf_readonly -v
+
+      - name: Record fail-closed C04 boundary
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from router_configuration.vendors.cisco import CiscoOfflineKnowledge
+
+          knowledge = CiscoOfflineKnowledge()
+          catalog = knowledge.restconf_readonly_catalog
+          result = {
+              "schema_version": "cisco-c04-contract-evidence/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "contract_ready_live_target_required",
+              "knowledge_digest_sha256": knowledge.digest_sha256,
+              "documentation_source_ids": catalog["documentation_source_ids"],
+              "allowed_methods": [item["name"] for item in catalog["allowed_methods"]],
+              "tls_certificate_verification_required": catalog["transport"]["tls_certificate_verification_required"],
+              "follow_redirects": catalog["transport"]["follow_redirects"],
+              "live_target_observed": False,
+              "synthetic_fixture_can_complete_c04": False,
+              "c04_complete": False,
+              "production_write_authorized": False,
+              "physical_device_verified": False,
+          }
+          with open("evidence/cisco/c04-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
+      - name: Preserve Cisco C04 contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-restconf-readonly-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c04-contract.json
+          if-no-files-found: error
+          retention-days: 30

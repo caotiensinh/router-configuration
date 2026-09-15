@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import hashlib
 from importlib import resources
 import json
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,9 @@ class CiscoOfflineKnowledge:
         self._netconf_readonly_catalog = json.loads(
             package.joinpath("netconf_readonly_catalog.json").read_text(encoding="utf-8")
         )
+        self._restconf_readonly_catalog = json.loads(
+            package.joinpath("restconf_readonly_catalog.json").read_text(encoding="utf-8")
+        )
         self._validate()
 
     @property
@@ -49,11 +52,16 @@ class CiscoOfflineKnowledge:
         return json.loads(json.dumps(self._netconf_readonly_catalog))
 
     @property
+    def restconf_readonly_catalog(self) -> dict:
+        return json.loads(json.dumps(self._restconf_readonly_catalog))
+
+    @property
     def digest_sha256(self) -> str:
         payload = {
             "source_manifest": self._source_manifest,
             "platform_matrix": self._platform_matrix,
             "netconf_readonly_catalog": self._netconf_readonly_catalog,
+            "restconf_readonly_catalog": self._restconf_readonly_catalog,
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -77,6 +85,7 @@ class CiscoOfflineKnowledge:
         manifest = self._source_manifest
         matrix = self._platform_matrix
         netconf_catalog = self._netconf_readonly_catalog
+        restconf_catalog = self._restconf_readonly_catalog
 
         if manifest.get("schema_version") != "cisco-official-source-manifest/1":
             raise CiscoKnowledgeError("unsupported Cisco source-manifest schema")
@@ -135,6 +144,11 @@ class CiscoOfflineKnowledge:
                     f"Cisco family references unknown authoritative source: {family.get('family')}"
                 )
 
+        self._validate_netconf_catalog(netconf_catalog, seen)
+        self._validate_restconf_catalog(restconf_catalog, seen)
+
+    @staticmethod
+    def _validate_netconf_catalog(netconf_catalog: dict, seen: set[str]) -> None:
         if netconf_catalog.get("schema_version") != "cisco-iosxe-netconf-readonly-catalog/1":
             raise CiscoKnowledgeError("unsupported Cisco NETCONF read-only catalog schema")
         if (
@@ -203,3 +217,88 @@ class CiscoOfflineKnowledge:
             raise CiscoKnowledgeError("C03 catalog must not authorize production writes")
         if admission.get("physical_device_verified") is not False:
             raise CiscoKnowledgeError("C03 catalog must not claim physical hardware")
+
+    @staticmethod
+    def _validate_restconf_catalog(restconf_catalog: dict, seen: set[str]) -> None:
+        if restconf_catalog.get("schema_version") != "cisco-iosxe-restconf-readonly-catalog/1":
+            raise CiscoKnowledgeError("unsupported Cisco RESTCONF read-only catalog schema")
+        if (
+            restconf_catalog.get("vendor") != "Cisco"
+            or restconf_catalog.get("os_family") != "IOS XE"
+        ):
+            raise CiscoKnowledgeError("Cisco RESTCONF catalog vendor/OS isolation mismatch")
+        if restconf_catalog.get("write_authorized") is not False:
+            raise CiscoKnowledgeError("Cisco RESTCONF catalog must not authorize writes")
+        if restconf_catalog.get("physical_device_verified") is not False:
+            raise CiscoKnowledgeError(
+                "Cisco RESTCONF catalog cannot claim physical-device verification"
+            )
+
+        catalog_refs = restconf_catalog.get("documentation_source_ids", [])
+        if not catalog_refs or any(ref not in seen for ref in catalog_refs):
+            raise CiscoKnowledgeError(
+                "Cisco RESTCONF catalog references unknown authoritative sources"
+            )
+
+        transport = restconf_catalog.get("transport", {})
+        if transport.get("scheme") != "https":
+            raise CiscoKnowledgeError("Cisco RESTCONF catalog must require HTTPS")
+        if transport.get("tls_certificate_verification_required") is not True:
+            raise CiscoKnowledgeError("Cisco RESTCONF catalog must require TLS verification")
+        if transport.get("follow_redirects") is not False:
+            raise CiscoKnowledgeError("Cisco RESTCONF catalog must disable redirects")
+
+        allowed = restconf_catalog.get("allowed_methods", [])
+        if len(allowed) != 1 or allowed[0].get("name") != "GET":
+            raise CiscoKnowledgeError("Cisco RESTCONF catalog must allow GET only")
+        if allowed[0].get("mutation") is not False:
+            raise CiscoKnowledgeError("Cisco RESTCONF GET must remain non-mutating")
+
+        blocked = set(restconf_catalog.get("blocked_methods", []))
+        if not {"POST", "PUT", "PATCH", "DELETE"}.issubset(blocked):
+            raise CiscoKnowledgeError("Cisco RESTCONF catalog is missing blocked write methods")
+
+        queries = restconf_catalog.get("evidence_queries", [])
+        if not isinstance(queries, list) or not queries:
+            raise CiscoKnowledgeError("Cisco RESTCONF catalog must define evidence queries")
+        query_ids: set[str] = set()
+        allowed_accept = {"application/xrd+xml", "application/yang-data+json"}
+        allowed_response_kind = {"restconf_root_xrd", "native_identity_json"}
+        for query in queries:
+            query_id = query.get("id")
+            if not isinstance(query_id, str) or not query_id or query_id in query_ids:
+                raise CiscoKnowledgeError("Cisco RESTCONF query IDs must be unique")
+            query_ids.add(query_id)
+            relative_uri = query.get("relative_uri")
+            if not isinstance(relative_uri, str) or not relative_uri.startswith("/"):
+                raise CiscoKnowledgeError(f"Cisco RESTCONF query URI must be relative: {query_id}")
+            parsed = urlsplit(relative_uri)
+            if parsed.scheme or parsed.netloc or parsed.fragment or ".." in parsed.path.split("/"):
+                raise CiscoKnowledgeError(f"unsafe Cisco RESTCONF catalog URI: {query_id}")
+            if query.get("accept") not in allowed_accept:
+                raise CiscoKnowledgeError(f"unapproved Cisco RESTCONF media type: {query_id}")
+            if query.get("response_kind") not in allowed_response_kind:
+                raise CiscoKnowledgeError(f"unapproved Cisco RESTCONF response kind: {query_id}")
+            refs = query.get("source_ids", [])
+            if not refs or any(ref not in seen for ref in refs):
+                raise CiscoKnowledgeError(
+                    f"Cisco RESTCONF query references unknown source: {query_id}"
+                )
+            if query.get("secret_safe_scope") is not True:
+                raise CiscoKnowledgeError(
+                    f"Cisco RESTCONF query must be bounded to secret-safe evidence: {query_id}"
+                )
+
+        admission = restconf_catalog.get("admission_boundaries", {})
+        if admission.get("live_target_required_for_c04_completion") is not True:
+            raise CiscoKnowledgeError("C04 completion must require a live IOS XE target")
+        if admission.get("synthetic_fixture_can_complete_c04") is not False:
+            raise CiscoKnowledgeError("synthetic evidence must not complete C04")
+        if admission.get("tls_verification_can_be_disabled") is not False:
+            raise CiscoKnowledgeError("C04 catalog must not allow disabling TLS verification")
+        if admission.get("redirect_following_allowed") is not False:
+            raise CiscoKnowledgeError("C04 catalog must not allow redirect following")
+        if admission.get("production_write_authorized") is not False:
+            raise CiscoKnowledgeError("C04 catalog must not authorize production writes")
+        if admission.get("physical_device_verified") is not False:
+            raise CiscoKnowledgeError("C04 catalog must not claim physical hardware")

@@ -63,9 +63,16 @@
       "title": "RESTCONF read-only discovery",
       "weight": 8,
       "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "HTTPS RESTCONF read-only discovery with certificate verification, capability binding, secret exclusion, and least privilege."
+      "status": "in_progress",
+      "evidence": [
+        "src/router_configuration/vendors/cisco/restconf_readonly.py",
+        "src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json",
+        "src/router_configuration/vendors/cisco/data/official_sources.json",
+        "tests/test_cisco_restconf_readonly.py",
+        ".github/workflows/cisco-restconf-readonly.yml",
+        "docs/cisco/RESTCONF_READONLY_CONTRACT.md"
+      ],
+      "next_gate": "Obtain identified live IOS XE HTTPS RESTCONF evidence with certificate verification enabled, redirect following disabled, root discovery proving /restconf, a source-bound bounded identity GET, exact platform/version admission, secret exclusion, and sanitized deterministic evidence. Contract or synthetic evidence does not earn C04 points."
     },
     {
       "id": "C05",
