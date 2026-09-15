@@ -1,0 +1,33 @@
+schema_version: 1.0.0
+schema_id: omada.controller_open_api_integration_draft
+status: RESEARCH_DRAFT
+observed_at: '2026-09-15'
+authority: TP-Link / Omada official documentation only
+auth_modes:
+  - authorization_code
+  - client_credentials
+state_planes:
+  - application_registration
+  - role_and_site_scope
+  - client_identity
+  - access_token
+  - token_refresh_or_reissue
+  - operation_endpoint
+  - response_validation
+  - object_readback
+  - webhook
+security:
+  secrets: [client_key, client_secret, access_token, account_level_api_key]
+  policy:
+    - Never persist secrets in evidence artifacts or normal logs.
+    - Endpoint support is Controller-version and deployment scoped.
+    - External Portal API is a specialized surface and is not generalized to configuration APIs.
+verification:
+  require_api_response_validation: true
+  require_object_readback: true
+  http_success_only: EXECUTED_UNVERIFIED
+sources:
+  - https://support.omadanetworks.com/en/document/109315/
+  - https://support.omadanetworks.com/en/document/121709/
+  - https://support.omadanetworks.com/en/document/111217/
+  - https://support.omadanetworks.com/us/document/132060/
