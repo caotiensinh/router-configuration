@@ -37,9 +37,14 @@
       "title": "NETCONF read-only capability and identity discovery",
       "weight": 10,
       "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Parse device NETCONF hello/YANG capabilities and prove read-only identity/version/interface discovery on an identified IOS XE target."
+      "status": "in_progress",
+      "evidence": [
+        "src/router_configuration/vendors/cisco/netconf_readonly.py",
+        "src/router_configuration/vendors/cisco/data/netconf_readonly_catalog.json",
+        "tests/test_cisco_netconf_readonly.py",
+        ".github/workflows/cisco-netconf-readonly.yml"
+      ],
+      "next_gate": "Obtain identified live IOS XE NETCONF evidence for server hello/YANG inventory, exact device identity/model/version, and bounded interface operational-state discovery. Synthetic/contract evidence does not earn C03 points."
     },
     {
       "id": "C04",
