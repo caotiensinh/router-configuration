@@ -60,6 +60,13 @@
       "url": "https://www.cisco.com/c/en/us/support/switches/catalyst-9300-series-switches/products-installation-and-configuration-guides-list.html",
       "authority": "official_cisco",
       "scope": "platform-specific Catalyst 9300 IOS XE configuration guides"
+    },
+    {
+      "id": "CISCO-C8000V-INSTALL",
+      "title": "Cisco Catalyst 8000V Edge Software Installation And Configuration Guide - Installation Overview",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/C8000V/Configuration/c8000v-installation-configuration-guide/installation-overview/overview-of-c8000v-installation.html",
+      "authority": "official_cisco",
+      "scope": "Catalyst 8000V as an IOS XE virtual router, vendor image acquisition from Cisco, virtual-machine provisioning, and supported installation environments including KVM"
     }
   ]
 }
