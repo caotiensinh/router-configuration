@@ -1,0 +1,333 @@
+schema_version: 1.0.0
+record_type: omada_management_mode_feature_difference_matrix
+task: '3.9'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_REGISTERED_CURRENT_SOURCE_SCOPE
+authority: TP-Link / Omada official support and product documentation, plus previously verified Phase 3.8 official-derived artifacts
+governance:
+  no_feature_parity_inference: true
+  exact_identity_binding_required_for_operations: true
+  cloud_tiers_separate: true
+  management_planes_separate: true
+  absence_is_not_unsupported: true
+  historical_family_tables_do_not_override_exact_current_evidence: true
+scope_summary:
+  management_domains_reviewed: 6
+  management_domains_total: 6
+  domains:
+  - global_mode_semantics
+  - gateway
+  - switch
+  - access_point_and_wireless_bridge
+  - controller_platform_and_cloud_tier
+  - olt_surveillance_accessory_boundaries
+  registered_exact_identifiers_context: 230
+  note: Task 3.9 is a management-mode feature-difference layer. It does not manufacture a 230-row boolean feature table where official feature
+    evidence is family/platform scoped.
+source_registry:
+  standalone_login_2026: https://support.omadanetworks.com/en/document/116290/
+  standalone_getting_started_2026: https://support.omadanetworks.com/us/document/13221/
+  gateway_mode_difference_2026: https://support.omadanetworks.com/jp/document/13103/
+  switch_controller_feature_table: https://support.omadanetworks.com/us/document/13032/
+  ap_standalone_2026: https://support.omadanetworks.com/pk/document/13289/
+  ap_cli_v6_1_2026: https://support.omadanetworks.com/en/document/116696
+  controller_getting_started_2026: https://support.omadanetworks.com/jp/document/13220/
+  cloud_essentials_comparison_current: https://www.omadanetworks.com/sg/business-networking/omada-controller-cloud-based/omada-cloud-essentials/
+  cloud_standard_current: https://www.omadanetworks.com/us/business-networking/omada-controller-cloud-based/omada-cloud-based-controller/
+  phase_3_8_controller_matrix: matrix/OMADA_CONTROLLER_COMPATIBILITY_MATRIX.yaml
+  phase_3_8_reconciliation: matrix/OMADA_CONTROLLER_COMPATIBILITY_RECONCILIATION.yaml
+domains:
+  global_mode_semantics:
+    scope: Omada gateways, APs and switches where standalone web management is officially supported
+    observations:
+    - feature_id: local_device_web_management
+      standalone: SUPPORTED
+      controller_managed: NOT_SIMULTANEOUSLY_AVAILABLE_ON_REFERENCED_GATEWAY_EAP_GUIDANCE
+      cloud_based: CENTRALIZED_CONTROLLER_PATH
+      notes: Official standalone guidance requires the device to be in standalone mode and not adopted by an Omada Controller.
+    - feature_id: centralized_multi_device_management
+      standalone: NOT_PROVIDED_AS_CENTRALIZED_CONTROLLER
+      controller_managed: SUPPORTED
+      cloud_based: SUPPORTED
+      notes: Controller mode centralizes configuration/monitoring; cloud tiers additionally provide remote cloud-hosted management.
+    source_refs:
+    - standalone_login_2026
+    - standalone_getting_started_2026
+    - controller_getting_started_2026
+    do_not_generalize_rule: Do not assume local Web UI remains writable after adoption, and do not infer identical feature sets from similar UI
+      labels.
+  gateway:
+    scope: Business/SMB Omada gateways covered by official Standalone-vs-Controller guidance; exact model/firmware may vary
+    feature_groups:
+    - group_id: both_modes_device_persistent
+      features:
+      - Port Forwarding
+      - Bandwidth Control
+      - Session Limit
+      - Load Balancing
+      - Policy Routing
+      - Static Route
+      - VPN (PPTP/L2TP/IPsec/OpenVPN)
+      - Attack Defense
+      - Time Range
+      - Dynamic DNS
+      - UPnP
+      - SNMP
+      - SSH
+      - IPTV
+      standalone: SUPPORTED
+      controller_managed: SUPPORTED
+      controller_offline_behavior: CONTINUES_ON_DEVICE
+    - group_id: both_modes_behavior_differs
+      features:
+      - Online Detection
+      - Access Control / Gateway ACL
+      - VLAN interface / router-port PVID behavior
+      standalone: SUPPORTED_WITH_DIFFERENT_BEHAVIOR
+      controller_managed: SUPPORTED_WITH_DIFFERENT_BEHAVIOR
+      controller_offline_behavior: FEATURE_SPECIFIC
+      examples:
+      - Online detection method/interval differs by mode in the official comparison.
+      - ACL traffic-direction capability differs by mode in the official comparison.
+      - Router-port PVID change is available in standalone guidance while controller-mode VLAN behavior is switch-coordinated.
+    - group_id: controller_runtime_dependent
+      features:
+      - Portal authentication (Voucher/External Portal/SMS/Facebook/Local User)
+      - Reboot Schedule
+      standalone: NOT_LISTED_AS_CONTROLLER_FEATURE_EQUIVALENT
+      controller_managed: SUPPORTED_CONTROLLER_ONLY
+      controller_offline_behavior: STOPS_OR_NEW_AUTH_FAILS
+    - group_id: standalone_only_in_official_comparison
+      features:
+      - Diagnostics (Ping/Traceroute)
+      - One-to-One NAT
+      - Port Triggering
+      standalone: SUPPORTED_STANDALONE_ONLY
+      controller_managed: NOT_AVAILABLE_IN_REFERENCED_COMPARISON
+      controller_offline_behavior: NOT_APPLICABLE
+    - group_id: controller_exposes_extra_configuration_while_device_function_persists
+      features:
+      - IPsec VPN asymmetric encryption options up to DH26
+      - Firewall state-timeout configuration
+      - LED on/off control
+      standalone: DEVICE_FUNCTION_PRESENT_WITH_REDUCED_OR_FIXED_CONFIGURATION
+      controller_managed: SUPPORTED_CONTROLLER_CONFIG_ONLY
+      controller_offline_behavior: CONTINUES_ON_DEVICE
+    mode_transition_constraint: Referenced gateway guidance states a controller-managed router cannot be managed through the standalone Web UI.
+    source_refs:
+    - gateway_mode_difference_2026
+    do_not_generalize_rule: The comparison is guidance for covered business gateways, not a blanket guarantee for every gateway revision/firmware.
+  switch:
+    scope: JetStream/Omada switch family guidance; exact model/firmware evidence overrides the general comparison
+    feature_groups:
+    - group_id: core_features_both_modes
+      examples:
+      - System IP
+      - Management VLAN
+      - LED
+      - reboot/reset
+      - port status/speed/duplex
+      - port mirroring
+      - port isolation
+      - loopback detection
+      - LAG/LACP
+      - 802.1Q VLAN
+      - STP/RSTP/MSTP
+      - IGMP Snooping
+      - static routing
+      - 802.1X
+      - RADIUS
+      - SNMP
+      - LLDP-MED
+      standalone: SUPPORTED_IN_REFERENCED_GUIDE
+      controller_managed: SUPPORTED_IN_REFERENCED_GUIDE
+    - group_id: controller_mode_restrictions_or_semantic_differences
+      examples:
+      - SSH access is limited to show commands in the referenced controller-mode table.
+      - PoE power budget can be checked but not changed in controller mode in the referenced table.
+      - Static/manual MAC-address operations available in standalone are not exposed the same way in controller mode.
+      - Controller mode exposes Auto VOIP/Voice Network while standalone additionally exposes Voice VLAN in the referenced table.
+      - ACL type/taxonomy differs between modes.
+      - Some IPv6/L3/DHCP filter capability differs in the referenced table.
+      standalone: FULLER_OR_DIFFERENT_FOR_SELECTED_FEATURES
+      controller_managed: LIMITED_OR_DIFFERENT_FOR_SELECTED_FEATURES
+    - group_id: controller_centralized_operations
+      examples:
+      - site time-zone semantics
+      - centralized logs
+      - statistics/monitoring
+      standalone: LOCAL_DEVICE_SCOPE
+      controller_managed: CENTRALIZED_SITE_OR_CONTROLLER_SCOPE
+    source_refs:
+    - switch_controller_feature_table
+    do_not_generalize_rule: The published comparison is a family/general JetStream reference and may be superseded by exact current switch model,
+      hardware and firmware documentation.
+  access_point_and_wireless_bridge:
+    scope: Omada APs and controller-manageable wireless devices; exact bridge/AP support remains model/firmware scoped
+    feature_groups:
+    - group_id: standalone_basic
+      standalone: SUPPORTED
+      controller_managed: SUPPORTED_WITH_CENTRALIZATION
+      features:
+      - local device configuration
+      - basic WLAN operation
+    - group_id: controller_required_or_controller_advantage
+      standalone: UNAVAILABLE_OR_NOT_CENTRALIZED
+      controller_managed: SUPPORTED
+      features:
+      - Voucher
+      - Fast Roaming
+      - centralized cloud management
+      - Auto Backup
+      - Upgrade Schedule
+    - group_id: cli_access
+      scope_gate: AP firmware adapted to Omada Controller V6.1 and above
+      standalone: SSH CLI
+      controller_managed: Controller Terminal / CLI
+      features:
+      - CLI
+    source_refs:
+    - ap_standalone_2026
+    - ap_cli_v6_1_2026
+    - standalone_getting_started_2026
+    do_not_generalize_rule: Controller-only examples from AP guidance do not automatically apply to Wireless Bridge models unless the bridge's
+      exact evidence supports them.
+  controller_platform_and_cloud_tier:
+    scope: Current official controller architecture comparison; Cloud Essentials and Cloud Standard remain distinct tiers
+    platforms:
+      cloud_essentials:
+        management_scale: Unlimited
+        zero_touch_provisioning: true
+        msp_mode: false
+        multi_user_privilege: default permissions; custom permissions not supported in referenced comparison
+        vlan: true
+        port_management: true
+        ppsk: false
+        vpn:
+        - WireGuard
+        fast_roaming_mesh: true
+        port_isolation: true
+        portal:
+        - Simple Password
+        - Voucher
+        - Form Auth
+        acl: false
+        ips_ids: false
+        dpi: false
+        topology: true
+        logs_alerts: Basic
+        open_api: false
+        wlan_optimization: false
+        troubleshooting:
+        - SSH
+        - Network Check
+        - Terminal
+      cloud_standard:
+        management_scale: Unlimited
+        zero_touch_provisioning: true
+        msp_mode: true
+        multi_user_privilege: true
+        vlan: true
+        port_management: true
+        ppsk: true
+        vpn:
+        - L2TP
+        - PPTP
+        - SSL
+        - OpenVPN
+        - IPSec
+        - WireGuard
+        fast_roaming_mesh: true
+        port_isolation: true
+        portal:
+        - Simple Password
+        - Voucher
+        - Form Auth
+        - Local User
+        - SMS
+        - RADIUS Server
+        - External LDAP Server
+        - External Portal Server
+        acl: true
+        ips_ids: true
+        dpi: true
+        topology: true
+        logs_alerts: Advanced
+        open_api: true
+        wlan_optimization: true
+        troubleshooting:
+        - SSH
+        - Network Check
+        - Terminal
+        - Packet Capture
+      hardware_controller:
+        management_scale: 100-1000 devices in referenced comparison
+        zero_touch_provisioning: false
+        msp_mode: false
+        ppsk: true
+        acl: true
+        ips_ids: true
+        dpi: true
+        open_api: Supported except OC200 in referenced comparison
+        wlan_optimization: true
+        cloud_access: Free cloud access to on-prem controller
+      software_controller:
+        management_scale: Unlimited by product model; recommended <=10000, actual depends on host hardware
+        zero_touch_provisioning: false
+        msp_mode: true
+        ppsk: true
+        acl: true
+        ips_ids: true
+        dpi: true
+        open_api: true
+        wlan_optimization: true
+        cloud_access: Free cloud access to on-prem controller
+    architecture_notes:
+    - Cloud-Based Controller exists entirely in the cloud; no on-prem controller host is required.
+    - Hardware/Software controllers are on-premises controller platforms with cloud access, not the same as a Cloud-Based Controller.
+    - Official getting-started guidance states the three controller types have similar browser-based network-management UI and nearly the same
+      initial setup flow, but feature/capacity differences remain.
+    source_refs:
+    - cloud_essentials_comparison_current
+    - cloud_standard_current
+    - controller_getting_started_2026
+    do_not_generalize_rule: Cloud Essentials cannot inherit Cloud Standard/On-Prem advanced features; exact device compatibility lists remain
+      a separate gate.
+  olt_surveillance_accessory_boundaries:
+    scope: Management-plane boundaries already verified in Phase 3.8
+    feature_groups:
+    - group_id: olt
+      modes:
+      - Omada SDN Controller
+      - DPMS
+      - local OLT GUI where applicable
+      rule: Omada SDN and DPMS/local GUI behavior remain separate. Controller adoption can change local-GUI configurability; exact OLT/controller
+        relation remains model/version scoped.
+    - group_id: surveillance
+      modes: 
+      - NVRGUI/Web 
+      - Omada Guard 
+      - Omada Central Guard system
+      rule: Surveillance devices are not promoted to Omada Network Controller targets merely because Omada Central unifies Network and Guard systems.
+    - group_id: accessories
+      modes:
+      - host-mediated / physical / electrical / optical / BOM roles
+      rule: Accessories are NOT_DIRECT_CONTROLLER_TARGET. Host telemetry or ecosystem membership is not direct adoption.
+    source_refs:
+    - controller_getting_started_2026
+    - phase_3_8_controller_matrix
+    - phase_3_8_reconciliation
+    do_not_generalize_rule: Do not collapse Network, Guard, DPMS, local GUI, and host-mediated accessory telemetry into one controller mode.
+reconciliation:
+  required_checks:
+    standalone_vs_controller_parity_not_assumed: PASS
+    controller_offline_behavior_preserved_where_officially_published: PASS
+    cloud_essentials_vs_standard_separated: PASS
+    on_prem_vs_cloud_controller_architecture_separated: PASS
+    integrated_controller_and_controller_platform_roles_not_flattened: PASS
+    olt_surveillance_management_planes_separated: PASS
+    non_controller_targets_preserved: PASS
+    exact_model_firmware_gate_preserved: PASS
+  unknown_semantics: UNKNOWN/NOT_PUBLISHED remains valid and blocks exact feature-dependent automation.
+  task_result: PHASE_3_9_COMPLETE_FOR_REGISTERED_CURRENT_SOURCE_SCOPE
+  next_task: 3.10 Known hardware/firmware limitations

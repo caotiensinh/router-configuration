@@ -1,0 +1,52 @@
+schema_version: 1.1.0
+schema_id: omada.lifecycle
+status: VERIFIED_FOR_TASK_3_11_US_BUSINESS_EOL_SCOPE
+record:
+  product_or_service: null
+  exact_model: null
+  hardware_version: null
+  region_market: null
+  model_level_lifecycle_status: UNKNOWN
+  revision_scoped_notices: []
+  eol_date: null
+  eom_date: null
+  eos_date: null
+  replacement_product: null
+  policy_ref: null
+  bulletin_ref: null
+  observed_at: null
+revision_notice_record:
+  region_raw: null
+  hardware_version_raw: null
+  notice_kind: EOS
+  notification_date_raw: null
+  notification_date_iso: null
+  eos_date_raw: null
+  eos_date_iso: null
+  status_as_of_observed_at: UNKNOWN
+  source_ref: null
+  source_page_1_based: null
+status_enum:
+- CURRENT
+- EOL_ANNOUNCED
+- EOM
+- EOS
+- LEGACY
+- UNKNOWN
+evidence_kind_enum:
+- OFFICIAL_EOL_EOM_EOS_NOTICE
+- CURRENT_CATALOG_PRESENCE
+- SUPPORT_DOWNLOAD_PRESENCE
+- NO_EXACT_EOL_ROW_VERIFIED_IN_REVIEWED_SOURCE
+rules:
+- Only official EOL/EOM/EOS notifications or TP-Link End of Life product lists may set lifecycle dates/status.
+- Lifecycle is exact-model + hardware/revision + region scoped when the vendor notice is revision scoped.
+- A revision-scoped EOS row does not make all revisions of the model EOS.
+- Absence from the current product catalog is not proof of EOL.
+- Presence in a current catalog, support page, compatibility list, or firmware download surface is not proof of CURRENT lifecycle
+  status.
+- Absence from the reviewed EOL list is not proof of CURRENT lifecycle status; use UNKNOWN unless separate official lifecycle
+  evidence says otherwise.
+- Legacy aliases and renamed identifiers are not lifecycle-equivalent unless TP-Link explicitly binds them.
+- Replacement-product recommendations require explicit vendor evidence or must be labeled project recommendation rather than
+  vendor fact.

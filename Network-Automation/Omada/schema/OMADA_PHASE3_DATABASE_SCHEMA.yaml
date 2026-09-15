@@ -1,0 +1,96 @@
+schema_version: 1.0.0
+schema_id: omada.phase3_database
+status: VALIDATED_FOR_PHASE_3_12
+engine_profile: SQLite-compatible relational core; portable to PostgreSQL with type/index adaptations
+identity_key: exact_model + hardware_revision + region + firmware + management_mode + controller_platform + controller_version
+design_goals:
+- Preserve exact model, hardware revision, region, firmware, management mode, controller and lifecycle scopes independently.
+- Store observations append-only so conflicting official values can coexist without destructive overwrite.
+- Bind every automation-relevant fact to official evidence.
+- Keep UNKNOWN, NOT_PUBLISHED, NOT_APPLICABLE and SOURCE_CONFLICT as first-class states.
+- Make fail-closed decisions queryable rather than implicit in application code.
+- Keep bundle identities, controller platforms and passive accessories role-safe.
+normalization_rules:
+- product.exact_model is the only model primary identity; aliases never become implicit equality.
+- hardware_revision.version_raw preserves vendor notation byte-for-byte.
+- region_scope.raw_marker preserves raw vendor/portal region notation.
+- firmware_release rows are track scoped and never merged only because version/build matches.
+- target_scope is the reusable composite binding for all observations.
+- observation is append-only; canonical selection is a query/decision, not an overwrite.
+- conflict_group keeps every member observation and a deterministic disposition.
+- lifecycle_notice is revision/region scoped; model-level lifecycle defaults to UNKNOWN unless official model-level evidence exists.
+- source and observation_evidence provide provenance; search snippets are not authoritative source rows.
+tables:
+- name: vendor
+  purpose: Vendor/business-brand identity
+- name: product
+  purpose: 230 registered exact model/bundle identities
+- name: product_alias
+  purpose: Explicit vendor aliases/renames only
+- name: region_scope
+  purpose: Raw region/market/portal scope
+- name: hardware_revision
+  purpose: Revision identity separate from model
+- name: management_mode
+  purpose: Standalone/controller/cloud/integrated/security/OLT management modes
+- name: controller_platform
+  purpose: Software/hardware/cloud/integrated controller identities and tiers
+- name: firmware_release
+  purpose: Revision/region-scoped firmware tracks
+- name: target_scope
+  purpose: Composite exact applicability key reused by facts
+- name: source
+  purpose: Official source/provenance records
+- name: artifact_manifest
+  purpose: Phase-3 source-artifact to database-table mapping
+- name: ingestion_run
+  purpose: Reproducible offline ingestion audit
+- name: observation
+  purpose: Append-only typed facts with verification/write policy
+- name: observation_evidence
+  purpose: Fact-to-source links and locators
+- name: physical_interface
+  purpose: Typed physical interface facts
+- name: metric_observation
+  purpose: Performance/capacity/power/environment metrics
+- name: controller_compatibility
+  purpose: Controller relation/minimum/recommendation/adoption semantics
+- name: mode_feature_observation
+  purpose: Standalone/controller/cloud feature difference facts
+- name: limitation_constraint
+  purpose: Vendor limitations and evidence-derived safety constraints
+- name: lifecycle_notice
+  purpose: EOL/EOM/EOS notices bound to exact revision/region
+- name: conflict_group
+  purpose: Conflict/reconciliation decisions
+- name: conflict_member
+  purpose: Many-to-one mapping from conflicting observations
+- name: domain_review
+  purpose: Phase coverage/closure metadata
+views:
+- name: v_effective_observations
+  purpose: Query-friendly exact-scope observation projection; never auto-resolves conflicts
+required_states:
+  observation_status:
+  - VERIFIED
+  - PARTIAL
+  - UNKNOWN
+  - NOT_PUBLISHED
+  - NOT_APPLICABLE
+  - SOURCE_CONFLICT
+  write_policy:
+  - ALLOW_READ
+  - ALLOW_WRITE
+  - FAIL_CLOSED
+  - NO_DIRECT_TARGET
+  - REQUIRE_DISCOVERY
+safety_invariants:
+- No automated write may be authorized solely by product model name.
+- No SOURCE_CONFLICT, UNKNOWN, NOT_PUBLISHED or FAIL_CLOSED fact may become a write authorization.
+- A recommendation is not converted into a minimum controller version.
+- Historical controller/firmware relations do not authorize current identities.
+- Revision-scoped lifecycle EOS does not apply to sibling revisions.
+- Passive/accessory and bundle roles do not become direct configuration targets by ecosystem membership.
+sql_artifact: schema/OMADA_PHASE3_DATABASE_SCHEMA.sql
+mapping_artifact: schema/OMADA_PHASE3_DATABASE_MAPPING.yaml
+validation_artifact: schema/OMADA_PHASE3_DATABASE_VALIDATION.md

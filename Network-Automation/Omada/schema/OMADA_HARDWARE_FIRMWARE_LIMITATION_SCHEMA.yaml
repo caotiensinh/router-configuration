@@ -1,0 +1,50 @@
+schema_version: 1.0.0
+schema_id: omada.hardware_firmware_limitation
+task: '3.10'
+observed_at: '2026-09-15'
+status: VERIFIED_FOR_REGISTERED_SOURCE_SCOPE
+purpose: Represent explicit vendor-published hardware/firmware limitations separately from evidence-derived automation safety constraints.
+basis_enum:
+- EXPLICIT_VENDOR_LIMITATION
+- EXPLICIT_VENDOR_REQUIREMENT
+- IDENTITY_SCOPE_CONSTRAINT
+- EVIDENCE_CONFLICT_FAIL_CLOSED
+- EVIDENCE_GAP_FAIL_CLOSED
+- NON_DIRECT_TARGET_BOUNDARY
+- MANAGEMENT_PLANE_BOUNDARY
+severity_enum:
+- CRITICAL
+- HIGH
+- MEDIUM
+- LOW
+- INFORMATIONAL
+write_policy_enum:
+- DENY
+- ALLOW_WITH_EXACT_BINDING
+- ALLOW_WITH_ORDERING_GATE
+- READ_ONLY_ONLY
+- NOT_APPLICABLE
+- REVIEW_REQUIRED
+required_fields:
+- record_id
+- domain
+- scope
+- models
+- basis
+- limitation_type
+- condition
+- effect
+- automation_action
+- source_artifacts
+- status
+rules:
+- UNKNOWN or NOT_PUBLISHED is not a vendor limitation; it may create an automation fail-closed constraint only.
+- A source conflict describes evidence ambiguity, not device behavior. Never rewrite it as a product limitation.
+- Explicit no-downgrade, irreversible-upgrade, minimum-version, ordering, power-input, migration, and management-plane statements remain vendor
+  limitations/requirements.
+- Recommended controller/software versions are not minimum requirements unless TP-Link explicitly states minimum/required/or-later semantics.
+- Hardware revision, region, raw selector, firmware, controller version, management mode, optical module and accessory SKU remain separate scope
+  dimensions.
+- No rollback path may be inferred where TP-Link marks an upgrade irreversible or downgrade unsupported.
+- Security fixed-version baselines do not replace current exact region/revision package selection.
+- A non-direct target classification does not mean a device contains no electronics or firmware; it only forbids synthesizing a direct workflow.
