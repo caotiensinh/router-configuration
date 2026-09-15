@@ -40,11 +40,18 @@
       "status": "in_progress",
       "evidence": [
         "src/router_configuration/vendors/cisco/netconf_readonly.py",
+        "src/router_configuration/vendors/cisco/live_netconf_probe.py",
         "src/router_configuration/vendors/cisco/data/netconf_readonly_catalog.json",
         "tests/test_cisco_netconf_readonly.py",
-        ".github/workflows/cisco-netconf-readonly.yml"
+        "tests/test_cisco_live_netconf_probe.py",
+        ".github/workflows/cisco-netconf-readonly.yml",
+        ".github/workflows/cisco-netconf-live-readonly.yml",
+        "docs/cisco/NETCONF_READONLY_CONTRACT.md",
+        "GitHub Actions Governance Gate run 34939816301 PASS on 0587934ee18f48bb048ff700e4683b3c6ca1f3ca",
+        "GitHub Actions CI run 34939816501 PASS on 0587934ee18f48bb048ff700e4683b3c6ca1f3ca",
+        "Cisco NETCONF Read-Only Contract run 34939816552 PASS; artifact 10384574569; sha256:10976dc0be6230635d45795c52b159eee338e4895c911b9d4a83c3102abf85d7"
       ],
-      "next_gate": "Obtain identified live IOS XE NETCONF evidence for server hello/YANG inventory, exact device identity/model/version, and bounded interface operational-state discovery. Synthetic/contract evidence does not earn C03 points."
+      "next_gate": "Run the manually dispatched live workflow with operator-provided GitHub Secrets and trusted SSH host-key pin. C03 stays at zero until exact-head sanitized evidence proves live server capabilities/YANG schemas, hostname/version, admitted platform model, and bounded interface operational state."
     },
     {
       "id": "C04",
