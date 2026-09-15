@@ -1,156 +1,113 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "scope": "Cisco IOS XE router and switch automation domain",
-  "measurement_rule": "Total weight is fixed at 100 points. completed_points may increase only when repository evidence exists and the stated acceptance gate is met. Planning, documentation-only work, synthetic-only evidence, waiting CI, and unsupported feature assumptions do not earn points.",
-  "items": [
-    {
-      "id": "C01",
-      "title": "Cisco governance, vendor isolation, and official-source manifest",
-      "weight": 6,
-      "completed_points": 6,
-      "status": "done",
-      "evidence": [
-        "vendors/cisco/VENDOR_RULES.md",
-        "src/router_configuration/vendors/cisco/data/official_sources.json",
-        "src/router_configuration/vendors/cisco/knowledge.py",
-        "GitHub Actions Governance Gate run 34938186075 PASS",
-        "GitHub Actions CI run 34938207344 PASS"
-      ],
-      "next_gate": "Keep Cisco IOS XE separate from NX-OS/IOS XR and expand only from approved Cisco sources."
-    },
-    {
-      "id": "C02",
-      "title": "IOS XE router/switch platform and version admission",
-      "weight": 6,
-      "completed_points": 6,
-      "status": "done",
-      "evidence": [
-        "src/router_configuration/vendors/cisco/platforms.py",
-        "src/router_configuration/vendors/cisco/data/platform_matrix.json",
-        "tests/test_cisco_iosxe_domain.py",
-        "GitHub Actions CI run 34938207344 PASS"
-      ],
-      "next_gate": "Admission remains documentation-scoped and read-only; unknown platform/version fails closed."
-    },
-    {
-      "id": "C03",
-      "title": "NETCONF read-only capability and identity discovery",
-      "weight": 10,
-      "completed_points": 0,
-      "status": "in_progress",
-      "evidence": [
-        "src/router_configuration/vendors/cisco/netconf_readonly.py",
-        "src/router_configuration/vendors/cisco/live_netconf_probe.py",
-        "src/router_configuration/vendors/cisco/data/netconf_readonly_catalog.json",
-        "tests/test_cisco_netconf_readonly.py",
-        "tests/test_cisco_live_netconf_probe.py",
-        ".github/workflows/cisco-netconf-readonly.yml",
-        ".github/workflows/cisco-netconf-live-readonly.yml",
-        "docs/cisco/NETCONF_READONLY_CONTRACT.md",
-        "Cisco NETCONF Read-Only Contract run 34939816552 PASS; artifact 10384574569; sha256:10976dc0be6230635d45795c52b159eee338e4895c911b9d4a83c3102abf85d7",
-        "live-probe implementation commit 92080f91c1cb25a6ab149fddafde9b3d43b0e6de",
-        "live-probe fail-closed correction commit b4879af7cffd364247a109e937fbcfa8d3eba774",
-        "live-evidence metadata minimization commit c7fe66911543ae1fadf7d8a168667fbc01998f69",
-        "GitHub Actions Governance Gate run 34942085716 PASS on c7fe66911543ae1fadf7d8a168667fbc01998f69",
-        "GitHub Actions CI run 34942085594 PASS on c7fe66911543ae1fadf7d8a168667fbc01998f69",
-        "Cisco NETCONF Read-Only Contract run 34942085630 PASS on c7fe66911543ae1fadf7d8a168667fbc01998f69",
-        "Cisco NETCONF Live Read-Only Probe run 34942085779 contract job PASS on c7fe66911543ae1fadf7d8a168667fbc01998f69; live-readonly job intentionally skipped for pull_request event"
-      ],
-      "next_gate": "Run the manually dispatched live workflow with operator-provided GitHub Secrets and a trusted SSH host-key pin. C03 stays at zero until exact-head sanitized evidence proves a live NETCONF target, advertised capabilities/YANG schemas, exact IOS XE version, admitted platform model, bounded interface operational state, and minimized target/host-key identity digests. A contract-only PASS or skipped live job cannot satisfy C03."
-    },
-    {
-      "id": "C04",
-      "title": "RESTCONF read-only discovery",
-      "weight": 8,
-      "completed_points": 0,
-      "status": "in_progress",
-      "evidence": [
-        "src/router_configuration/vendors/cisco/restconf_readonly.py",
-        "src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json",
-        "src/router_configuration/vendors/cisco/data/official_sources.json",
-        "tests/test_cisco_restconf_readonly.py",
-        ".github/workflows/cisco-restconf-readonly.yml",
-        "docs/cisco/RESTCONF_READONLY_CONTRACT.md"
-      ],
-      "next_gate": "Obtain identified live IOS XE HTTPS RESTCONF evidence with certificate verification enabled, redirect following disabled, root discovery proving /restconf, a source-bound bounded identity GET, exact platform/version admission, secret exclusion, and sanitized deterministic evidence. Contract or synthetic evidence does not earn C04 points."
-    },
-    {
-      "id": "C05",
-      "title": "Router normalized state",
-      "weight": 10,
-      "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Normalize interfaces, addressing, routing and relevant router operational state from validated IOS XE models."
-    },
-    {
-      "id": "C06",
-      "title": "Switch normalized state",
-      "weight": 10,
-      "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Normalize interfaces, VLAN/trunk and relevant L2 operational state from validated IOS XE models."
-    },
-    {
-      "id": "C07",
-      "title": "Deterministic Cisco desired-state and renderer catalog",
-      "weight": 15,
-      "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Feature-by-feature YANG/CLI operations must be authoritative-source bound, dependency aware, version gated, and non-AI-authored."
-    },
-    {
-      "id": "C08",
-      "title": "Cisco deterministic validation and change approval binding",
-      "weight": 10,
-      "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Validate exact candidate changeset, bind state/version/knowledge/render hashes, and reject stale approval."
-    },
-    {
-      "id": "C09",
-      "title": "IOS XE virtual lab acceptance",
-      "weight": 10,
-      "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Run identified IOS XE virtual target with read/apply/verify/fault evidence without claiming physical hardware."
-    },
-    {
-      "id": "C10",
-      "title": "Transaction backup, rollback, and recovery",
-      "weight": 8,
-      "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Prove backup, management survival, induced failure, rollback, restored-state verification, and recovery."
-    },
-    {
-      "id": "C11",
-      "title": "Physical Cisco read-only acceptance",
-      "weight": 4,
-      "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Human-attested physical-router/switch read-only evidence; virtual evidence cannot satisfy this gate."
-    },
-    {
-      "id": "C12",
-      "title": "Production write and handover gate",
-      "weight": 3,
-      "completed_points": 0,
-      "status": "not_started",
-      "evidence": [],
-      "next_gate": "Explicit production authorization, exact changeset approval, post-change verification, backups, and handover evidence."
-    }
+  "measurement": {
+    "total_points": 100,
+    "subgate_scoring": "binary",
+    "pass_rule": "PASS earns full fixed sub-gate weight; pending/blocked earns 0.",
+    "engineering_rule": "Source-bound implementation, deterministic tests, CI and repository evidence may satisfy engineering gates.",
+    "acceptance_rule": "Acceptance gates require live/human/physical/production evidence; CI, commits and repo files alone are insufficient.",
+    "anti_inflation_rule": "Planning, branch creation, documentation-only intent, waiting CI, synthetic-only evidence and assumptions earn 0.",
+    "weight_change_rule": "Weights are fixed; changing them requires an explicit measurement-policy change and may not silently dilute completed work."
+  },
+  "budgets": {
+    "engineering": {"total": 79, "earned": 67, "percent": 84.8},
+    "acceptance": {"total": 21, "earned": 0, "percent": 0.0}
+  },
+  "reconciliation": {
+    "from_schema": "1.0",
+    "previous_points": 12,
+    "reconciled_points": 67,
+    "delta_points": 55,
+    "delta_kind": "measurement_reclassification",
+    "new_work_points": 0,
+    "baseline_commit": "2f3f286e5092eacda55447915684f80e1c77b7ea"
+  },
+  "stages": [
+    {"id":"C01","title":"Governance and Cisco source manifest","weight":6,"earned":6,"status":"done","gates":[
+      {"id":"rules_sources","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["path:MASTER_RULES.md","path:vendors/cisco/VENDOR_RULES.md","path:src/router_configuration/vendors/cisco/data/official_sources.json"]},
+      {"id":"governance_ci","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["run:34990233938","run:34990233893"]}
+    ]},
+    {"id":"C02","title":"IOS XE platform/version admission","weight":6,"earned":6,"status":"done","gates":[
+      {"id":"platform_matrix","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["path:src/router_configuration/vendors/cisco/data/platform_matrix.json","path:src/router_configuration/vendors/cisco/platforms.py"]},
+      {"id":"admission_tests","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["path:tests/test_cisco_iosxe_domain.py","run:34990233893"]}
+    ]},
+    {"id":"C03","title":"NETCONF read-only discovery","weight":10,"earned":7,"status":"in_progress","gates":[
+      {"id":"contract_catalog","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/netconf_readonly.py","path:src/router_configuration/vendors/cisco/data/netconf_readonly_catalog.json","path:docs/cisco/NETCONF_READONLY_CONTRACT.md"]},
+      {"id":"live_probe_impl","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/live_netconf_probe.py","commit:92080f91c1cb25a6ab149fddafde9b3d43b0e6de","commit:b4879af7cffd364247a109e937fbcfa8d3eba774"]},
+      {"id":"tests_ci","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:tests/test_cisco_netconf_readonly.py","path:tests/test_cisco_live_netconf_probe.py","run:34990233916","run:34990233893"]},
+      {"id":"sanitized_evidence_boundary","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["commit:c7fe66911543ae1fadf7d8a168667fbc01998f69"]},
+      {"id":"live_acceptance","weight":3,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"identified live IOS XE NETCONF evidence required"}
+    ]},
+    {"id":"C04","title":"RESTCONF read-only discovery","weight":8,"earned":5,"status":"in_progress","gates":[
+      {"id":"contract_catalog","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/restconf_readonly.py","path:src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json","path:docs/cisco/RESTCONF_READONLY_CONTRACT.md"]},
+      {"id":"discovery_impl","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/restconf_readonly.py"]},
+      {"id":"tests_ci","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:tests/test_cisco_restconf_readonly.py","run:34990233893"]},
+      {"id":"evidence_pipeline","weight":1,"kind":"eng","status":"pending","earned":0},
+      {"id":"live_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"verified live HTTPS RESTCONF evidence required"}
+    ]},
+    {"id":"C05","title":"Router normalized state","weight":10,"earned":0,"status":"not_started","gates":[
+      {"id":"schema_mapping","weight":2,"kind":"eng","status":"pending","earned":0},
+      {"id":"normalizer_impl","weight":3,"kind":"eng","status":"pending","earned":0},
+      {"id":"tests_ci","weight":2,"kind":"eng","status":"pending","earned":0},
+      {"id":"evidence_pipeline","weight":1,"kind":"eng","status":"pending","earned":0},
+      {"id":"live_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"live router normalized-state evidence required"}
+    ]},
+    {"id":"C06","title":"Switch normalized state","weight":10,"earned":8,"status":"in_progress","gates":[
+      {"id":"schema_catalog","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/data/switch_state_catalog.json"]},
+      {"id":"normalizer_impl","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/switch_state.py"]},
+      {"id":"tests_ci","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:tests/test_cisco_switch_state.py","run:34990233893"]},
+      {"id":"evidence_review_pipeline","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/switch_state_evidence_ingest.py","path:src/router_configuration/vendors/cisco/c06_acceptance_review.py","path:tests/test_cisco_c06_acceptance_review.py","run:34990233893"]},
+      {"id":"live_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"accepted live switch normalized-state evidence required"}
+    ]},
+    {"id":"C07","title":"Deterministic desired-state/renderers","weight":15,"earned":12,"status":"in_progress","gates":[
+      {"id":"source_catalog","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["path:src/router_configuration/vendors/cisco/data/desired_state_catalog.json","path:src/router_configuration/vendors/cisco/desired_state.py"]},
+      {"id":"description_renderer","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/desired_state.py"]},
+      {"id":"mtu_renderer","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/desired_state.py"]},
+      {"id":"shutdown_renderer","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/desired_state.py"]},
+      {"id":"renderer_tests_ci","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/desired_state.py","run:34990233893"]},
+      {"id":"completeness_audit","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/c07_completeness_audit.py","run:34990233893"]},
+      {"id":"remaining_renderer_coverage","weight":3,"kind":"eng","status":"pending","earned":0}
+    ]},
+    {"id":"C08","title":"Validation and change approval binding","weight":10,"earned":8,"status":"in_progress","gates":[
+      {"id":"validator_core","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/validation_approval.py"]},
+      {"id":"approval_binding","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/validation_approval.py"]},
+      {"id":"multi_feature_validation","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/validation_approval.py","run:34990233893"]},
+      {"id":"human_review_pipeline","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/c08_human_approval_review.py","run:34990233893"]},
+      {"id":"integration_ci","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["run:34990233893"]},
+      {"id":"accepted_human_approval","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"real changeset-specific human approval acceptance required"}
+    ]},
+    {"id":"C09","title":"IOS XE virtual lab acceptance","weight":10,"earned":6,"status":"in_progress","gates":[
+      {"id":"acceptance_contract","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/virtual_lab_acceptance.py","path:docs/cisco/IOSXE_VIRTUAL_LAB.md"]},
+      {"id":"evidence_ingest","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/virtual_lab_evidence_ingest.py"]},
+      {"id":"repository_review_pipeline","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/c09_repository_review.py"]},
+      {"id":"tests_ci","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["run:34990233893"]},
+      {"id":"live_virtual_run","weight":3,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"identified live virtual IOS XE run required"},
+      {"id":"repository_acceptance","weight":1,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"exact live bundle must be reviewed and accepted"}
+    ]},
+    {"id":"C10","title":"Backup, rollback and recovery","weight":8,"earned":6,"status":"in_progress","gates":[
+      {"id":"recovery_plan","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/transaction_recovery.py"]},
+      {"id":"execution_contract","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/transaction_execution_contract.py"]},
+      {"id":"observation_contract","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/recovery_observation.py"]},
+      {"id":"review_pipeline","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/c10_recovery_review.py"]},
+      {"id":"tests_ci","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["run:34990233893"]},
+      {"id":"live_rollback_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"induced live failure, rollback and restored-state evidence required"}
+    ]},
+    {"id":"C11","title":"Physical Cisco read-only acceptance","weight":4,"earned":2,"status":"in_progress","gates":[
+      {"id":"physical_contract_ingest","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/physical_acceptance.py","path:src/router_configuration/vendors/cisco/physical_evidence_ingest.py"]},
+      {"id":"human_review_pipeline","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/c11_human_review.py","run:34990233893"]},
+      {"id":"physical_evidence","weight":1,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"human-attested physical IOS XE evidence required"},
+      {"id":"physical_repository_acceptance","weight":1,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"physical evidence must be reviewed and accepted"}
+    ]},
+    {"id":"C12","title":"Production write and handover","weight":3,"earned":1,"status":"in_progress","gates":[
+      {"id":"readiness_handover_tooling","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/c12_handover_manifest.py","path:src/router_configuration/vendors/cisco/preproduction_boundary_audit.py","run:34990233893"]},
+      {"id":"verified_production_deployment","weight":1,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"explicit production authorization plus apply/readback/verify evidence required"},
+      {"id":"final_handover_acceptance","weight":1,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"evidence-backed handover package acceptance required"}
+    ]}
   ],
-  "completed_points": 12,
-  "total_points": 100,
-  "overall_percent": 12,
-  "remaining_percent": 88,
+  "completed_points": 67,
+  "remaining_points": 33,
+  "overall_percent": 67,
   "production_write_authorized": false,
   "physical_device_verified": false
 }
