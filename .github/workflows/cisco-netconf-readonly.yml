@@ -20,6 +20,8 @@ permissions:
 jobs:
   contract:
     runs-on: ubuntu-latest
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +48,7 @@ jobs:
           catalog = knowledge.netconf_readonly_catalog
           result = {
               "schema_version": "cisco-c03-contract-evidence/1",
-              "source_sha": os.environ["GITHUB_SHA"],
+              "source_sha": os.environ["SOURCE_SHA"],
               "stage": "contract_ready_live_target_required",
               "knowledge_digest_sha256": knowledge.digest_sha256,
               "documentation_source_ids": catalog["documentation_source_ids"],
@@ -68,7 +70,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cisco-netconf-readonly-contract-${{ github.sha }}
+          name: cisco-netconf-readonly-contract-${{ env.SOURCE_SHA }}
           path: evidence/cisco/
           if-no-files-found: error
           retention-days: 30
