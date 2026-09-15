@@ -17,11 +17,15 @@ import xml.etree.ElementTree as ET
 from .platforms import assess_read_only_candidate, documentation_train
 
 _IOSXE_NATIVE_NS = "http://cisco.com/ns/yang/Cisco-IOS-XE-native"
-_FEATURE_ID = "interface.description.set"
+_DESCRIPTION_FEATURE_ID = "interface.description.set"
+_MTU_FEATURE_ID = "interface.mtu.set"
+_FEATURE_IDS = frozenset({_DESCRIPTION_FEATURE_ID, _MTU_FEATURE_ID})
 _REQUIRED_MODULE = "Cisco-IOS-XE-native"
 _CANDIDATE_CAPABILITY = "urn:ietf:params:netconf:capability:candidate:1.0"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _INTERFACE_NAME_RE = re.compile(r"^[A-Za-z0-9./:_-]{1,64}$")
+_MIN_INTERFACE_MTU = 64
+_MAX_INTERFACE_MTU = 18000
 
 
 class CiscoDesiredStateError(ValueError):
@@ -68,7 +72,7 @@ def desired_state_catalog_digest() -> str:
 
 
 def _validate_catalog(catalog: Mapping[str, object]) -> None:
-    if catalog.get("schema_version") != "cisco-iosxe-desired-state-catalog/1":
+    if catalog.get("schema_version") != "cisco-iosxe-desired-state-catalog/2":
         raise CiscoDesiredStateError("unsupported desired-state catalog schema")
     if catalog.get("vendor") != "Cisco" or catalog.get("os_family") != "IOS XE":
         raise CiscoDesiredStateError("desired-state catalog vendor/OS mismatch")
@@ -92,24 +96,32 @@ def _validate_catalog(catalog: Mapping[str, object]) -> None:
         raise CiscoDesiredStateError("desired-state documentation trains must be 17.18 and 26")
 
     features = catalog.get("features")
-    if not isinstance(features, list) or len(features) != 1 or not isinstance(features[0], Mapping):
-        raise CiscoDesiredStateError("desired-state catalog must define exactly one bounded slice")
-    feature = features[0]
-    if feature.get("id") != _FEATURE_ID:
-        raise CiscoDesiredStateError("unexpected desired-state feature id")
-    if feature.get("transport") != "netconf" or feature.get("target_datastore") != "candidate":
-        raise CiscoDesiredStateError("desired-state slice must target NETCONF candidate")
-    if feature.get("module") != _REQUIRED_MODULE or feature.get("required_module_advertisement") is not True:
-        raise CiscoDesiredStateError("desired-state native module binding mismatch")
-    capabilities = feature.get("required_capabilities")
-    if capabilities != [_CANDIDATE_CAPABILITY]:
-        raise CiscoDesiredStateError("desired-state candidate capability binding mismatch")
-    constraints = feature.get("yang_constraints")
-    if not isinstance(constraints, Mapping) or constraints.get("description_length") != [0, 200]:
+    if not isinstance(features, list) or len(features) != 2 or any(not isinstance(item, Mapping) for item in features):
+        raise CiscoDesiredStateError("desired-state catalog must define exactly two bounded slices")
+    feature_by_id = {str(feature.get("id")): feature for feature in features}
+    if set(feature_by_id) != _FEATURE_IDS:
+        raise CiscoDesiredStateError("unexpected desired-state feature set")
+
+    for feature in feature_by_id.values():
+        if feature.get("transport") != "netconf" or feature.get("target_datastore") != "candidate":
+            raise CiscoDesiredStateError("desired-state slices must target NETCONF candidate")
+        if feature.get("module") != _REQUIRED_MODULE or feature.get("required_module_advertisement") is not True:
+            raise CiscoDesiredStateError("desired-state native module binding mismatch")
+        if feature.get("required_capabilities") != [_CANDIDATE_CAPABILITY]:
+            raise CiscoDesiredStateError("desired-state candidate capability binding mismatch")
+
+    description_feature = feature_by_id[_DESCRIPTION_FEATURE_ID]
+    description_constraints = description_feature.get("yang_constraints")
+    if not isinstance(description_constraints, Mapping) or description_constraints.get("description_length") != [0, 200]:
         raise CiscoDesiredStateError("desired-state YANG description constraint mismatch")
-    renderer = feature.get("renderer_constraints")
+    renderer = description_feature.get("renderer_constraints")
     if not isinstance(renderer, Mapping) or renderer.get("nonempty_description") is not True:
-        raise CiscoDesiredStateError("desired-state renderer must retain its conservative subset")
+        raise CiscoDesiredStateError("desired-state renderer must retain its conservative description subset")
+
+    mtu_feature = feature_by_id[_MTU_FEATURE_ID]
+    mtu_constraints = mtu_feature.get("yang_constraints")
+    if not isinstance(mtu_constraints, Mapping) or mtu_constraints.get("mtu_range") != [_MIN_INTERFACE_MTU, _MAX_INTERFACE_MTU]:
+        raise CiscoDesiredStateError("desired-state YANG interface MTU constraint mismatch")
 
 
 def _clean_text(value: object, field: str, *, max_len: int, nonempty: bool = True) -> str:
@@ -125,18 +137,27 @@ def _clean_text(value: object, field: str, *, max_len: int, nonempty: bool = Tru
     return result
 
 
-def render_interface_description(
+def _clean_interface_name(value: object) -> str:
+    name = _clean_text(value, "interface_name", max_len=64)
+    if not _INTERFACE_NAME_RE.fullmatch(name):
+        raise CiscoDesiredStateError("interface_name is outside the conservative renderer subset")
+    return name
+
+
+def _bounded_uint(value: object, field: str, *, minimum: int, maximum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+        raise CiscoDesiredStateError(f"field is outside the source-bound range: {field}")
+    return value
+
+
+def _admit_renderer(
     *,
     model: str,
     iosxe_version: str,
     schema_inventory_digest_sha256: str,
     observed_modules: Iterable[str],
     netconf_capabilities: Iterable[str],
-    interface_name: str,
-    description: str,
-) -> DesiredStateRender:
-    """Render a deterministic Cisco Native candidate fragment for one description."""
-
+):
     catalog = load_desired_state_catalog()
     decision = assess_read_only_candidate(model, iosxe_version)
     if not decision.read_only_candidate or decision.role is None:
@@ -158,19 +179,29 @@ def render_interface_description(
     if _CANDIDATE_CAPABILITY not in capabilities:
         raise CiscoDesiredStateError("NETCONF candidate capability was not advertised")
 
-    name = _clean_text(interface_name, "interface_name", max_len=64)
-    if not _INTERFACE_NAME_RE.fullmatch(name):
-        raise CiscoDesiredStateError("interface_name is outside the conservative renderer subset")
-    value = _clean_text(description, "description", max_len=200)
+    return catalog, decision, train, schema_digest
 
+
+def _render_interface_leaf(
+    *,
+    catalog: Mapping[str, object],
+    decision,
+    model: str,
+    iosxe_version: str,
+    train: str,
+    schema_digest: str,
+    interface_name: str,
+    feature_id: str,
+    leaf_name: str,
+    leaf_value: str,
+) -> DesiredStateRender:
     ET.register_namespace("", _IOSXE_NATIVE_NS)
     native = ET.Element(f"{{{_IOSXE_NATIVE_NS}}}native")
     interfaces = ET.SubElement(native, f"{{{_IOSXE_NATIVE_NS}}}interface")
     gigabit = ET.SubElement(interfaces, f"{{{_IOSXE_NATIVE_NS}}}GigabitEthernet")
-    ET.SubElement(gigabit, f"{{{_IOSXE_NATIVE_NS}}}name").text = name
-    ET.SubElement(gigabit, f"{{{_IOSXE_NATIVE_NS}}}description").text = value
+    ET.SubElement(gigabit, f"{{{_IOSXE_NATIVE_NS}}}name").text = interface_name
+    ET.SubElement(gigabit, f"{{{_IOSXE_NATIVE_NS}}}{leaf_name}").text = leaf_value
     payload_xml = ET.tostring(native, encoding="unicode", short_empty_elements=True)
-
     payload_digest = hashlib.sha256(payload_xml.encode("utf-8")).hexdigest()
     return DesiredStateRender(
         model=model.strip(),
@@ -178,11 +209,81 @@ def render_interface_description(
         documentation_train=train,
         platform_family=decision.family or "",
         role=decision.role.value,
-        feature_id=_FEATURE_ID,
+        feature_id=feature_id,
         target_datastore="candidate",
         required_module=_REQUIRED_MODULE,
         schema_inventory_digest_sha256=schema_digest,
         catalog_digest_sha256=_canonical_sha256(catalog),
         payload_digest_sha256=payload_digest,
         payload_xml=payload_xml,
+    )
+
+
+def render_interface_description(
+    *,
+    model: str,
+    iosxe_version: str,
+    schema_inventory_digest_sha256: str,
+    observed_modules: Iterable[str],
+    netconf_capabilities: Iterable[str],
+    interface_name: str,
+    description: str,
+) -> DesiredStateRender:
+    """Render a deterministic Cisco Native candidate fragment for one description."""
+
+    catalog, decision, train, schema_digest = _admit_renderer(
+        model=model,
+        iosxe_version=iosxe_version,
+        schema_inventory_digest_sha256=schema_inventory_digest_sha256,
+        observed_modules=observed_modules,
+        netconf_capabilities=netconf_capabilities,
+    )
+    name = _clean_interface_name(interface_name)
+    value = _clean_text(description, "description", max_len=200)
+    return _render_interface_leaf(
+        catalog=catalog,
+        decision=decision,
+        model=model,
+        iosxe_version=iosxe_version,
+        train=train,
+        schema_digest=schema_digest,
+        interface_name=name,
+        feature_id=_DESCRIPTION_FEATURE_ID,
+        leaf_name="description",
+        leaf_value=value,
+    )
+
+
+def render_interface_mtu(
+    *,
+    model: str,
+    iosxe_version: str,
+    schema_inventory_digest_sha256: str,
+    observed_modules: Iterable[str],
+    netconf_capabilities: Iterable[str],
+    interface_name: str,
+    mtu: int,
+) -> DesiredStateRender:
+    """Render a deterministic Cisco Native candidate fragment for interface MTU."""
+
+    catalog, decision, train, schema_digest = _admit_renderer(
+        model=model,
+        iosxe_version=iosxe_version,
+        schema_inventory_digest_sha256=schema_inventory_digest_sha256,
+        observed_modules=observed_modules,
+        netconf_capabilities=netconf_capabilities,
+    )
+    name = _clean_interface_name(interface_name)
+    value = _bounded_uint(mtu, "mtu", minimum=_MIN_INTERFACE_MTU, maximum=_MAX_INTERFACE_MTU)
+    return _render_interface_leaf(
+        catalog=catalog,
+        decision=decision,
+        model=model,
+        iosxe_version=iosxe_version,
+        train=train,
+        schema_digest=schema_digest,
+        interface_name=name,
+        feature_id=_MTU_FEATURE_ID,
+        leaf_name="mtu",
+        leaf_value=str(value),
     )

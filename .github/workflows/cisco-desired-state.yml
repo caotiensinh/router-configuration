@@ -58,9 +58,9 @@ jobs:
 
           catalog = load_desired_state_catalog()
           result = {
-              "schema_version": "cisco-c07-contract-evidence/1",
+              "schema_version": "cisco-c07-contract-evidence/2",
               "source_sha": os.environ["SOURCE_SHA"],
-              "stage": "desired_state_vertical_slice_ready_more_features_and_acceptance_required",
+              "stage": "desired_state_two_vertical_slices_ready_more_features_and_acceptance_required",
               "catalog_digest_sha256": desired_state_catalog_digest(),
               "feature_ids": sorted(feature["id"] for feature in catalog["features"]),
               "documentation_trains": sorted(catalog["documentation_trains"]),
