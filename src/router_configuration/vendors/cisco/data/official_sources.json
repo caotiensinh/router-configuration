@@ -17,7 +17,7 @@
       "title": "Programmability Configuration Guide, Cisco IOS XE 26.x.x - NETCONF Protocol",
       "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/26x/26x-programmability-cg/netconf_protocol.html",
       "authority": "official_cisco",
-      "scope": "NETCONF protocol and YANG capability behavior for IOS XE 26.x.x"
+      "scope": "NETCONF protocol, capability discovery, YANG monitoring, and model-driven behavior for IOS XE 26.x.x"
     },
     {
       "id": "CISCO-IOSXE-26-RESTCONF",
@@ -32,6 +32,13 @@
       "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1718/b-1718-programmability-cg.html",
       "authority": "official_cisco",
       "scope": "IOS XE 17.18.x programmability; includes Catalyst 8000 edge platforms and Catalyst 9200/9300/9400/9500/9600 switches"
+    },
+    {
+      "id": "CISCO-IOSXE-17.18-NETCONF",
+      "title": "Programmability Configuration Guide, Cisco IOS XE 17.18.x - NETCONF Protocol",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1718/b-1718-programmability-cg/m_1718_prog_yang_netconf.html",
+      "authority": "official_cisco",
+      "scope": "NETCONF protocol, capability discovery, schema inventory, and Cisco-IOS-XE-native examples for IOS XE 17.18.x"
     },
     {
       "id": "CISCO-IOSXE-26-CONFIG-INDEX",

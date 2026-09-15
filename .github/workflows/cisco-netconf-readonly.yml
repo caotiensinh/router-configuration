@@ -1,0 +1,74 @@
+name: Cisco NETCONF Read-Only Contract
+
+on:
+  push:
+    paths:
+      - "CISCO_PROGRESS.json"
+      - "src/router_configuration/vendors/cisco/**"
+      - "tests/test_cisco_netconf_readonly.py"
+      - ".github/workflows/cisco-netconf-readonly.yml"
+  pull_request:
+    paths:
+      - "CISCO_PROGRESS.json"
+      - "src/router_configuration/vendors/cisco/**"
+      - "tests/test_cisco_netconf_readonly.py"
+      - ".github/workflows/cisco-netconf-readonly.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Run Cisco NETCONF read-only contracts
+        run: python -m unittest tests.test_cisco_netconf_readonly -v
+
+      - name: Record fail-closed C03 boundary
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from router_configuration.vendors.cisco import CiscoOfflineKnowledge
+
+          knowledge = CiscoOfflineKnowledge()
+          catalog = knowledge.netconf_readonly_catalog
+          result = {
+              "schema_version": "cisco-c03-contract-evidence/1",
+              "source_sha": os.environ["GITHUB_SHA"],
+              "stage": "contract_ready_live_target_required",
+              "knowledge_digest_sha256": knowledge.digest_sha256,
+              "documentation_source_ids": catalog["documentation_source_ids"],
+              "allowed_rpc_operations": [
+                  item["name"] for item in catalog["allowed_rpc_operations"]
+              ],
+              "live_target_observed": False,
+              "synthetic_fixture_can_complete_c03": False,
+              "c03_complete": False,
+              "production_write_authorized": False,
+              "physical_device_verified": False,
+          }
+          with open("evidence/cisco/c03-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
+      - name: Preserve Cisco C03 contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-netconf-readonly-contract-${{ github.sha }}
+          path: evidence/cisco/
+          if-no-files-found: error
+          retention-days: 30
