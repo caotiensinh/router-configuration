@@ -1,0 +1,29 @@
+name: Cisco Progress Ledger
+
+on:
+  pull_request:
+    paths:
+      - "CISCO_PROGRESS.json"
+      - "src/router_configuration/vendors/cisco/progress_ledger.py"
+      - "tests/test_cisco_progress_ledger.py"
+      - "docs/cisco/PROGRESS_MEASUREMENT.md"
+      - ".github/workflows/cisco-progress-ledger.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Validate canonical progress ledger
+        run: python -m router_configuration.vendors.cisco.progress_ledger CISCO_PROGRESS.json --repo-root .
+      - name: Run progress-ledger unit tests
+        run: python -m unittest tests.test_cisco_progress_ledger -v
