@@ -1,3 +1,4 @@
+import ast
 import importlib.util
 import sys
 import unittest
@@ -22,13 +23,33 @@ def load(path: Path, name: str):
         sys.path.pop(0)
 
 
+def _admin_request_pairs(source: str) -> set[tuple[str, str]]:
+    tree = ast.parse(source)
+    pairs: set[tuple[str, str]] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "request":
+            continue
+        if len(node.args) < 2:
+            continue
+        method, endpoint = node.args[:2]
+        if not isinstance(method, ast.Constant) or not isinstance(method.value, str):
+            continue
+        if not isinstance(endpoint, ast.Constant) or not isinstance(endpoint.value, str):
+            continue
+        pairs.add((method.value, endpoint.value))
+    return pairs
+
+
 class CHRTransactionBackupAcceptanceContractTests(unittest.TestCase):
     def test_helper_is_disposable_chr_only_and_captures_two_real_backup_forms(self):
         source = VERIFY.read_text(encoding="utf-8")
         self.assertIn("LoopbackCHRAdmin", source)
         self.assertIn("assert_disposable_chr", source)
-        self.assertIn('"POST",\n            "export"', source)
-        self.assertIn('"system/backup/save"', source)
+        request_pairs = _admin_request_pairs(source)
+        self.assertIn(("POST", "export"), request_pairs)
+        self.assertIn(("POST", "system/backup/save"), request_pairs)
         self.assertIn('"aes-sha256"', source)
         self.assertIn('"sshpass"', source)
         self.assertIn('"-e"', source)
