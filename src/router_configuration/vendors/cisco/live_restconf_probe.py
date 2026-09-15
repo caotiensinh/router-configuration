@@ -2,7 +2,8 @@
 
 The probe executes only source-bound GET requests from the validated RESTCONF
 catalog. Credentials remain runtime-only, TLS verification is mandatory, and
-persisted evidence is minimized and sanitized.
+persisted evidence is minimized and sanitized. C04 completion additionally
+requires independently bound exact-platform evidence for the same target.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import base64
 from dataclasses import dataclass
 import hashlib
 import http.client
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -20,7 +22,7 @@ import ssl
 from typing import Callable, Mapping
 
 from .knowledge import CiscoOfflineKnowledge
-from .platforms import documentation_train
+from .platforms import assess_read_only_candidate, documentation_train
 from .restconf_readonly import (
     MAX_RESTCONF_BODY_BYTES,
     RestconfCapabilityInventory,
@@ -32,6 +34,7 @@ from .restconf_readonly import (
 )
 
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _HOSTNAME_RE = re.compile(
     r"^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*"
     r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?$"
@@ -60,8 +63,13 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _canonical_sha256(value: object) -> str:
+    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _valid_sha256(value: str) -> bool:
-    return bool(re.fullmatch(r"[0-9a-f]{64}", value))
+    return bool(_SHA256_RE.fullmatch(value.lower()))
 
 
 def _validate_host(host: str) -> str:
@@ -76,8 +84,6 @@ def _validate_host(host: str) -> str:
     ):
         raise CiscoRestconfProbeError("invalid_target_host")
     if ":" in value:
-        import ipaddress
-
         try:
             parsed = ipaddress.ip_address(value)
         except ValueError as exc:
@@ -122,9 +128,11 @@ def _build_ssl_context(ca_pem_b64: str | None) -> ssl.SSLContext:
             pem = pem_bytes.decode("ascii")
         except (ValueError, UnicodeDecodeError) as exc:
             raise CiscoRestconfProbeError("invalid_ca_bundle") from exc
+        if "-----BEGIN CERTIFICATE-----" not in pem or "-----END CERTIFICATE-----" not in pem:
+            raise CiscoRestconfProbeError("invalid_ca_bundle")
         try:
             context = ssl.create_default_context(cadata=pem)
-        except ssl.SSLError as exc:
+        except (ssl.SSLError, ValueError) as exc:
             raise CiscoRestconfProbeError("invalid_ca_bundle") from exc
     else:
         context = ssl.create_default_context()
@@ -178,6 +186,8 @@ def _https_get(
     try:
         connection.request("GET", query.relative_uri, headers=dict(headers))
         response = connection.getresponse()
+        if 300 <= response.status <= 399:
+            raise CiscoRestconfProbeError("redirect_response_rejected")
         certificate = (
             connection.sock.getpeercert(binary_form=True)
             if connection.sock is not None
@@ -200,7 +210,7 @@ def _https_get(
 
 def _base_evidence(source_sha: str, knowledge: CiscoOfflineKnowledge) -> dict:
     return {
-        "schema_version": "cisco-c04-live-restconf-evidence/1",
+        "schema_version": "cisco-c04-live-restconf-evidence/2",
         "source_sha": source_sha,
         "knowledge_digest_sha256": knowledge.digest_sha256,
         "stage": "live_readonly_probe",
@@ -210,9 +220,34 @@ def _base_evidence(source_sha: str, knowledge: CiscoOfflineKnowledge) -> dict:
         "tls_certificate_verification_required": True,
         "redirect_following_allowed": False,
         "credentials_persisted": False,
+        "platform_evidence_bound": False,
         "production_write_authorized": False,
         "physical_device_verified": False,
+        "write_operations_performed": False,
     }
+
+
+def _platform_binding(
+    *,
+    target_host_sha256: str,
+    model: str,
+    platform_target_sha256: str,
+    platform_evidence_sha256: str,
+    iosxe_version: str,
+) -> tuple[bool, str, str | None]:
+    model = model.strip()
+    target_digest = platform_target_sha256.strip().lower()
+    evidence_digest = platform_evidence_sha256.strip().lower()
+    if not model or not target_digest or not evidence_digest:
+        return False, "PLATFORM_EVIDENCE_REQUIRED", None
+    if not _valid_sha256(target_digest) or not _valid_sha256(evidence_digest):
+        return False, "INVALID_PLATFORM_EVIDENCE_DIGEST", None
+    if target_digest != target_host_sha256:
+        return False, "PLATFORM_TARGET_BINDING_MISMATCH", None
+    decision = assess_read_only_candidate(model, iosxe_version)
+    if not decision.read_only_candidate:
+        return False, decision.status, decision.family
+    return True, decision.status, decision.family
 
 
 def run_live_probe(
@@ -228,28 +263,28 @@ def run_live_probe(
         evidence["result"] = "source_sha_missing_or_invalid"
         return evidence
 
-    required_values = (
-        env.get("CISCO_RESTCONF_HOST", ""),
-        env.get("CISCO_RESTCONF_USERNAME", ""),
-        env.get("CISCO_RESTCONF_PASSWORD", ""),
-    )
-    missing_count = sum(not value for value in required_values)
+    raw_host = env.get("CISCO_RESTCONF_HOST", "").strip()
+    username = env.get("CISCO_RESTCONF_USERNAME", "")
+    password = env.get("CISCO_RESTCONF_PASSWORD", "")
+    missing_count = sum(not value for value in (raw_host, username, password))
     if missing_count:
         evidence["result"] = "credentials_missing"
         evidence["missing_required_value_count"] = missing_count
         return evidence
 
     try:
-        host = _validate_host(required_values[0])
+        host = _validate_host(raw_host)
         port = _validate_port(env.get("CISCO_RESTCONF_PORT", "443"))
         timeout = _validate_timeout(env.get("CISCO_RESTCONF_TIMEOUT_SECONDS", "10"))
         ssl_context = _build_ssl_context(env.get("CISCO_RESTCONF_CA_PEM_B64"))
-        authorization = _authorization_header(required_values[1], required_values[2])
+        authorization = _authorization_header(username, password)
     except CiscoRestconfProbeError as exc:
         evidence["result"] = str(exc)
         return evidence
 
-    evidence["target_endpoint_sha256"] = _sha256_text(f"{host}:{port}")
+    target_host_sha256 = _sha256_text(raw_host)
+    evidence["target_host_digest_sha256"] = target_host_sha256
+    evidence["target_port"] = port
     base_url = f"https://{_url_authority(host, port)}"
     requester = request_fn or _https_get
     certificate_digests: set[str] = set()
@@ -286,9 +321,10 @@ def run_live_probe(
             timeout,
             observed,
         )
-        if not _valid_sha256(response.peer_certificate_sha256):
+        digest = response.peer_certificate_sha256.lower()
+        if not _valid_sha256(digest):
             raise CiscoRestconfProbeError("invalid_peer_certificate_digest")
-        certificate_digests.add(response.peer_certificate_sha256)
+        certificate_digests.add(digest)
         return response
 
     try:
@@ -319,7 +355,15 @@ def run_live_probe(
             raise CiscoRestconfProbeError("unverified_iosxe_version")
         if len(certificate_digests) != 1:
             raise CiscoRestconfProbeError("peer_certificate_changed")
-    except Exception as exc:
+
+        expected_cert = env.get("CISCO_RESTCONF_CERT_SHA256", "").strip().lower()
+        peer_cert = next(iter(certificate_digests))
+        if expected_cert:
+            if not _valid_sha256(expected_cert):
+                raise CiscoRestconfProbeError("invalid_expected_certificate_digest")
+            if peer_cert != expected_cert:
+                raise CiscoRestconfProbeError("peer_certificate_pin_mismatch")
+    except Exception as exc:  # noqa: BLE001 - sanitize all untrusted runtime failures
         evidence["live_target_observed"] = True
         evidence["result"] = (
             str(exc)
@@ -331,19 +375,41 @@ def run_live_probe(
 
     evidence.update(
         {
-            "result": "live_readonly_admitted",
+            "result": "live_restconf_verified_platform_binding_required",
             "live_target_observed": True,
-            "c04_complete": True,
             "restconf_root_digest_sha256": root.digest_sha256,
             "capability_inventory_digest_sha256": capabilities.digest_sha256,
             "capability_count": len(capabilities.capabilities),
             "fields_capability_observed": capabilities.supports_fields,
             "identity_digest_sha256": identity.digest_sha256,
-            "hostname_sha256": _sha256_text(identity.hostname),
+            "hostname_digest_sha256": _sha256_text(identity.hostname),
             "iosxe_version": identity.iosxe_version,
             "documentation_train": train,
-            "peer_certificate_sha256": next(iter(certificate_digests)),
+            "peer_certificate_sha256": peer_cert,
         }
+    )
+
+    bound, admission_status, family = _platform_binding(
+        target_host_sha256=target_host_sha256,
+        model=env.get("CISCO_RESTCONF_PLATFORM_MODEL", ""),
+        platform_target_sha256=env.get("CISCO_RESTCONF_PLATFORM_TARGET_SHA256", ""),
+        platform_evidence_sha256=env.get("CISCO_RESTCONF_PLATFORM_EVIDENCE_SHA256", ""),
+        iosxe_version=identity.iosxe_version,
+    )
+    evidence["platform_evidence_bound"] = bound
+    evidence["platform_admission_status"] = admission_status
+    evidence["platform_family"] = family
+
+    model = env.get("CISCO_RESTCONF_PLATFORM_MODEL", "").strip()
+    platform_evidence_digest = env.get("CISCO_RESTCONF_PLATFORM_EVIDENCE_SHA256", "").strip().lower()
+    if bound:
+        evidence["admitted_model"] = model
+        evidence["platform_evidence_digest_sha256"] = platform_evidence_digest
+        evidence["result"] = "live_readonly_admitted"
+        evidence["c04_complete"] = True
+
+    evidence["evidence_digest_sha256"] = _canonical_sha256(
+        {key: value for key, value in evidence.items() if key != "evidence_digest_sha256"}
     )
     return evidence
 
@@ -363,7 +429,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     evidence = run_live_probe()
     write_evidence(args.output, evidence)
-    return 0
+    print(
+        json.dumps(
+            {
+                "stage": evidence["stage"],
+                "result": evidence.get("result"),
+                "c04_complete": evidence["c04_complete"],
+                "source_sha": evidence["source_sha"],
+            },
+            sort_keys=True,
+        )
+    )
+    return 0 if evidence.get("c04_complete") else 4
 
 
 if __name__ == "__main__":
