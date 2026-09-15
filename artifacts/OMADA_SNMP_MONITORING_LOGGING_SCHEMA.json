@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_snmp_monitoring_logging_knowledge",
+  "task": "4.18",
+  "observed_at": "2026-09-16",
+  "authority": "TP-Link / Omada official sources only",
+  "status": "COMPLETE_FOR_CURRENT_OFFICIAL_EVIDENCE_SCOPE",
+  "sources": [
+    {"title": "Omada SDN Controller User Guide - Configure the Network", "url": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html", "facts": ["SNMPv1", "SNMPv2c", "SNMPv3", "controller-managed devices are read-only through NMS"]},
+    {"title": "Omada SDN Controller User Guide - Monitor the Network", "url": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-8-monitor-the-network.html", "facts": ["controller logs", "alerts", "events", "notifications", "Error/Warning/Info severity"]},
+    {"title": "Configuring System Logs", "url": "https://www.tp-link.com/us/configuration-guides/configuring_system_logs/", "scope": "model-scoped standalone-switch guide; never generalized outside cited applicability", "facts": ["local logs", "remote syslog", "severity 0-7", "up to four log servers", "UDP 514"]}
+  ],
+  "applicability_gate": {"rule": "FAIL_CLOSED", "required": ["device_model", "hardware_revision", "region", "firmware_version", "management_mode", "controller_type", "controller_version", "runtime_feature_presence"], "notes": ["Do not generalize standalone-switch logging fields or limits to every Omada-managed model.", "Do not assume SNMP write capability for controller-managed devices; the cited controller guide explicitly limits NMS access to read-only."]},
+  "snmp": {"controller_path": "Settings > Services > SNMP", "versions": ["v1", "v2c", "v3"], "v1_v2c_secret": "community string", "v3_identity": "username plus authentication/privacy parameters when exposed by exact runtime", "managed_device_access": "READ_ONLY", "secret_policy": "NEVER_LOG_OR_EXPORT_PLAINTEXT_SECRET"},
+  "monitoring": {"controller_logs": {"categories": ["Alert", "Event"], "severities": ["Error", "Warning", "Info"], "content_types": ["Operation", "System", "Device", "Client"]}, "export": ["Device List", "Client List", "Log List", "Running Log"], "rule": "Monitoring evidence is read-only unless an explicitly authorized configuration change is required."},
+  "system_logging": {"standalone_scoped_evidence": {"destinations": ["buffer", "file", "remote log server"], "severity_range": [0, 7], "lower_value_is_higher_severity": true, "max_remote_servers": 4, "default_syslog_udp_port": 514}, "controller_managed_rule": "Only apply remote-log fields that are surfaced and source-backed for the exact model/firmware/management mode."},
+  "verification": {"configuration_state": "EXECUTED_UNVERIFIED", "pass_requires": ["exact SNMP/logging read-back", "successful read-only SNMP poll from the intended NMS", "secret values absent from logs/artifacts", "expected controller alert/event visibility", "remote syslog receipt when remote logging is configured and supported", "controller/management reachability remains healthy"]},
+  "rollback": "Restore the exact prior SNMP/logging configuration and receiver set, then verify monitoring and management reachability."
+}
