@@ -1,0 +1,29 @@
+{
+  "schema_version": "parallel-lane-plan/1",
+  "task": "4.16",
+  "top_level_agent": "AGENT-01",
+  "equal_priority": true,
+  "methods":["official_controller_guide","parsed_official_pdf","required_pdf_screenshot_attempt","library_readback","github_byte_hash_gate","ci_governance_verification"],
+  "waves":[
+    {
+      "wave":1,
+      "assignments":[
+        {"lane_id":"LANE-0001","task_id":"OMADA-4.16-CONTROLLER","mode":"read_only"},
+        {"lane_id":"LANE-0002","task_id":"OMADA-4.16-CLI-DHCP","mode":"read_only"},
+        {"lane_id":"LANE-0003","task_id":"OMADA-4.16-CLI-DAI","mode":"read_only"},
+        {"lane_id":"LANE-0004","task_id":"OMADA-4.16-SAFETY","mode":"read_only"}
+      ]
+    },
+    {
+      "wave":2,
+      "assignments":[{"lane_id":"LANE-0001","task_id":"OMADA-4.16-INTEGRATE","mode":"write"}]
+    }
+  ],
+  "promotion_gate": {
+    "library_readback": true,
+    "canonical_candidate_validation": true,
+    "github_exact_blob_match": true,
+    "ci_success": true,
+    "governance_success": true
+  }
+}

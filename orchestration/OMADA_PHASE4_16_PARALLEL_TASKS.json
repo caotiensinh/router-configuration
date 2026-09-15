@@ -1,0 +1,25 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "task": "4.16",
+  "top_level_agent": "AGENT-01",
+  "equal_priority_with_agents_02_08": true,
+  "tasks": [
+    {"task_id":"OMADA-4.16-CONTROLLER","mode":"read_only","scope":"Controller V6.1+ DHCP Snooping/DAI workflow and topology gates"},
+    {"task_id":"OMADA-4.16-CLI-DHCP","mode":"read_only","scope":"CLI Chapter 77 bindings, global/VLAN/port/trust/readback"},
+    {"task_id":"OMADA-4.16-CLI-DAI","mode":"read_only","scope":"CLI Chapter 93 validation, VLAN/trust/rate/readback"},
+    {"task_id":"OMADA-4.16-SAFETY","mode":"read_only","scope":"state separation, topology, verification, rollback"},
+    {
+      "task_id":"OMADA-4.16-INTEGRATE",
+      "mode":"write",
+      "dependencies":["OMADA-4.16-CONTROLLER","OMADA-4.16-CLI-DHCP","OMADA-4.16-CLI-DAI","OMADA-4.16-SAFETY"],
+      "write_paths":[
+        "artifacts/OMADA_JETSTREAM_DHCP_SNOOPING_DAI_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_DHCP_SNOOPING_DAI_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_DHCP_SNOOPING_DAI_KB.md",
+        "orchestration/OMADA_PHASE4_16_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_16_PARALLEL_PLAN.json"
+      ],
+      "conflict_keys":["vendor:omada","phase:omada-4.16"]
+    }
+  ]
+}

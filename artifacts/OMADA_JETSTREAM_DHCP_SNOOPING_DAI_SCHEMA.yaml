@@ -1,0 +1,130 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_dhcp_snooping_dai
+vendor: TP-Link / Omada
+task: '4.16'
+observed_at: '2026-09-16'
+status: VALIDATED_FOR_OFFICIAL_CURRENT_SCOPE
+authority: official TP-Link / Omada documentation only
+scope:
+  feature_family: IPv4 IMPB / DHCP Snooping / Dynamic ARP Inspection
+  cli_reference: Managed Switch CLI Reference REV1.1.0 April 2026, Chapters 77 and 93
+  controller_guide: What is DHCP Snooping and DAI and How to Configure Them on Omada Switches When Adopted on Omada Controller, 2026-01-27
+  applicability_gate:
+    - exact_model
+    - hardware_revision
+    - region
+    - firmware
+    - management_mode
+    - controller_version
+    - interface_type
+    - runtime_command_support
+state_planes:
+  - manual_ip_mac_vlan_port_binding
+  - dynamic_dhcp_binding
+  - dhcp_snooping_global
+  - dhcp_snooping_vlan
+  - dhcp_snooping_port
+  - dhcp_snooping_trust
+  - dai_global
+  - dai_validation
+  - dai_vlan
+  - dai_logging
+  - dai_port_trust
+  - dai_rate_limit
+  - dai_burst_interval
+  - dai_exceed_action
+  - ip_verify_source_dependency
+  - management_uplink_cascade_topology
+cli:
+  binding:
+    - 'ip source binding <hostname> <ip> <mac> vlan <vlan-id> interface <interface> { none | arp-detection | ip-verify-source | both }'
+    - 'no ip source binding index <ip-address>'
+    - 'no ip source binding interface <interface>'
+  dhcp_snooping:
+    global: ['ip dhcp snooping', 'no ip dhcp snooping']
+    vlan: ['ip dhcp snooping vlan <vlan-range>', 'no ip dhcp snooping vlan <vlan-range>']
+    port:
+      - 'ip dhcp snooping max-entries <value>'
+      - 'no ip dhcp snooping max-entries'
+      - 'ip dhcp snooping trust'
+      - 'no ip dhcp snooping trust'
+    readback:
+      - 'show ip source binding'
+      - 'show ip dhcp snooping'
+      - 'show ip dhcp snooping interface [ <interface> ]'
+  dai:
+    global: ['ip arp inspection', 'no ip arp inspection']
+    validation:
+      - 'ip arp inspection validate { src-mac | dst-mac | ip }'
+      - 'no ip arp inspection validate { src-mac | dst-mac | ip }'
+    vlan:
+      - 'ip arp inspection vlan <vlan-list>'
+      - 'no ip arp inspection vlan <vlan-list>'
+      - 'ip arp inspection vlan <vlan-list> logging'
+      - 'no ip arp inspection vlan <vlan-list> logging'
+    port:
+      - 'ip arp inspection trust'
+      - 'no ip arp inspection trust'
+      - 'ip arp inspection limit-rate <1-300>'
+      - 'no ip arp inspection limit-rate'
+      - 'ip arp inspection burst-interval <1-15>'
+      - 'no ip arp inspection burst-interval'
+      - 'ip arp inspection recover'
+      - 'ip arp inspection exceed [ drop | shutdown ] <recover-time>'
+      - 'no ip arp inspection exceed'
+    readback:
+      - 'show ip arp inspection'
+      - 'show ip arp inspection interface [ <interface> ]'
+      - 'show ip arp inspection vlan'
+      - 'show ip arp inspection statistics'
+  cited_defaults:
+    arp_inspection_limit_rate_pps: 100
+    arp_inspection_burst_interval_seconds: 1
+  unknown_defaults:
+    dhcp_snooping_max_entries: UNKNOWN
+controller:
+  minimum_controller_version_in_cited_guide: '6.1+'
+  product_scope_in_cited_guide:
+    - Omada Access
+    - Omada Access Plus
+    - Omada Access Pro
+    - Omada Access Max
+    - Omada Aggregation
+  rules:
+    - DHCP Snooping and DAI are IMPB components but remain separate enforcement planes.
+    - A selected DHCP Snooping client-facing port also drops DHCP server response packets arriving from that client side in the cited workflow.
+    - The cascade port cannot be selected for DHCP Snooping in the cited Controller workflow so the switch can obtain an address by DHCP.
+    - DAI validation can use dynamically learned DHCP Snooping bindings or explicit manual bindings.
+    - Static-IP-only networks require an explicit manual-binding strategy; do not fabricate DHCP bindings.
+safety:
+  - Snapshot bindings, trust state, VLAN scope, validation, rate-limit and exceed-action state before writes.
+  - Identify DHCP-server, uplink, cascade, routing and LAG paths before enforcement.
+  - Never infer infrastructure trust state.
+  - Do not enable IP Verify Source implicitly; it is a distinct dependent plane.
+  - VLAN scope must be explicit.
+  - Configuration acceptance is EXECUTED_UNVERIFIED until read-back and traffic behavior pass.
+verification:
+  required:
+    - exact configuration readback
+    - expected learned or manual binding-table entries
+    - legitimate DHCP success where applicable
+    - legitimate ARP and IP connectivity
+    - rogue-DHCP or spoof rejection evidence where safely testable
+    - healthy management/uplink_reachability
+  states: [VERIFIED, EXECUTED_UNVERIFIeD, BLOCKED_BY_APPLICABILITY, BLOCKED_BY_DEPENDENCY, BLOCKED_BY_CONFLICT, UNKNOWN]
+rollback:
+  restore_exact_pre_change_state:
+    - manual_bindings
+    - learned_binding_policy
+    - global_enable_state
+    - vlan_scope
+    - trusted_ports
+    - validation_controls
+    - rate_limits
+    - burst_intervals
+    - exceed_actions
+pdf_evidence:
+  parsed_text: true
+  screenshot_attempt_pages: [1017, 1154]
+  screenshot_result: CACHE_MISS
+  visual_screenshot_verified: false

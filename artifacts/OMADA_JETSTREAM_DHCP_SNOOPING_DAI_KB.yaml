@@ -1,0 +1,79 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_dhcp_snooping_dai_kb
+task: '4.16'
+observed_at: '2026-09-16'
+status: COMPLETE_FOR_CURRENT_OFFICIAL_EVIDENCE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+  - id: CONTROLLER_GUIDE_2026
+    title: What is DHCP Snooping and DAI and How to Configure Them on Omada Switches When Adopted on Omada Controller
+    published: '2026-01-27'
+    url: https://support.omadanetworks.com/en/document/115293/
+    scope: Controller V6.1+ and switch classes named by the guide; current firmware required.
+  - id: CLI_2026
+    title: CLI Reference Guide - Managed Switches
+    revision: REV1.1.0
+    published: '2026-04'
+    url: https://static.tp-link.com/upload/manual/2026/202604/20260423/1900002754_Managed%20Switch_Multi-model_CLI.pdf
+    scope: Chapter 77 IPv4 IMPB and Chapter 93 ARP Inspection.
+state_separation:
+  manual_binding: IP-MAC-VLAN-port entries explicitly configured by operator intent.
+  dynamic_binding: DHCP Snooping learned IP-MAC-VLAN-port-lease evidence.
+  dhcp_snooping: DHCP transaction inspection, binding learning and rogue-server response blocking on selected ports.
+  dai: ARP validation against binding evidence plus explicit validation/trust/VLAN/rate controls.
+  ip_verify_source: Separate source-filter plane; never enabled implicitly by DHCP Snooping or DAI intent.
+controller_facts:
+  controller_minimum: '6.1+'
+  dhcp_snooping:
+    - Enable globally under Network Config > Security > IMPB.
+    - Select supported switches and intended ports.
+    - The cited workflow does not allow selecting the cascade port, protecting DHCP management reachability of the switch.
+  dai:
+    - Enable globally, then choose intended device/ports.
+    - DHCP Snooping learned items can be used as the validation source when Snooping items take effect is enabled.
+    - Static-IP-only environments require explicit manual binding entries rather than fabricated DHCP state.
+  inseparable_behavior_in_cited_workflow: A DHCP Snooping selected port learns bindings and drops illegal DHCP server response traffic; those two effects cannot be separated in that workflow.
+cli_facts:
+  dhcp_snooping:
+    global: ip dhcp snooping
+    vlan: ip dhcp snooping vlan <vlan-range>
+    max_entries: ip dhcp snooping max-entries <value>
+    trust: ip dhcp snooping trust
+    readback: [show ip source binding, show ip dhcp snooping, show ip dhcp snooping interface]
+  dai:
+    global: ip arp inspection
+    validation: 'ip arp inspection validate { src-mac | dst-mac | ip }'
+    vlan: ip arp inspection vlan <vlan-list>
+    trust: ip arp inspection trust
+    rate_limit: ip arp inspection limit-rate <1-300>
+    burst_interval: ip arp inspection burst-interval <1-15>
+    exceed_action: 'ip arp inspection exceed [ drop | shutdown ] <recover-time>'
+    readback: [show ip arp inspection, show ip arp inspection interface, show ip arp inspection vlan, show ip arp inspection statistics]
+    cited_defaults:
+      limit_rate_pps: 100
+      burst_interval_seconds: 1
+safety_gates:
+  - Exact device applicability and management mode must be proven before command authorization.
+  - Snapshot manual bindings, learned-binding policy, trusted ports and enforcement scope before changes.
+  - Identify DHCP server/uplink/cascade/routing/LAG paths before enabling enforcement.
+  - The CLI explicitly recommends trusted status for uplink/routing/LAG ports before ARP Inspection in its cited scope; do not generalize beyond exact applicability.
+  - Never infer a port should be trusted or untrusted from role names alone.
+  - Configuration acceptance alone is not PASS.
+verification:
+  pass_requires:
+    - exact configuration readback
+    - expected manual or dynamic binding-table contents
+    - legitimate DHCP flow where DHCP is used
+    - legitimate ARP/IP connectivity
+    - rejection evidence for representative rogue-server/spoof traffic where safely testable
+    - healthy management/uplink reachability
+rollback:
+  rule: Restore exact pre-change bindings, trust state, global/VLAN enforcement, validation controls, rate/burst/exceed controls, then verify connectivity before persistence.
+pdf_evidence:
+  parsed_text: true
+  screenshot_attempt_pages: [1017, 1154]
+  screenshot_result: CACHE_MISS
+  visual_screenshot_verified: false
+closure:
+  task_4_16_complete_candidate: true
+  next_task: 4.17 Static routing / L3 switch features where supported
