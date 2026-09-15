@@ -1,0 +1,72 @@
+name: P07 Read-Only Review Gate
+
+on:
+  push:
+    paths:
+      - "ROUTEROS_TARGET_MATRIX.json"
+      - "evidence/chr/p07-readonly-candidate-review.json"
+      - "evidence/chr/p07-operator-attestation.json"
+      - "evidence/chr/p07-operator-attestation.template.json"
+      - "src/router_configuration/p07_review_gate.py"
+      - "tests/test_p07_review_gate.py"
+      - ".github/workflows/p07-readonly-review-gate.yml"
+  pull_request:
+    paths:
+      - "ROUTEROS_TARGET_MATRIX.json"
+      - "evidence/chr/p07-readonly-candidate-review.json"
+      - "evidence/chr/p07-operator-attestation.json"
+      - "evidence/chr/p07-operator-attestation.template.json"
+      - "src/router_configuration/p07_review_gate.py"
+      - "tests/test_p07_review_gate.py"
+      - ".github/workflows/p07-readonly-review-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  review-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Run P07 review-gate contracts
+        run: python -m unittest tests.test_p07_review_gate -v
+
+      - name: Validate hash-bound P07 review state
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/p07
+          args=(
+            --candidate evidence/chr/p07-readonly-candidate-review.json
+            --matrix ROUTEROS_TARGET_MATRIX.json
+          )
+          if [ -f evidence/chr/p07-operator-attestation.json ]; then
+            args+=(--attestation evidence/chr/p07-operator-attestation.json)
+          fi
+          python -m router_configuration.p07_review_gate "${args[@]}" \
+            > evidence/p07/review-gate.json
+
+      - name: Record pending human boundary when no attestation exists
+        run: |
+          set -euo pipefail
+          if [ ! -f evidence/chr/p07-operator-attestation.json ]; then
+            printf '%s\n' \
+              '{"operator_attested":false,"stage":"pending_human_attestation","write_authorized":false}' \
+              > evidence/p07/human-boundary.json
+          fi
+
+      - name: Preserve P07 review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p07-readonly-review-gate-${{ github.sha }}
+          path: evidence/p07/
+          if-no-files-found: error
+          retention-days: 30
