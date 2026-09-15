@@ -1,9 +1,8 @@
 """Live, read-only Cisco IOS XE NETCONF probe.
 
-The live probe is deliberately separated from the deterministic contract tests.
-It consumes credentials only at runtime, requires an explicitly pinned SSH host
-key, performs only read-only NETCONF operations, and emits sanitized evidence.
-It never grants production-write or physical-device authority.
+Credentials are runtime-only. The probe requires an explicitly pinned SSH host
+key, performs only read-only NETCONF operations, and emits minimized sanitized
+evidence. It never grants production-write or physical-device authority.
 """
 
 from __future__ import annotations
@@ -134,7 +133,7 @@ def missing_probe_inputs(env: Mapping[str, str]) -> tuple[str, ...]:
 def validate_hostkey_b64(value: str) -> None:
     try:
         raw = base64.b64decode(value, validate=True)
-    except Exception as exc:  # noqa: BLE001 - input boundary is intentionally broad
+    except Exception as exc:  # noqa: BLE001 - untrusted runtime boundary
         raise CiscoLiveNetconfProbeError("CISCO_NETCONF_HOSTKEY_B64 is not valid base64") from exc
     if len(raw) < 32:
         raise CiscoLiveNetconfProbeError("CISCO_NETCONF_HOSTKEY_B64 is implausibly short")
@@ -176,7 +175,9 @@ def _extract_model_candidates(values: Iterable[str]) -> tuple[str, ...]:
     for value in values:
         for match in _MODEL_TOKEN.finditer(value.upper()):
             found.add(match.group(1).upper())
-    return tuple(sorted(found))
+    # Prefer the most specific observed product token (for example an exact
+    # part number) before a shorter family token embedded in descriptive text.
+    return tuple(sorted(found, key=lambda value: (-len(value), value)))
 
 
 def parse_platform_oper_reply(
@@ -479,7 +480,8 @@ def run_from_environment(env: Mapping[str, str] | None = None) -> tuple[dict, in
     missing = missing_probe_inputs(environment)
     if missing:
         evidence = _base_evidence(source_sha, "credentials_missing")
-        evidence["missing_input_names"] = list(missing)
+        evidence["credentials_configured"] = False
+        evidence["missing_input_count"] = len(missing)
         return evidence, 0
 
     port_text = (environment.get("CISCO_NETCONF_PORT") or "830").strip()
