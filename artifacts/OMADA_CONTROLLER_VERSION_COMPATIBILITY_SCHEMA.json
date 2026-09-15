@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_controller_version_compatibility",
+  "task": "7.04",
+  "observed_at": "2026-09-16",
+  "authority": "TP-Link / Omada official sources only",
+  "status": "COMPLETE_FOR_CURRENT_OFFICIAL_EVIDENCE_SCOPE",
+  "sources": [{"title": "Release Notes for Omada Software Controller V6.1.0", "published": "2026-01-21", "url": "https://static.tp-link.com/upload/software/2026/202601/20260121/software%20controller%20v6.1%20release%20note%20win%26linux.pdf", "parsed_text_verified": true, "screenshot_result": "CACHE_MISS", "visual_screenshot_verified": false}, {"title": "Omada Cloud SDN Platform Compatibility List", "role": "authoritative model-support lookup referenced by release notes", "lookup_required": true}],
+  "compatibility_key": ["controller_platform", "controller_exact_version_build", "device_model", "hardware_revision", "region", "device_firmware", "required_feature"],
+  "controller_platforms": ["software-windows", "software-linux", "hardware-controller", "cloud-based", "integrated-controller"],
+  "rules": ["Same first three controller version digits do not imply feature parity across platforms.", "A controller can manage only devices running supported firmware; confirm exact device/controller compatibility before adoption, provisioning, upgrade or feature compilation.", "Feature availability is a separate gate from basic device support.", "When release notes mark a feature as requiring device firmware upgrade, controller version alone is insufficient authorization.", "Omada app compatibility is not equivalent to controller-device compatibility.", "Unknown compatibility is NOT_SUPPORTED_UNVERIFIED, never assumed supported."],
+  "v6_1_evidence": {"controller_version": "6.1.0", "app_compatibility": "Omada app 5.0.x", "examples_requiring_device_firmware_upgrade": ["RF optimization/RRM", "switch diagnostic tools", "VRF", "global LLDP", "DHCP Snooping"], "platform_difference_example": "Release notes state Linux Controller supports Cluster Mode while Windows Controller did not yet support it at that release."},
+  "upgrade_gate": {"preconditions": ["backup controller data", "resolve target platform/build", "verify device compatibility list", "verify device firmware prerequisites", "verify migration-path support", "record rollback/recovery path"], "special_note": "Software Controller release notes state that since 5.14.32, upgrading from Controller v4 is no longer supported."},
+  "verification": {"pass_requires": ["exact controller platform/build read-back", "exact device model/hardware/firmware read-back", "source-backed compatibility match", "required feature available for that tuple", "management/adoption health after approved change"]}
+}
