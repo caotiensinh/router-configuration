@@ -1,0 +1,69 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_lldp_discovery
+task: '4.15'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_OFFICIAL_LLDP_SCOPE
+authority: TP-Link / Omada official documentation only
+scope:
+  product_family: Omada / JetStream managed-switch LLDP and LLDP-MED discovery
+  source_scope: Official 2026 Managed Switch CLI Reference Chapter 39 plus current
+    2026 Omada LLDP/LLDP-MED Controller and standalone guidance.
+  applicability_gate: Exact model, hardware revision, region, firmware, management
+    mode, Controller version, port/interface class, LLDP-MED/VoIP capability and runtime
+    command support remain execution gates.
+state_planes:
+- lldp_global
+- lldp_forward_when_disabled
+- lldp_timers
+- port_receive
+- port_transmit
+- standard_tlv_selection
+- management_address
+- lldp_med_global_fast_start
+- lldp_med_port_enable
+- lldp_med_tlv_selection
+- lldp_med_location
+- local_information
+- neighbor_information
+- traffic_counters
+- voice_vlan_auto_voip_dependency
+- persistence_and_rollback
+verification_state_enum:
+- VERIFIED
+- EXECUTED_UNVERIFIED
+- BLOCKED_BY_APPLICABILITY
+- BLOCKED_BY_CAPABILITY
+- BLOCKED_BY_DEPENDENCY
+- BLOCKED_BY_CONFLICT
+- NOT_APPLICABLE
+- UNKNOWN
+rules:
+- LLDP, LLDP-MED, Voice VLAN/Auto-VoIP, and neighbor discovery are separate state
+  planes.
+- Global LLDP enable does not prove per-port transmit/receive state or neighbor discovery.
+- CLI lldp med-status enables LLDP-MED on the port and changes port Admin Status to
+  Tx&Rx in the cited CLI scope; do not synthesize this side effect in other modes
+  without evidence.
+- Current 2026 standalone guide says LLDP-MED is disabled by default in its cited
+  scope; Controller behavior is version/workflow scoped and must not be generalized.
+- LLDP-MED voice deployment depends on explicit Voice VLAN and Auto-VoIP/network-policy
+  intent; do not silently create or modify VLAN/PVID/QoS.
+- PASS requires configuration read-back plus expected neighbor/local/traffic evidence
+  or endpoint behavior where applicable.
+- Management address and location TLVs can expose operational information; advertise
+  only intended data.
+- Persistence follows task 4.02 only after running-state verification; rollback restores
+  exact pre-change LLDP/LLDP-MED state.
+pdf_evidence:
+  document: Managed Switch_Multi-model_CLI.pdf REV1.1.0 April 2026
+  chapter: 39 LLDP Commands
+  parsed_text: true
+  screenshot_attempt_pages:
+  - 519
+  - 530
+  screenshot_result: CACHE_MISS
+  visual_screenshot_verified: false
+deferred_boundaries:
+  '4.18': SNMP/NMS monitoring and traps beyond LLDP-specific trap settings
+  voice_vlan: Existing VLAN/PVID/QoS tasks remain authoritative; 4.15 only records
+    dependencies.

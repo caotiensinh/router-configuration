@@ -1,0 +1,98 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_lldp_discovery_kb
+task: '4.15'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_LLDP_EVIDENCE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: CLI_2026
+  url: https://static.tp-link.com/upload/manual/2026/202604/20260423/1900002754_Managed%20Switch_Multi-model_CLI.pdf
+  scope: Chapter 39; parsed official PDF; screenshot attempts cache-missed.
+- id: LLDP_GUIDE_2026
+  url: https://support.omadanetworks.com/cl/document/13247/
+  published: '2026-08-24'
+  scope: Controller/standalone LLDP-MED Voice VLAN workflow; Controller V5.0+ and
+    Omada L2+/L3 switches.
+parallel:
+  agent: AGENT-01
+  branch: lane/agent-01
+  issue: 48
+  draft_pr: 65
+  equal_priority: true
+  evidence_lanes: 12
+  worker_processes_started: 0
+state_planes:
+- global
+- timers
+- port_tx
+- port_rx
+- standard_tlvs
+- management_address
+- med_enable
+- med_tlvs
+- med_location
+- local_info
+- neighbor_info
+- traffic_counters
+- voice_vlan_dependency
+cli:
+  global:
+  - lldp
+  - no lldp
+  - lldp forward_message
+  - lldp hold-multiplier
+  - lldp timer ...
+  - lldp med-fast-count
+  port:
+  - lldp receive
+  - lldp transmit
+  - lldp tlv-select ...
+  - lldp management-address <ip>
+  - lldp med-status
+  - lldp med-tlv-select ...
+  - lldp med-location ...
+  readback:
+  - show lldp
+  - show lldp interface ...
+  - show lldp local-information interface ...
+  - show lldp neighbor-information interface ...
+  - show lldp traffic interface ...
+  defaults:
+    tx_interval_seconds: 30
+    med_fast_count: 4
+  cited_side_effect: lldp med-status changes port Admin Status to Tx&Rx in cited CLI
+    scope only.
+current_guide:
+  standalone_med_default: disabled in cited standalone scope
+  controller_flow:
+  - Voice VLAN
+  - port profile with LLDP-MED
+  - assign Voice Network/profile
+  standalone_flow:
+  - enable LLDP-MED on intended port
+  - create Voice VLAN
+  - enable Auto VoIP
+  verification: Expected neighbor discovery; in cited VoIP scenario IP phone uses
+    intended voice VLAN.
+safety:
+- LLDP/LLDP-MED/VLAN/PVID/QoS are separate planes.
+- Do not generalize Controller/standalone defaults across modes or firmware.
+- Management-address/location TLVs advertise operational data only with explicit intent.
+- PASS requires exact read-back plus expected neighbor/local/traffic or endpoint behavior.
+- Rollback restores exact pre-change global/port/TLV/MED state; persistence follows
+  4.02 after verification.
+pdf_evidence:
+  parsed_text: true
+  screenshot_pages:
+  - 519
+  - 530
+  screenshot_result: CACHE_MISS
+  visual_screenshot_verified: false
+validation:
+  GLOBAL_ONLY_NO_NEIGHBOR: EXECUTED_UNVERIFIED
+  MED_WITHOUT_VOICE_INTENT: BLOCKED_BY_DEPENDENCY
+  MGMT_ADDRESS_NO_INTENT: BLOCKED_BY_SCOPE
+  NEIGHBOR_NOT_OBSERVED: EXECUTED_UNVERIFIED
+closure:
+  task_4_15_complete: true
+  next_task: 4.16 DHCP Snooping / ARP Inspection / anti-spoofing where supported

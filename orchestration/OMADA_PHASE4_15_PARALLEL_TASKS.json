@@ -1,0 +1,121 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "bc978b48e2669f42ee0fc621c2642ccb35e3fd8d",
+  "top_level_agent": "AGENT-01",
+  "equal_priority_with_agents_02_08": true,
+  "tasks": [
+    {
+      "task_id": "OMADA-4.15-LLDP-CONCEPT",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-CLI-GLOBAL",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-CLI-TIMERS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-CLI-PORT-TXRX",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-STANDARD-TLVS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-MGMT-ADDRESS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-MED-ENABLE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-MED-TLVS-LOCATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-CURRENT-CONTROLLER",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-CURRENT-STANDALONE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-READBACK-NEIGHBORS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-DEPENDENCY-ROLLBACK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": []
+    },
+    {
+      "task_id": "OMADA-4.15-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_LLDP_DISCOVERY_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_LLDP_DISCOVERY_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_LLDP_DISCOVERY_KB.md",
+        "orchestration/OMADA_PHASE4_15_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_15_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.15-LLDP-CONCEPT",
+        "OMADA-4.15-CLI-GLOBAL",
+        "OMADA-4.15-CLI-TIMERS",
+        "OMADA-4.15-CLI-PORT-TXRX",
+        "OMADA-4.15-STANDARD-TLVS",
+        "OMADA-4.15-MGMT-ADDRESS",
+        "OMADA-4.15-MED-ENABLE",
+        "OMADA-4.15-MED-TLVS-LOCATION",
+        "OMADA-4.15-CURRENT-CONTROLLER",
+        "OMADA-4.15-CURRENT-STANDALONE",
+        "OMADA-4.15-READBACK-NEIGHBORS",
+        "OMADA-4.15-DEPENDENCY-ROLLBACK"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.15"
+      ]
+    }
+  ]
+}

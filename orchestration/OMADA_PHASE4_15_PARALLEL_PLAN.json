@@ -1,0 +1,95 @@
+{
+  "schema_version": "parallel-lane-plan/1",
+  "base_sha": "bc978b48e2669f42ee0fc621c2642ccb35e3fd8d",
+  "top_level_agent": "AGENT-01",
+  "equal_priority": true,
+  "lane_capacity": 500,
+  "requested_max_lanes": 12,
+  "worker_processes_started": 0,
+  "capacity_is_not_worker_count": true,
+  "methods": [
+    "current_web_guides",
+    "parsed_official_pdf",
+    "required_pdf_screenshot_attempt",
+    "branch_evidence",
+    "library_cross_check",
+    "repo_hash_and_ci_verification"
+  ],
+  "waves": [
+    {
+      "wave": 1,
+      "assignments": [
+        {
+          "lane_id": "LANE-0001",
+          "task_id": "OMADA-4.15-LLDP-CONCEPT",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0002",
+          "task_id": "OMADA-4.15-CLI-GLOBAL",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0003",
+          "task_id": "OMADA-4.15-CLI-TIMERS",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0004",
+          "task_id": "OMADA-4.15-CLI-PORT-TXRX",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0005",
+          "task_id": "OMADA-4.15-STANDARD-TLVS",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0006",
+          "task_id": "OMADA-4.15-MGMT-ADDRESS",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0007",
+          "task_id": "OMADA-4.15-MED-ENABLE",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0008",
+          "task_id": "OMADA-4.15-MED-TLVS-LOCATION",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0009",
+          "task_id": "OMADA-4.15-CURRENT-CONTROLLER",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0010",
+          "task_id": "OMADA-4.15-CURRENT-STANDALONE",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0011",
+          "task_id": "OMADA-4.15-READBACK-NEIGHBORS",
+          "mode": "read_only"
+        },
+        {
+          "lane_id": "LANE-0012",
+          "task_id": "OMADA-4.15-DEPENDENCY-ROLLBACK",
+          "mode": "read_only"
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "assignments": [
+        {
+          "lane_id": "LANE-0001",
+          "task_id": "OMADA-4.15-INTEGRATE",
+          "mode": "write"
+        }
+      ]
+    }
+  ]
+}
