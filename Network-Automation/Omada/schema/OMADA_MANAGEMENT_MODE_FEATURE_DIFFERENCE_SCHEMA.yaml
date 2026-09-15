@@ -1,0 +1,48 @@
+schema_version: 1.0.0
+schema_id: omada.management_mode_feature_difference
+task: '3.9'
+observed_at: '2026-09-15'
+status: VERIFIED_FOR_CURRENT_REGISTERED_SOURCE_SCOPE
+purpose: Normalize feature availability and behavioral differences across Omada management modes without assuming parity.
+identity_key:
+- product_family_or_exact_model_scope
+- hardware_revision_when_material
+- region_when_material
+- device_firmware_when_material
+- management_mode
+- controller_type_and_version_when_material
+- cloud_tier_when_cloud_managed
+- feature_id
+availability_enum:
+- SUPPORTED
+- SUPPORTED_WITH_DIFFERENT_BEHAVIOR
+- SUPPORTED_CONTROLLER_CONFIG_ONLY
+- SUPPORTED_STANDALONE_ONLY
+- SUPPORTED_CONTROLLER_ONLY
+- SUPPORTED_TIER_ONLY
+- HOST_MEDIATED_ONLY
+- NOT_DIRECT_TARGET
+- NOT_PUBLISHED
+- UNKNOWN_FAIL_CLOSED
+controller_offline_behavior_enum:
+- NOT_APPLICABLE
+- CONTINUES_ON_DEVICE
+- STOPS_OR_NEW_AUTH_FAILS
+- CONFIGURATION_UNAVAILABLE_BUT_EXISTING_DEVICE_STATE_PERSISTS
+- UNKNOWN_FAIL_CLOSED
+record_required_fields:
+- domain
+- scope
+- feature_id
+- mode_observations
+- source_refs
+- do_not_generalize_rule
+rules:
+- Absence from a comparison article is not proof that a feature is unsupported.
+- A feature shown in Controller UI does not prove standalone availability.
+- A feature shown in Standalone UI does not prove controller availability.
+- Controller-managed, cloud-based, integrated-controller, surveillance, and OLT management planes remain distinct.
+- Cloud Essentials and Cloud Standard are separate feature tiers.
+- Hardware/Software Controller similarity does not erase platform-specific limits.
+- Family-level observations never authorize an exact model/firmware operation without exact compatibility evidence.
+- Historical/general JetStream feature tables remain scoped and may be superseded by exact current model/firmware evidence.

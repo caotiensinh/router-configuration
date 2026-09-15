@@ -1,0 +1,46 @@
+schema_version: 1.0.0
+schema_id: omada.phase3_source_crosscheck
+task: '3.13'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_REGISTERED_PHASE3_SCOPE
+purpose: Cross-check Phase-3 normalized identities/facts against independent official source classes without turning missing
+  source-class evidence into unsupported-device claims.
+source_classes:
+  DATASHEET_OR_SPECIFICATION:
+    authority: OFFICIAL_PRIMARY
+    may_prove:
+    - hardware specifications
+    - performance/capacity
+    - power/environment
+    - physical data
+    - feature summary
+  HARDWARE_INSTALLATION_GUIDE:
+    authority: OFFICIAL_PRIMARY
+    may_prove:
+    - physical ports
+    - LEDs/buttons
+    - power/cabling
+    - mounting
+    - console/management connectors
+    - installation safety
+  COMPATIBILITY_OR_SUPPORT:
+    authority: OFFICIAL_CRITICAL_OR_PRIMARY
+    may_prove:
+    - controller/device compatibility
+    - support-resource association
+    - platform/accessory compatibility when explicitly listed
+status_enum:
+- OBSERVED_EXACT_OR_SCOPED
+- SOURCE_CLASS_REGISTERED_EXACT_MATCH_NOT_OBSERVED
+- NOT_APPLICABLE
+- CONFLICT_RETAINED
+- UNKNOWN_FAIL_CLOSED
+rules:
+- A source class may authorize only facts it explicitly states within its published scope.
+- Missing an exact Hardware Installation Guide link is not proof that no guide exists and is not proof that the device is
+  unsupported.
+- Product/specification evidence does not replace hardware-installation evidence for installation-only facts.
+- Compatibility/support evidence does not prove a minimum controller version unless explicitly stated.
+- Source conflicts remain separate observations and keep their existing fail-closed dispositions.
+- Family/model-group installation guides may support only the exact models/revisions actually named or explicitly covered.
+- Search snippets are discovery evidence only; official portal/document identity is retained as provenance.

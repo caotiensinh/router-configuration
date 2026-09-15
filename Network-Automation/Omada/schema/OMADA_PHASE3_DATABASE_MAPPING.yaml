@@ -1,0 +1,144 @@
+schema_version: 1.0.0
+record_type: omada_phase3_database_mapping
+task: '3.12'
+observed_at: '2026-09-15'
+status: COMPLETE
+source_to_table_mappings:
+- phase: '3.1'
+  artifacts:
+  - matrix/OMADA_EXACT_MODEL_INDEX.yaml
+  tables:
+  - product
+  coverage: 230
+- phase: '3.2'
+  artifacts:
+  - matrix/*HARDWARE_VERSION*.yaml
+  tables:
+  - hardware_revision
+  - region_scope
+  - observation
+  - observation_evidence
+  coverage: 230
+- phase: '3.3'
+  artifacts:
+  - matrix/OMADA_REGION_MARKET_APPLICABILITY_MATRIX.yaml
+  - matrix/OMADA_MARKET_PRESENCE_RECONCILIATION.yaml
+  tables:
+  - region_scope
+  - target_scope
+  - observation
+  - conflict_group
+  - conflict_member
+  coverage: 230
+- phase: '3.4'
+  artifacts:
+  - matrix/*PHYSICAL_INTERFACE*.yaml
+  tables:
+  - physical_interface
+  - observation
+  - conflict_group
+  - conflict_member
+  coverage: 230
+- phase: '3.5'
+  artifacts:
+  - matrix/*PERFORMANCE*.yaml
+  - matrix/*CAPACITY*.yaml
+  tables:
+  - metric_observation
+  - observation
+  - conflict_group
+  - conflict_member
+  coverage: 226
+  note: 4 hardware controllers intentionally outside current performance taxonomy
+- phase: '3.6'
+  artifacts:
+  - matrix/*POWER_ENVIRONMENTAL*.yaml
+  tables:
+  - metric_observation
+  - observation
+  - conflict_group
+  - conflict_member
+  coverage: 230
+- phase: '3.7'
+  artifacts:
+  - matrix/OMADA_FIRMWARE_VERSION_MATRIX.yaml
+  - matrix/OMADA_FIRMWARE_RECONCILIATION.yaml
+  tables:
+  - firmware_release
+  - target_scope
+  - observation
+  - conflict_group
+  - conflict_member
+  coverage: 230
+- phase: '3.8'
+  artifacts:
+  - matrix/OMADA_CONTROLLER_COMPATIBILITY_MATRIX.yaml
+  - matrix/OMADA_CONTROLLER_COMPATIBILITY_RECONCILIATION.yaml
+  tables:
+  - controller_platform
+  - controller_compatibility
+  - target_scope
+  - observation
+  - conflict_group
+  - conflict_member
+  coverage: 230
+- phase: '3.9'
+  artifacts:
+  - matrix/OMADA_MANAGEMENT_MODE_FEATURE_DIFFERENCE_MATRIX.yaml
+  tables:
+  - management_mode
+  - mode_feature_observation
+  - target_scope
+  - observation
+  coverage: 6 management domains
+- phase: '3.10'
+  artifacts:
+  - matrix/OMADA_HARDWARE_FIRMWARE_LIMITATION_REGISTRY.yaml
+  tables:
+  - limitation_constraint
+  - observation
+  coverage: 183
+- phase: '3.11'
+  artifacts:
+  - matrix/OMADA_LIFECYCLE_STATUS_MATRIX.yaml
+  tables:
+  - lifecycle_notice
+  - hardware_revision
+  - region_scope
+  coverage: 230 reviewed; 44 exact revision notice rows
+- phase: cross-cutting
+  artifacts:
+  - sources/OMADA_PRIMARY_SOURCE_REGISTRY.yaml
+  - schema/OMADA_PROVENANCE_SCHEMA.yaml
+  tables:
+  - source
+  - observation_evidence
+  coverage: all automation-relevant facts
+- phase: cross-cutting
+  artifacts:
+  - matrix/*CONFLICT*.yaml
+  - matrix/*RECONCILIATION*.yaml
+  tables:
+  - conflict_group
+  - conflict_member
+  coverage: all persisted conflict/safety records
+canonical_lookup_sequence:
+- Resolve product by exact_model.
+- Resolve raw hardware revision without sibling inference.
+- Resolve region/market scope.
+- Resolve firmware track and release.
+- Resolve management mode and controller platform/tier/version.
+- Build or locate target_scope.scope_key.
+- Query observations by domain/fact_key and preserve multiple scoped values.
+- Join evidence plus conflict disposition before any write decision.
+- Apply limitation and lifecycle guards; fail closed on unresolved applicability.
+do_not_flatten:
+- hardware revision selectors
+- region/portal locale
+- firmware trains
+- standalone/controller/cloud modes
+- controller minimum versus recommendation
+- conditional performance/power values
+- source conflicts
+- bundle/component identities
+- revision-scoped lifecycle notices
