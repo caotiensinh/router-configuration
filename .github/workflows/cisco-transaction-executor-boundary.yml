@@ -1,0 +1,80 @@
+name: Cisco Transaction Executor Boundary Contract
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/transaction_execution_contract.py"
+      - "src/router_configuration/vendors/cisco/transaction_recovery.py"
+      - "tests/test_cisco_transaction_execution_contract.py"
+      - "docs/cisco/TRANSACTION_EXECUTOR_BOUNDARY.md"
+      - ".github/workflows/cisco-transaction-executor-boundary.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/transaction_execution_contract.py"
+      - "src/router_configuration/vendors/cisco/transaction_recovery.py"
+      - "tests/test_cisco_transaction_execution_contract.py"
+      - "docs/cisco/TRANSACTION_EXECUTOR_BOUNDARY.md"
+      - ".github/workflows/cisco-transaction-executor-boundary.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run C10 executor-boundary tests
+        run: python -m unittest tests.test_cisco_transaction_execution_contract -v
+      - name: Reject transport or writer implementation in boundary module
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          text = Path("src/router_configuration/vendors/cisco/transaction_execution_contract.py").read_text(encoding="utf-8")
+          forbidden = (
+              "import ncclient",
+              "from ncclient",
+              "import socket",
+              "from socket",
+              "requests.",
+              ".edit_config(",
+              ".dispatch(",
+              ".commit(",
+          )
+          found = [token for token in forbidden if token in text]
+          if found:
+              raise SystemExit(f"runtime transport/write surface found: {found}")
+          PY
+      - name: Record contract-only executor boundary evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from router_configuration.vendors.cisco.transaction_execution_contract import contract_only_status
+
+          result = contract_only_status()
+          result["source_sha"] = os.environ["SOURCE_SHA"]
+          result["stage"] = "recovery_executor_state_machine_bound_live_executor_and_rollback_required"
+          with open("evidence/cisco/c10-executor-boundary.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - name: Preserve C10 executor-boundary evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-c10-executor-boundary-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c10-executor-boundary.json
+          if-no-files-found: error
+          retention-days: 30
