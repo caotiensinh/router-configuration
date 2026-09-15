@@ -1,0 +1,118 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_cli_access_mode_kb
+task: '4.01'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_GENERIC_JETSTREAM_GUIDE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: OMADA_JETSTREAM_CLI_EXAMPLES_13117
+  url: https://support.omadanetworks.com/hk/document/13117/
+  title: Typical CLI Configuration Examples for TP-Link JetStream Switch
+  source_type: CONFIGURATION_GUIDE
+  published: '2022-12-22'
+governance:
+  no_model_inference: true
+  no_firmware_inference: true
+  exact_device_cli_support_required_before_execution: true
+  console_requires_physical_interface_applicability: true
+  telnet_ssh_runtime_state_requires_discovery: true
+access_methods:
+- method: CONSOLE_PORT
+  vendor_statement: CLI can be accessed by the Console Port on the switch.
+  applicability: EXACT_DEVICE_MUST_HAVE_APPLICABLE_CONSOLE_PORT
+  automation_policy: DISCOVER_PHYSICAL_INTERFACE_FIRST
+- method: TELNET
+  vendor_statement: CLI can be accessed by a Telnet connection.
+  applicability: MODEL_FIRMWARE_AND_RUNTIME_ENABLEMENT_MUST_BE_VERIFIED
+  automation_policy: READ_DISCOVERY_BEFORE_CONNECTION
+- method: SSH
+  vendor_statement: CLI can be accessed by an SSH connection.
+  applicability: MODEL_FIRMWARE_AND_RUNTIME_ENABLEMENT_MUST_BE_VERIFIED
+  automation_policy: PREFER_SECURE_REMOTE_ACCESS_WHEN_OFFICIALLY_SUPPORTED_AND_ENABLED
+command_modes:
+- mode: USER_EXEC
+  prompt: Switch>
+  entry: initial startup mode
+  capability_scope: basic commands such as show
+  to_next:
+  - command: enable
+    target: PRIVILEGED_EXEC
+  exit:
+  - command: exit
+    effect: disconnect
+- mode: PRIVILEGED_EXEC
+  prompt: Switch#
+  entry: enable from USER_EXEC
+  capability_scope: more commands including configure
+  to_next:
+  - command: configure
+    target: GLOBAL_CONFIGURATION
+  exit:
+  - command: disable
+    target: USER_EXEC
+  - command: exit
+    target: USER_EXEC
+- mode: GLOBAL_CONFIGURATION
+  prompt: Switch(config)#
+  entry: configure from PRIVILEGED_EXEC
+  capability_scope: global configuration context
+  to_next:
+  - command: interface ...
+    target: INTERFACE_CONFIGURATION
+  - command: vlan ...
+    target: VLAN_CONFIGURATION
+  exit:
+  - command: exit
+    target: PRIVILEGED_EXEC
+  - command: end
+    target: PRIVILEGED_EXEC
+  - command: Ctrl+Z
+    target: PRIVILEGED_EXEC
+- mode: INTERFACE_CONFIGURATION
+  prompts:
+  - Switch(config-if)#
+  - Switch(config-if-range)#
+  entry: interface from GLOBAL_CONFIGURATION
+  capability_scope: specific interface or interface range
+  exit:
+  - command: end
+    target: PRIVILEGED_EXEC
+  - command: Ctrl+Z
+    target: PRIVILEGED_EXEC
+  - command: exit
+    target: GLOBAL_CONFIGURATION
+  - command: '#'
+    target: GLOBAL_CONFIGURATION
+    note: Preserved exactly from vendor guide wording; revalidate before automation if used.
+- mode: VLAN_CONFIGURATION
+  prompt: Switch(config-vlan)#
+  entry: vlan from GLOBAL_CONFIGURATION
+  capability_scope: VLAN configuration context
+  exit:
+  - command: end
+    target: PRIVILEGED_EXEC
+  - command: Ctrl+Z
+    target: PRIVILEGED_EXEC
+  - command: exit
+    target: GLOBAL_CONFIGURATION
+  - command: '#'
+    target: GLOBAL_CONFIGURATION
+    note: Preserved exactly from vendor guide wording; revalidate before automation if used.
+deferred_to_later_tasks:
+- task: '4.02'
+  topics:
+  - copy running-config startup-config
+  - running/startup configuration behavior
+- task: '4.03'
+  topics:
+  - port status/speed/duplex command details
+- task: 4.04-4.08
+  topics:
+  - VLAN creation/membership/PVID/trunk/VLAN-interface configuration
+- task: '4.11'
+  topics:
+  - IGMP Snooping/Querier/Fast Leave
+closure:
+  task_4_01_complete: true
+  boundary: Generic official JetStream CLI access/mode semantics normalized; exact model/firmware CLI applicability remains an execution-time verification requirement.
+  next_task: 4.02 Save/running/startup configuration behavior
