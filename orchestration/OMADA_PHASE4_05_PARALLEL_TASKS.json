@@ -1,0 +1,106 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "87a9efdac8107b1a11943d1b5e78f9ef9e5b9850",
+  "purpose": "Parallel official-source research/review for Omada Phase 4.05 before one serialized integration write.",
+  "tasks": [
+    {
+      "task_id": "OMADA-4.05-CLI-ACCESS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.05-STANDALONE-GUI",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.05-CONTROLLER",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.05-PVID-SEMANTICS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.05-READBACK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.05-ROLLBACK-PERSISTENCE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.05-MGMT-PATH-RISK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.05-APPLICABILITY",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 80
+    },
+    {
+      "task_id": "OMADA-4.05-VALIDATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 75
+    },
+    {
+      "task_id": "OMADA-4.05-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_ACCESS_PORT_PVID_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_ACCESS_PORT_PVID_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_ACCESS_PORT_PVID_KB.md",
+        "orchestration/OMADA_PHASE4_05_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_05_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.05-CLI-ACCESS",
+        "OMADA-4.05-STANDALONE-GUI",
+        "OMADA-4.05-CONTROLLER",
+        "OMADA-4.05-PVID-SEMANTICS",
+        "OMADA-4.05-READBACK",
+        "OMADA-4.05-ROLLBACK-PERSISTENCE",
+        "OMADA-4.05-MGMT-PATH-RISK",
+        "OMADA-4.05-APPLICABILITY",
+        "OMADA-4.05-VALIDATION"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.05"
+      ],
+      "priority": 110
+    }
+  ]
+}

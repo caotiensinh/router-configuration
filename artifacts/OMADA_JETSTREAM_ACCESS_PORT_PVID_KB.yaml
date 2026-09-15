@@ -1,0 +1,111 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_access_port_pvid_kb
+task: '4.05'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_ACCESS_PORT_PVID_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: OMADA_JETSTREAM_TYPICAL_CLI_2026
+  url: https://support.omadanetworks.com/kr/document/13117/
+  title: Typical CLI Configuration Examples for TP-Link Omada / JetStream Switch
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-07-22'
+  scope_note: Generic JetStream CLI workflow. It demonstrates GigabitEthernet access-port examples; family membership alone
+    does not prove exact-model/interface command support.
+- id: OMADA_SMART_MANAGED_8021Q_GUI_2026
+  url: https://support.omadanetworks.com/en/document/12981/
+  title: How to Configure 802.1Q VLAN on Smart and Managed Switches Using the New GUI
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-08-13'
+  scope_note: Standalone Smart/Managed GUI VLAN membership and PVID workflow.
+- id: OMADA_SWITCH_DHCP_RELAY_GUIDE
+  url: https://support.omadanetworks.com/en/document/13175/
+  title: Omada Switch DHCP Relay Configuration Guide
+  source_type: CONFIGURATION_GUIDE
+  scope_note: 'Independent access-port example: add client-facing ports untagged to VLAN 2 and set PVID 2.'
+- id: OMADA_CONTROLLER_8021Q_SWITCH
+  url: https://support.omadanetworks.com/en/document/13215/
+  title: How to Configure 802.1Q VLAN on Omada Switches in Controller Mode
+  source_type: CONFIGURATION_GUIDE
+  scope_note: Controller-mode access-port workflow; page states Omada Access/Access Plus/Access Pro/Access Max/Aggregation/Campus
+    switches with Omada Controller v6.0+.
+- id: OMADA_CONTROLLER_PORT_SETTINGS_6_2_10
+  url: https://support.omadanetworks.com/au/document/109105/
+  title: How to edit switch port configuration in Omada Network v6.2.10
+  source_type: CONFIGURATION_GUIDE
+  scope_note: Controller v6.2.10 port-settings semantics. Native/PVID VLAN remains untagged in the documented VLAN modes.
+parallel_lane_execution:
+  task_manifest: orchestration/OMADA_PHASE4_05_PARALLEL_TASKS.json
+  plan: orchestration/OMADA_PHASE4_05_PARALLEL_PLAN.json
+  wave_1_read_only_lanes: 9
+  wave_2_integration_lanes: 1
+  external_worker_processes_claimed: 0
+  rule: Parallel research does not grant concurrent write ownership.
+canonical_semantics:
+  pvid_role: PVID classifies untagged ingress traffic into the VLAN context where the applicable source documents this behavior.
+  egress_membership_role: Untagged membership determines that VLAN traffic leaves the port without the 802.1Q tag.
+  separation_rule: PVID and untagged membership are separate state fields; a safe access-port workflow verifies both.
+standalone_cli:
+  documented_common_sequence:
+  - Ensure/create the intended VLAN before port assignment.
+  - Enter the exact applicable Ethernet interface configuration mode.
+  - switchport general allowed vlan <VLAN_ID> untagged
+  - switchport pvid <VLAN_ID>
+  example:
+    vlan_id: 100
+    commands:
+    - switchport general allowed vlan 100 untagged
+    - switchport pvid 100
+  read_back:
+    command: show interface switchport [<exact-interface>]
+    required_observations:
+    - PVID
+    - VLAN membership
+    - Egress-rule for the intended VLAN
+  critical_boundary: The generic access-port example does not include removal of VLAN 1 from the access ports. Do not add
+    a no-switchport VLAN-1 mutation here; membership/removal/default-VLAN behavior is task 4.07.
+  interface_boundary: The cited example uses gigabitEthernet. Command support on Fast/2.5G/10G/other port classes must be
+    verified against exact applicable CLI evidence before execution.
+  privilege_boundary: The generic example does not publish a normalized RBAC matrix for these VLAN write commands in the page
+    text used here. Authenticated privilege and runtime command support remain execution-time gates.
+standalone_gui:
+  workflow:
+  - Create/select the VLAN and assign intended client-facing port(s) as untagged members.
+  - Open Port Config and set the PVID to the intended VLAN ID.
+  - Apply/save through the documented GUI workflow.
+  verification: Re-open/read the VLAN membership and Port Config/PVID state using the exact applicable GUI before PASS.
+  boundary: GUI evidence does not authorize CLI syntax and does not establish Controller behavior.
+controller_mode:
+  documented_access_port_semantics: Controller VLAN workflow lets the administrator select client-facing ports as Access ports
+    for the VLAN; the guide's verification/QA describes the client-facing VLAN as native/untagged.
+  current_applicability_from_guide:
+    switch_classes:
+    - Omada Access
+    - Omada Access Plus
+    - Omada Access Pro
+    - Omada Access Max
+    - Omada Aggregation
+    - Omada Campus
+    controller_minimum: v6.0+
+  port_settings_v6_2_10: The documented Controller VLAN modes preserve the PVID/native VLAN as untagged; exact mode semantics
+    must remain attached to Controller 6.2.10+ evidence rather than copied to standalone CLI.
+  verification: Verify Controller port state and endpoint behavior; the official guide verifies a client on the access port
+    receives an address from the expected VLAN subnet.
+safe_transaction:
+  preconditions:
+  - Resolve exact model, hardware revision, region, firmware, management mode and port identity.
+  - Verify the target VLAN exists in the applicable management plane.
+  - Read current PVID and current per-VLAN membership/egress rule.
+  - Detect whether the port carries the current management/controller path.
+  - Confirm exact command/UI/controller applicability and authenticated privilege.
+  - Obtain production-write approval.
+  write:
+  - Change only the intended untagged membership/PVID delta for the target access VLAN.
+  - Do not remove other VLAN memberships unless the explicit task requires it and later-task evidence authorizes it.
+  - For CLI, do not add VLAN-1 removal as an implicit access-port step.
+  verify:
+  - Read back PVID.
+  - Read back intended VLAN membership and untagged egress rule.
+  - Check operational link/client outcome when the change is expected to preserve service.
+  - Record EXECUTED_UNVERIFIED rather than PASS if semantic read-back is unavailable.
+  persist: For standalone CLI durability, apply the 4.02 running-to-startup save contract only after running-state veri™¥…Ñ¥½¸¸)É½±±‰…¬è(€É•ÅÕ¥É•‘}ÁÉ•}ÍÑ…Ñ”è(€€´ÁÉ•Ù¥½ÕÌAY%(€€´ÁÉ•Ù¥½ÕÌÑ…•½Õ¹Ñ…•½¹½¸µµ•µ‰•ÈÍÑ…Ñ”™½È…™™•Ñ•Y19Ì(€€´µ…¹…•µ•¹ĞµÁ…Ñ ‘•Á•¹‘•¹ä(€Á½±¥äèI•ÍÑ½É”Ñ¡”•á…Ğ½‰Í•ÉÙ•ÁÉ”µ¡…¹”AY%…¹µ•µ‰•ÉÍ¡¥À¸¼¹½Ğ…ÍÍÕµ”Y18€Ä½È…¹äÙ•¹‘½È‘•™…Õ±Ğ¥ÌÑ¡”½ÉÉ•Ğ(€€€É½±±‰…¬Ñ…É•ĞÕ¹±•ÍÌ•á…Ğ…ÁÁ±¥…‰±”•Ù¥‘•¹”ÁÉ½Ù•ÌÑ¡…Ğİ…ÌÑ¡”ÁÉ¥½ÈÍÑ…Ñ”¸)‰…Ñ¡}‰•¡…Ù¥½Èè(€ÉÕ±”è]¡•¸µÕ±Ñ¥Á±”Á½ÉÑÌ…É”¡…¹•°Ù•É¥™ä•Ù•ÉäÁ½ÉĞ¥¹‘•Á•¹‘•¹Ñ±ä¸Q…Í¬€Ğ¸ÀÌ…±É•…‘ä•ÍÑ…‰±¥Í¡•ÌÑ¡…Ğ¥¹Ñ•É™…”µÉ…¹”(€€€•á•ÕÑ¥½¸µ…äÁ…ÉÑ¥…±±äÍÕ••ìµ¥á•É•ÍÕ±ÑÌµÕÍĞÉ•µ…¥¸µ¥á•¸)Ù…±¥‘…Ñ¥½¹}…Í•Ìè(´¥è1%}MM}A=IQ}U11}A%H(€•áÁ•Ñ•èAML½¹±ä¥˜¥¹Ñ•¹‘•Y18¥ÌÕ¹Ñ…•µ•µ‰•È…¹AY%•ÅÕ…±Ì¥¹Ñ•¹‘•Y18…™Ñ•ÈÉ•…µ‰…¬¸(´¥èAY%}=91d(€•áÁ•Ñ•è9=PAMLìAY%…±½¹”‘½•Ì¹½ĞÁÉ½Ù”…•ÍÌµÁ½ÉĞ•É•ÍÌµ•µ‰•ÉÍ¡¥À¸(´¥èU9Q}=91d(€•áÁ•Ñ•è9=PAMLìÕ¹Ñ…•µ•µ‰•ÉÍ¡¥À…±½¹”‘½•Ì¹½ĞÁÉ½Ù”Õ¹Ñ…•¥¹É•ÍÌ±…ÍÍ¥™¥…Ñ¥½¸ÕÍ•Ì¥¹Ñ•¹‘•AY%¸(´¥è%5A1%%Q}I5=Y}Y18Ä(€•áÁ•Ñ•è	1=-ìY18ÄÉ•µ½Ù…°¥Ì¹½ĞÍå¹Ñ¡•Í¥é•‰äÑ…Í¬€Ğ¸ÀÔ…¹É•µ…¥¹ÌÑ…Í¬€Ğ¸ÀÜ¸(´¥è55Q}AQ!}A=IP(€•áÁ•Ñ•è	1=-}	e}5959Q}AQ!}I%M,Õ¹Ñ¥°…±Ñ•É¹…Ñ”½É•½Ù•ÉäÁ…Ñ ¥ÌÙ•É¥™¥•¸(´¥è=9QI=11I}]I=9}YIM%=8(€•áÁ•Ñ•è	1=-}	e}AA1%	%1%Qdİ¡•¸Ñ¡”Í•±•Ñ•½¹ÑÉ½±±•Èİ½É­™±½ÜÉ•ÅÕ¥É•ÌØØ¸À¬…¹Ù•ÉÍ¥½¸¥ÌÕ¹É•Í½±Ù•½½±‘•È¸(´¥èI9}AIQ%0(€•áÁ•Ñ•èA•ÈµÁ½ÉĞµ¥á•½ÕÑ½µ•Ìì¹•Ù•È…É•…Ñ”Á…ÉÑ¥…°ÍÕ•ÍÌÑ¼AML¸(´¥èIU99%9}=91d(€•áÁ•Ñ•èIÕ¹¹¥¹œµÍÑ…Ñ”YI%%µ…äÍÑ¥±°‰”¹½¸µ‘ÕÉ…‰±”Õ¹Ñ¥°€Ğ¸ÀÈÍ…Ù”Ù•É¥™¥…Ñ¥½¸ÍÕ••‘Ì¸)‘•™•ÉÉ•‘}‰½Õ¹‘…É¥•Ìè(€€œĞ¸ÀØœèQÉÕ¹¬½Ñ…•Y18½¹™¥ÕÉ…Ñ¥½¸(€€œĞ¸ÀÜœèY18µ•µ‰•ÉÍ¡¥À½É•µ½Ù…°½‘•™…Õ±ĞY18‰•¡…Ù¥½È(€€œĞ¸ÀàœèY18¥¹Ñ•É™…”€¼Íİ¥Ñ µ…¹…•µ•¹Ğ%@)±½ÍÕÉ”è(€Ñ…Í­|Ñ|ÀÕ}½µÁ±•Ñ”èÑÉÕ”(€‰½Õ¹‘…Éäè•ÍÌµÁ½ÉĞ½AY%Í•µ…¹Ñ¥Ì°1$…¹U$½½¹ÑÉ½±±•Èµ…ÁÁ¥¹Ì°É•…µ‰…¬°µ…¹…•µ•¹ĞµÁ…Ñ É¥Í¬°É½±±‰…¬°Á•ÉÍ¥ÍÑ•¹”(€€€‘•Á•¹‘•¹ä…¹•á…ĞµÍ½Á”…Ñ•Ì…É”¹½Éµ…±¥é•İ¥Ñ¡½ÕĞ½¹ÍÕµ¥¹œ€Ğ¸ÀØ´Ğ¸Àà¸(€¹•áÑ}Ñ…Í¬è€Ğ¸ÀØQÉÕ¹¬½Ñ…•Y18½¹™¥ÕÉ…Ñ¥½¸(
