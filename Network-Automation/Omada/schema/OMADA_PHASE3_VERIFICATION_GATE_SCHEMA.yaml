@@ -1,0 +1,26 @@
+schema_version: 1.0.0
+schema_id: omada.phase3_verification_gate
+task: '3.14'
+observed_at: '2026-09-15'
+status: VALIDATED
+verification_status_enum:
+- VERIFIED
+- PARTIAL
+- UNVERIFIED
+mandatory_gate_policy:
+- VERIFIED is allowed only when the registered exact identity is official-source-backed and no mandatory exact-binding/write-dependent
+  gap is active for the general Phase-3 record.
+- PARTIAL is mandatory when an exact hardware selector is unresolved, an exact controller/version relation needed for version-dependent
+  operation is unresolved, or a reconciled DENY/fail-closed constraint affects the identity.
+- UNKNOWN/NOT_PUBLISHED can be valid source-backed review outcomes but never become positive capability/write claims.
+- NOT_APPLICABLE and NOT_DIRECT_TARGET are valid verified outcomes when the role boundary itself is backed by official evidence.
+- Lifecycle UNKNOWN after exact EOL-list review is not converted to CURRENT and does not by itself invalidate product identity
+  verification.
+- Missing exact HIG linkage blocks installation-only facts requiring HIG evidence; it does not erase specification/support
+  facts proven by their proper source class.
+- VERIFIED at product-record level never authorizes an operation. Every write still executes exact firmware/controller/limitation/lifecycle/source
+  checks.
+blocking_conditions:
+- EXACT_HARDWARE_SELECTOR_UNRESOLVED
+- FAIL_CLOSED_CONSTRAINT
+- CONTROLLER_VERSION_OR_RELATION_GAP_FOR_VERSION_DEPENDENT_OPERATION

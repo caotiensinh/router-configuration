@@ -1,0 +1,25 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_cli_access_modes
+task: '4.01'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_OFFICIAL_GUIDE_SCOPE
+authority: TP-Link / Omada official documentation only
+scope:
+  product_family: JetStream / Omada managed switches
+  source_scope: Generic JetStream CLI configuration guide; exact model/firmware applicability must be checked before execution.
+access_method_enum:
+- CONSOLE_PORT
+- TELNET
+- SSH
+command_mode_enum:
+- USER_EXEC
+- PRIVILEGED_EXEC
+- GLOBAL_CONFIGURATION
+- INTERFACE_CONFIGURATION
+- VLAN_CONFIGURATION
+rules:
+- Never infer CLI support for an exact model solely from family membership.
+- Console access requires an applicable physical console interface on the exact device.
+- Telnet/SSH availability and enablement state must be verified for the exact model/firmware/configuration before connection.
+- Prompt text and mode transitions are normalized from the official JetStream CLI guide and do not authorize unrelated commands.
+- Commands belonging to later Phase-4 tasks are not promoted by this task except when needed to define mode transitions.
