@@ -2,8 +2,10 @@ import unittest
 
 from router_configuration.vendors.cisco import CiscoOfflineKnowledge
 from router_configuration.vendors.cisco.restconf_readonly import (
+    FIELDS_CAPABILITY,
     CiscoRestconfEvidenceError,
     parse_native_identity_json,
+    parse_restconf_capabilities_xml,
     parse_restconf_root_discovery,
     parse_yang_json_response,
     query_definition,
@@ -11,14 +13,18 @@ from router_configuration.vendors.cisco.restconf_readonly import (
 )
 
 
+_CAPABILITIES_XML = """<capabilities xmlns="urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring">
+  <capability>urn:ietf:params:restconf:capability:depth:1.0</capability>
+  <capability>urn:ietf:params:restconf:capability:fields:1.0</capability>
+  <capability>urn:ietf:params:restconf:capability:fields:1.0</capability>
+</capabilities>"""
+
+
 class CiscoRestconfReadOnlyTests(unittest.TestCase):
     def test_catalog_is_get_only_tls_verified_and_live_gated(self) -> None:
         catalog = CiscoOfflineKnowledge().restconf_readonly_catalog
         self.assertEqual([item["name"] for item in catalog["allowed_methods"]], ["GET"])
-        self.assertEqual(
-            set(catalog["blocked_methods"]),
-            {"POST", "PUT", "PATCH", "DELETE"},
-        )
+        self.assertEqual(set(catalog["blocked_methods"]), {"POST", "PUT", "PATCH", "DELETE"})
         self.assertEqual(catalog["transport"]["scheme"], "https")
         self.assertTrue(catalog["transport"]["tls_certificate_verification_required"])
         self.assertFalse(catalog["transport"]["follow_redirects"])
@@ -40,21 +46,70 @@ class CiscoRestconfReadOnlyTests(unittest.TestCase):
         self.assertTrue(decision.allowed)
         self.assertEqual(decision.status, "READ_ONLY_GET_ALLOWED")
 
-    def test_known_native_identity_get_is_allowed(self) -> None:
-        query = query_definition("native-identity")
+    def test_capability_query_is_source_bound(self) -> None:
+        query = query_definition("restconf-capabilities")
         self.assertEqual(
             query.relative_uri,
-            "/restconf/data/Cisco-IOS-XE-native:native?fields=hostname;version",
+            "/restconf/data/ietf-restconf-monitoring:restconf-state/capabilities",
         )
+        self.assertEqual(query.accept, "application/yang-data+xml")
         decision = validate_restconf_request(
+            query_id=query.query_id,
+            method="GET",
+            url="https://router.example" + query.relative_uri,
+            headers={"Accept": query.accept},
+            verify_tls=True,
+            allow_redirects=False,
+        )
+        self.assertTrue(decision.allowed)
+
+    def test_native_identity_requires_observed_fields_capability(self) -> None:
+        query = query_definition("native-identity")
+        missing = validate_restconf_request(
+            query_id=query.query_id,
+            method="GET",
+            url="https://router.example" + query.relative_uri,
+            headers={"accept": "application/yang-data+json"},
+            verify_tls=True,
+            allow_redirects=False,
+        )
+        self.assertFalse(missing.allowed)
+        self.assertEqual(missing.status, "CAPABILITY_EVIDENCE_REQUIRED")
+
+        no_fields = parse_restconf_capabilities_xml(
+            status_code=200,
+            content_type="application/yang-data+xml",
+            body=_CAPABILITIES_XML.replace(
+                "<capability>urn:ietf:params:restconf:capability:fields:1.0</capability>",
+                "",
+            ),
+        )
+        rejected = validate_restconf_request(
+            query_id=query.query_id,
+            method="GET",
+            url="https://router.example" + query.relative_uri,
+            headers={"accept": "application/yang-data+json"},
+            verify_tls=True,
+            allow_redirects=False,
+            observed_capabilities=no_fields,
+        )
+        self.assertEqual(rejected.status, "REQUIRED_CAPABILITY_MISSING")
+
+        capabilities = parse_restconf_capabilities_xml(
+            status_code=200,
+            content_type="application/yang-data+xml",
+            body=_CAPABILITIES_XML,
+        )
+        allowed = validate_restconf_request(
             query_id=query.query_id,
             method="GET",
             url="https://router.example" + query.relative_uri,
             headers={"accept": "application/yang-data+json; charset=utf-8"},
             verify_tls=True,
             allow_redirects=False,
+            observed_capabilities=capabilities,
         )
-        self.assertTrue(decision.allowed)
+        self.assertTrue(allowed.allowed)
 
     def test_mutating_methods_fail_closed(self) -> None:
         for method in ("POST", "PUT", "PATCH", "DELETE"):
@@ -157,11 +212,39 @@ class CiscoRestconfReadOnlyTests(unittest.TestCase):
                 body="<!DOCTYPE XRD><XRD xmlns='http://docs.oasis-open.org/ns/xri/xrd-1.0'/>",
             )
 
-    def test_native_identity_json_is_minimized_and_deterministic(self) -> None:
-        body = (
-            '{"Cisco-IOS-XE-native:native":'
-            '{"hostname":"edge-1","version":"17.18.1a"}}'
+    def test_capability_parser_deduplicates_sorts_and_digests(self) -> None:
+        first = parse_restconf_capabilities_xml(
+            status_code=200,
+            content_type="application/yang-data+xml",
+            body=_CAPABILITIES_XML,
         )
+        second = parse_restconf_capabilities_xml(
+            status_code=200,
+            content_type="application/yang-data+xml; charset=utf-8",
+            body=_CAPABILITIES_XML.replace(
+                "<capability>urn:ietf:params:restconf:capability:depth:1.0</capability>\n  ",
+                "",
+            ),
+        )
+        self.assertTrue(first.supports_fields)
+        self.assertIn(FIELDS_CAPABILITY, first.capabilities)
+        self.assertEqual(len(first.capabilities), 2)
+        self.assertEqual(len(first.digest_sha256), 64)
+        self.assertNotEqual(first.digest_sha256, second.digest_sha256)
+
+    def test_capability_parser_rejects_empty_malformed_or_wrong_media(self) -> None:
+        empty = '<capabilities xmlns="urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring"/>'
+        for kwargs in (
+            {"status_code": 200, "content_type": "application/yang-data+xml", "body": empty},
+            {"status_code": 200, "content_type": "application/yang-data+json", "body": _CAPABILITIES_XML},
+            {"status_code": 200, "content_type": "application/yang-data+xml", "body": "<capabilities>"},
+        ):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(CiscoRestconfEvidenceError):
+                    parse_restconf_capabilities_xml(**kwargs)
+
+    def test_native_identity_json_is_minimized_and_deterministic(self) -> None:
+        body = '{"Cisco-IOS-XE-native:native":{"hostname":"edge-1","version":"17.18.1a"}}'
         first = parse_native_identity_json(
             status_code=200,
             content_type="application/yang-data+json",
@@ -178,14 +261,8 @@ class CiscoRestconfReadOnlyTests(unittest.TestCase):
         self.assertEqual(len(first.digest_sha256), 64)
 
     def test_secret_or_overbroad_json_is_rejected(self) -> None:
-        secret = (
-            '{"Cisco-IOS-XE-native:native":'
-            '{"hostname":"edge-1","version":"17.18.1a","password":"x"}}'
-        )
-        broad = (
-            '{"Cisco-IOS-XE-native:native":'
-            '{"hostname":"edge-1","version":"17.18.1a","domain":{"name":"example"}}}'
-        )
+        secret = '{"Cisco-IOS-XE-native:native":{"hostname":"edge-1","version":"17.18.1a","password":"x"}}'
+        broad = '{"Cisco-IOS-XE-native:native":{"hostname":"edge-1","version":"17.18.1a","domain":{"name":"example"}}}'
         with self.assertRaises(CiscoRestconfEvidenceError):
             parse_yang_json_response(
                 status_code=200,

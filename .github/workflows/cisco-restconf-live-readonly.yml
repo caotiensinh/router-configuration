@@ -1,0 +1,148 @@
+name: Cisco RESTCONF Live Read-Only Probe
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/knowledge.py"
+      - "src/router_configuration/vendors/cisco/restconf_readonly.py"
+      - "src/router_configuration/vendors/cisco/live_restconf_probe.py"
+      - "src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json"
+      - "tests/test_cisco_restconf_readonly.py"
+      - "tests/test_cisco_live_restconf_probe.py"
+      - "docs/cisco/RESTCONF_LIVE_READONLY.md"
+      - ".github/workflows/cisco-restconf-live-readonly.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/knowledge.py"
+      - "src/router_configuration/vendors/cisco/restconf_readonly.py"
+      - "src/router_configuration/vendors/cisco/live_restconf_probe.py"
+      - "src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json"
+      - "tests/test_cisco_restconf_readonly.py"
+      - "tests/test_cisco_live_restconf_probe.py"
+      - "docs/cisco/RESTCONF_LIVE_READONLY.md"
+      - ".github/workflows/cisco-restconf-live-readonly.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Run RESTCONF contract and live-probe unit tests
+        run: |
+          python -m unittest \
+            tests.test_cisco_restconf_readonly \
+            tests.test_cisco_live_restconf_probe -v
+
+      - name: Record fail-closed live boundary
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from router_configuration.vendors.cisco import CiscoOfflineKnowledge
+          from router_configuration.vendors.cisco.restconf_readonly import query_definition
+
+          knowledge = CiscoOfflineKnowledge()
+          result = {
+              "schema_version": "cisco-c04-live-contract-evidence/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "live_probe_ready_dispatch_required",
+              "knowledge_digest_sha256": knowledge.digest_sha256,
+              "capability_query": query_definition("restconf-capabilities").relative_uri,
+              "native_identity_requires_observed_fields_capability": True,
+              "live_target_observed": False,
+              "c04_complete": False,
+              "production_write_authorized": False,
+              "physical_device_verified": False,
+          }
+          with open("evidence/cisco/c04-live-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
+      - name: Preserve live-probe contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-restconf-live-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c04-live-contract.json
+          if-no-files-found: error
+          retention-days: 30
+
+  live-readonly:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      CISCO_RESTCONF_HOST: ${{ secrets.CISCO_RESTCONF_HOST }}
+      CISCO_RESTCONF_PORT: ${{ secrets.CISCO_RESTCONF_PORT }}
+      CISCO_RESTCONF_USERNAME: ${{ secrets.CISCO_RESTCONF_USERNAME }}
+      CISCO_RESTCONF_PASSWORD: ${{ secrets.CISCO_RESTCONF_PASSWORD }}
+      CISCO_RESTCONF_CA_PEM_B64: ${{ secrets.CISCO_RESTCONF_CA_PEM_B64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Execute bounded live RESTCONF GET probe
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python -m router_configuration.vendors.cisco.live_restconf_probe \
+            --output evidence/cisco/c04-live-restconf.json
+
+      - name: Validate sanitized evidence boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+
+          path = "evidence/cisco/c04-live-restconf.json"
+          with open(path, encoding="utf-8") as handle:
+              evidence = json.load(handle)
+
+          assert evidence["source_sha"] == os.environ["SOURCE_SHA"]
+          assert evidence["production_write_authorized"] is False
+          assert evidence["physical_device_verified"] is False
+          assert evidence["request_method_scope"] == ["GET"]
+          assert evidence["tls_certificate_verification_required"] is True
+          assert evidence["redirect_following_allowed"] is False
+          rendered = json.dumps(evidence, sort_keys=True)
+
+          for secret_name in ("CISCO_RESTCONF_USERNAME", "CISCO_RESTCONF_PASSWORD"):
+              value = os.environ.get(secret_name, "")
+              if value:
+                  assert value not in rendered
+          host = os.environ.get("CISCO_RESTCONF_HOST", "")
+          if host:
+              assert host not in rendered
+          PY
+
+      - name: Preserve sanitized live RESTCONF evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-restconf-live-evidence-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c04-live-restconf.json
+          if-no-files-found: error
+          retention-days: 30
