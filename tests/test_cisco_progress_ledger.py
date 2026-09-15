@@ -19,14 +19,27 @@ def ledger():
 class CiscoProgressLedgerTests(unittest.TestCase):
     def test_canonical_baseline(self):
         result = load_and_validate(PATH, repo_root=ROOT)
-        self.assertEqual(result["completed"], 67)
-        self.assertEqual(result["remaining"], 33)
-        self.assertEqual(result["engineering"], {"earned": 67, "total": 79, "percent": 84.8})
+        self.assertEqual(result["completed"], 74)
+        self.assertEqual(result["remaining"], 26)
+        self.assertEqual(result["engineering"], {"earned": 74, "total": 79, "percent": 93.7})
         self.assertEqual(result["acceptance"], {"earned": 0, "total": 21, "percent": 0.0})
+
+    def test_c05_existing_engineering_evidence_is_reconciled_without_acceptance(self):
+        item = ledger()
+        stage = next(s for s in item["stages"] if s["id"] == "C05")
+        self.assertEqual(stage["earned"], 7)
+        self.assertEqual(stage["status"], "in_progress")
+        gates = {gate["id"]: gate for gate in stage["gates"]}
+        self.assertEqual(gates["schema_mapping"]["status"], "pass")
+        self.assertEqual(gates["normalizer_impl"]["status"], "pass")
+        self.assertEqual(gates["tests_ci"]["status"], "pass")
+        self.assertEqual(gates["evidence_pipeline"]["status"], "pending")
+        self.assertEqual(gates["live_acceptance"]["status"], "blocked")
+        self.assertEqual(gates["live_acceptance"]["earned"], 0)
 
     def test_top_level_tamper_is_rejected(self):
         item = ledger()
-        item["completed_points"] = 68
+        item["completed_points"] = 75
         with self.assertRaisesRegex(CiscoProgressLedgerError, "completed_points mismatch"):
             validate_progress_ledger(item, repo_root=ROOT)
 
