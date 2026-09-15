@@ -1,0 +1,165 @@
+schema_version: 1.0.1
+record_type: omada_jetstream_port_access_auth_kb
+task: '4.14'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_PORT_ACCESS_AUTH_EVIDENCE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+  cli_2026: https://static.tp-link.com/upload/manual/2026/202607/20260724/1900003588_Managed%20SwitchMulti-model_CLI.pdf
+  port_security_2026: https://support.omadanetworks.com/us/document/116672/?app=omada
+  dot1x_controller: https://support.omadanetworks.com/en/document/12898/
+  dot1x_troubleshoot: https://support.omadanetworks.com/us/document/13180/?app=tether
+  radius_troubleshoot: https://support.omadanetworks.com/en/document/13177/?app=deco
+  controller_v6: https://support.omadanetworks.com/en/document/111217/
+execution:
+  read_only_lanes: 16
+  integration_lanes: 1
+  external_workers_claimed: 0
+  methods:
+  - current_web
+  - parsed_cli_pdf
+  - screenshot_attempt
+  - troubleshooting_cross_check
+  - library_cross_check
+  - repo_hash_ci
+state_planes:
+- port_security
+- dot1x
+- port_control
+- port_method
+- mab
+- radius
+- guest_vlan
+- dynamic_vlan
+- session_state
+port_security:
+  max: 0..64
+  default: 64
+  status:
+    forward: limit learning; continue forwarding
+    drop: limit learning; drop unlearned MAC traffic
+    disable: disable limit
+  persistence:
+    dynamic: ages
+    static: manual; cleared reboot
+    permanent: manual; survives reboot
+    sticky: guide describes save behavior; exact CLI token runtime-gated
+  conflicts:
+  - never with 802.1X on same port
+  - never on LAG member in cited current guide
+  scope: CLI Chapter 75 marked certain devices only
+dot1x:
+  global:
+  - dot1x system-auth-control
+  - dot1x auth-protocol { pap | eap }
+  port_control:
+    syntax: dot1x port-control { auto | authorized-force | unauthorized-force }
+    default: auto
+    rule: force states are explicit administration, not inferred RADIUS-down behavior
+  port_method:
+    syntax: dot1x port-method { mac-based | port-based }
+    default: mac-based
+    mac-based: each client authenticates
+    port-based: one success can authorize port peers
+  mab:
+    syntax: dot1x mab
+    behavior: client MAC sent to RADIUS as username/password for non-802.1X endpoint
+  timers:
+    quiet: 1..999s default 10
+    supp: 1..60s default 30
+    max_req: 1..9 default 3
+  vlan:
+    guest: dot1x guest-vlan vid; 0 disables
+    assignment: dot1x vlan-assignment may create/add VLAN membership and change PVID
+      in cited CLI scope
+  readback:
+  - show dot1x global
+  - show dot1x interface ...
+  - show dot1x auth-state interface ...
+controller:
+  scope: Current guide targets Controller 6.1.0.19+ and supported Campus/Aggregation/Access
+    classes; exact firmware gated; Agile excluded in cited workflow.
+  modes:
+    8021X_ONLY: 802.1X
+    MAB_ONLY: MAB
+    BOTH: MAB starts/retries every 30s if 802.1X not initiated or fails in cited guide
+  radius:
+    max_servers: 4
+    redundancy: another server can continue if one fails/unreachable
+    v6_1_fw:
+    - redundancy
+    - FQDN
+    - RadSec
+    - CoA
+    v6_2_fw:
+    - Message-Authenticator
+    - NAS ID
+    - Guest VLAN
+  vlan_assignment: V6.2+ compatible firmware can enable with MAC-Based; Guest VLAN
+    covers auth fail/timeout where supported.
+fail_behavior:
+  proven:
+  - RADIUS redundancy
+  - source-scoped Guest VLAN fail/timeout
+  - explicit force states
+  unknown: No normalized official source establishes universal automatic allow when
+    all RADIUS servers are unreachable.
+  compiler: block assumed fail-open until exact device/runtime evidence
+troubleshooting:
+  checks:
+  - global/port dot1x
+  - RADIUS profile/server-group/IP/shared-key/port
+  - switch-to-RADIUS reachability
+  - MAB intent/MAC format
+  - ACL/IMPB/MAC-filter conflicts
+  - client method/software
+  radtest:
+    Access-Accept: accepted
+    Access-Reject: reachable but rejected
+    No reply: connectivity/firewall/server availability suspected
+  standalone_note: TP-Link Handshake is proprietary; cited guide says Windows built-in
+    802.1X client does not support it.
+safety:
+  pre:
+  - exact model/fw/mode/version/port-LAG role
+  - snapshot auth + RADIUS + VLAN/PVID + conflicts
+  - protect uplink/management/recovery
+  - explicit approval for dynamic/guest VLAN
+  write:
+  - block Port Security + 802.1X
+  - block Port Security on LAG member
+  - do not use authorized-force as automatic fail-open
+  - do not mutate VLAN/PVID without explicit auth-VLAN intent
+  verify:
+  - readback auth-state
+  - authorized client succeeds
+  - unauthorized client denied or intended Guest VLAN
+  - MAB only intended endpoints
+  - RADIUS failover where configured
+  - management/controller healthy
+  persist: task 4.02 after verification
+rollback:
+- port-security exact state
+- dot1x global/protocol/port state
+- MAB/timers
+- Guest VLAN
+- VLAN assignment and pre-state VLAN/PVID
+- RADIUS association
+- session/recovery assumptions
+validation:
+  PORT_SECURITY_PLUS_DOT1X: BLOCKED_BY_CONFLICT
+  PORT_SECURITY_LAG_MEMBER: BLOCKED_BY_CONFLICT
+  PORT_BASED_PER_DEVICE_REQUIRED: BLOCKED_BY_SCOPE
+  MAB_VS_MAC_BASED_CONFUSION: BLOCKED_BY_SCOPE
+  ALL_RADIUS_DOWN_ASSUME_ALLOW: BLOCKED_BY_UNKNOWN_FAIL_BEHAVIOR
+  GUEST_VLAN_VERSION_UNKNOWN: BLOCKED_BY_APPLICABILITY
+  VLAN_ASSIGN_NO_SNAPSHOT: BLOCKED_BY_VLAN_DEPENDENCY
+  AUTHORIZED_FORCE_FAILOPEN: BLOCKED_BY_SCOPE
+  CONFIG_NO_SESSION_TEST: EXECUTED_UNVERIFIED
+evidence:
+  pdf_text: true
+  pdf_screenshot_verified: false
+  screenshot_result: CACHE_MISS
+closure:
+  complete: true
+  next: 4.15 LLDP / discovery
