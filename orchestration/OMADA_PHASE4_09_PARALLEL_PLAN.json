@@ -1,0 +1,121 @@
+{
+  "schema_version": "parallel-lane-plan/1",
+  "base_sha": "917ce739bf89ed85f1ac8fb593e3d57e3ece7c6a",
+  "lane_capacity": 500,
+  "requested_max_lanes": 12,
+  "worker_processes_started": 0,
+  "capacity_is_not_worker_count": true,
+  "execution_note": "Conflict-free evidence assignments only; this ChatGPT session batches official-source retrieval and does not claim twelve external worker processes.",
+  "waves": [
+    {
+      "wave": 1,
+      "assignments": [
+        {
+          "lane_id": "LANE-0001",
+          "task_id": "OMADA-4.09-CONCEPT-MODES",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0002",
+          "task_id": "OMADA-4.09-CLI-GLOBAL",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0003",
+          "task_id": "OMADA-4.09-CLI-PORT",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0004",
+          "task_id": "OMADA-4.09-CLI-MSTP",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0005",
+          "task_id": "OMADA-4.09-STANDALONE-STP-RSTP",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0006",
+          "task_id": "OMADA-4.09-STANDALONE-MSTP",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0007",
+          "task_id": "OMADA-4.09-CONTROLLER-STP-RSTP",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0008",
+          "task_id": "OMADA-4.09-CONTROLLER-MSTP",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0009",
+          "task_id": "OMADA-4.09-READBACK-TOPOLOGY",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0010",
+          "task_id": "OMADA-4.09-SAFETY-CONFLICTS",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0011",
+          "task_id": "OMADA-4.09-ROLLBACK-PERSISTENCE",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0012",
+          "task_id": "OMADA-4.09-APPLICABILITY-VALIDATION",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "assignments": [
+        {
+          "lane_id": "LANE-0001",
+          "task_id": "OMADA-4.09-INTEGRATE",
+          "mode": "write",
+          "write_paths": [
+            "artifacts/OMADA_JETSTREAM_STP_RSTP_MSTP_SCHEMA.yaml",
+            "artifacts/OMADA_JETSTREAM_STP_RSTP_MSTP_KB.yaml",
+            "artifacts/OMADA_JETSTREAM_STP_RSTP_MSTP_KB.md",
+            "orchestration/OMADA_PHASE4_09_PARALLEL_TASKS.json",
+            "orchestration/OMADA_PHASE4_09_PARALLEL_PLAN.json"
+          ],
+          "conflict_keys": [
+            "phase:omada-4.09",
+            "vendor:omada"
+          ]
+        }
+      ]
+    }
+  ]
+}

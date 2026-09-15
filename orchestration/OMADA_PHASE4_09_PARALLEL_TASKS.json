@@ -1,0 +1,133 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "917ce739bf89ed85f1ac8fb593e3d57e3ece7c6a",
+  "purpose": "Parallel official-source research/review for Omada Phase 4.09 before one serialized integration write.",
+  "tasks": [
+    {
+      "task_id": "OMADA-4.09-CONCEPT-MODES",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.09-CLI-GLOBAL",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.09-CLI-PORT",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.09-CLI-MSTP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.09-STANDALONE-STP-RSTP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.09-STANDALONE-MSTP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.09-CONTROLLER-STP-RSTP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.09-CONTROLLER-MSTP",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.09-READBACK-TOPOLOGY",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.09-SAFETY-CONFLICTS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.09-ROLLBACK-PERSISTENCE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.09-APPLICABILITY-VALIDATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.09-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_STP_RSTP_MSTP_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_STP_RSTP_MSTP_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_STP_RSTP_MSTP_KB.md",
+        "orchestration/OMADA_PHASE4_09_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_09_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.09-CONCEPT-MODES",
+        "OMADA-4.09-CLI-GLOBAL",
+        "OMADA-4.09-CLI-PORT",
+        "OMADA-4.09-CLI-MSTP",
+        "OMADA-4.09-STANDALONE-STP-RSTP",
+        "OMADA-4.09-STANDALONE-MSTP",
+        "OMADA-4.09-CONTROLLER-STP-RSTP",
+        "OMADA-4.09-CONTROLLER-MSTP",
+        "OMADA-4.09-READBACK-TOPOLOGY",
+        "OMADA-4.09-SAFETY-CONFLICTS",
+        "OMADA-4.09-ROLLBACK-PERSISTENCE",
+        "OMADA-4.09-APPLICABILITY-VALIDATION"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.09"
+      ],
+      "priority": 110
+    }
+  ]
+}
