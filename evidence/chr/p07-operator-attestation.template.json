@@ -1,0 +1,21 @@
+{
+  "candidate_review_challenge_sha256": "46cb98b82ef6e1cabc27092dc6bb3172956c20adb052951adc9acb324f9a35f1",
+  "challenge_payload_sha256": "4c760a4d4452ffbf66ae05afd3fa3300620b2bc2d23638bce50a119619ab2203",
+  "controlled_environment": false,
+  "decision": null,
+  "direct_live_observation_claimed": false,
+  "evidence_origin": "live_chr",
+  "normalized_state_sha256": "4ac53a6b66e9bfeac1cc502db89242a23c3f13f487980476ddd66fe229203413",
+  "note": "Template only. HUMAN_MASTER must review the hash-bound preserved evidence, set operator_attested=true, decision=approve, controlled_environment=true, and observed_at to the actual review time. Do not claim direct live observation unless it actually occurred.",
+  "observed_at": null,
+  "operator_attested": false,
+  "physical_router_claimed": false,
+  "production_write_authorized": false,
+  "review_mode": "preserved_evidence_review",
+  "routeros_version": "7.24.1 (stable)",
+  "schema_version": "routeros-provenance-attestation/1",
+  "target_id": "chr-live-v7",
+  "target_kind": "routeros_chr",
+  "write_authorized": false,
+  "write_operations_performed": false
+}
