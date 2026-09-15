@@ -1,0 +1,43 @@
+schema_version: 1.0.0
+schema_id: omada.configuration_report_draft
+status: DESIGN_DRAFT_DEPENDENCY_BLOCKED
+observed_at: '2026-09-15'
+required_sections:
+  - identity_scope
+  - normalized_intent
+  - pre_change_snapshot_and_backup
+  - approved_changeset
+  - execution_evidence
+  - rollback_evidence
+  - desired_vs_actual_final_state
+  - security_compliance_observations
+  - artifact_manifest
+operation_record:
+  required_fields:
+    - operation_id
+    - intended_change
+    - risk_class
+    - official_source_provenance
+    - execution_result
+    - readback_or_verification
+    - final_state
+final_state_enum:
+  - VERIFIED
+  - EXECUTED_UNVERIFIED
+  - BLOCKED
+  - NOT_APPLICABLE
+  - UNKNOWN
+integrity_rules:
+  - Planned operations can never be reported as executed.
+  - Command/API acceptance can never be reported as verified state without read-back or operational evidence.
+  - Partial execution must remain explicit.
+  - Virtual/protocol evidence can never grant HARDWARE_VERIFIED.
+  - Missing mandatory evidence remains explicit.
+dependencies:
+  durable_required:
+    - Phase 13.1-13.10 transaction records
+validation_fixtures:
+  - success
+  - partial_failure
+  - rollback
+  - executed_unverified
