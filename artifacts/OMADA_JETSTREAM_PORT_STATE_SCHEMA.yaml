@@ -1,0 +1,51 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_port_state_speed_duplex
+task: '4.03'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_OFFICIAL_MANAGED_SWITCH_CLI_GUIDE_SCOPE
+authority: TP-Link / Omada official documentation only
+scope:
+  product_family: JetStream / Omada managed switches
+  source_scope: >-
+    Managed Switch CLI Reference Guide REV2.0.0, Chapter 12 Interface Configuration Commands.
+    Exact model, hardware revision, region, firmware, interface identity/media, management mode,
+    authenticated privilege and runtime command support must be verified before execution.
+interface_class_enum:
+  - FAST_ETHERNET
+  - GIGABIT_ETHERNET
+  - TWO_GIGABIT_ETHERNET
+  - TEN_GIGABIT_ETHERNET
+  - PORT_CHANNEL
+  - UNKNOWN_OR_UNMAPPED
+state_plane_enum:
+  - CONFIGURED_STATE
+  - OPERATIONAL_CONNECTION_STATE
+  - STATISTICS_STATE
+operation_enum:
+  - READ_INTERFACE_STATUS
+  - READ_INTERFACE_CONFIGURATION
+  - READ_INTERFACE_COUNTERS
+  - SET_SPEED
+  - RESET_SPEED_DEFAULT
+  - SET_DUPLEX
+  - RESET_DUPLEX_DEFAULT
+verification_state_enum:
+  - VERIFIED
+  - EXECUTED_UNVERIFIED
+  - BLOCKED_BY_CAPABILITY
+  - BLOCKED_BY_APPLICABILITY
+  - BLOCKED_BY_PRIVILEGE
+  - NOT_APPLICABLE
+  - UNKNOWN
+rules:
+  - Never infer an interface class from nominal speed alone.
+  - Never infer support for every published speed value on every physical port.
+  - Never infer duplex support for interface classes not explicitly authorized by exact applicable evidence.
+  - Preserve configured state separately from operational connection status and counters.
+  - Read-only discovery must precede speed or duplex mutation when an official read path is available.
+  - Interface-range operations require per-port verification because one-port errors do not stop execution on other ports.
+  - Speed and duplex mutation are configuration writes and require project production-write approval.
+  - A successful write command is not PASS until intended configuration and operational impact are verified through an authorized applicable read path.
+  - Unmanaged or inventory-only switches are not CLI configuration targets.
+  - Controller/cloud port semantics are not inferred from standalone CLI behavior.
+  - Virtual tests cannot certify physical PHY negotiation, link establishment, optics, cabling or line-rate behavior.
