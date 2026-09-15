@@ -19,7 +19,8 @@ from .platforms import assess_read_only_candidate, documentation_train
 _IOSXE_NATIVE_NS = "http://cisco.com/ns/yang/Cisco-IOS-XE-native"
 _DESCRIPTION_FEATURE_ID = "interface.description.set"
 _MTU_FEATURE_ID = "interface.mtu.set"
-_FEATURE_IDS = frozenset({_DESCRIPTION_FEATURE_ID, _MTU_FEATURE_ID})
+_SHUTDOWN_FEATURE_ID = "interface.shutdown.set"
+_FEATURE_IDS = frozenset({_DESCRIPTION_FEATURE_ID, _MTU_FEATURE_ID, _SHUTDOWN_FEATURE_ID})
 _REQUIRED_MODULE = "Cisco-IOS-XE-native"
 _CANDIDATE_CAPABILITY = "urn:ietf:params:netconf:capability:candidate:1.0"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -72,16 +73,11 @@ def desired_state_catalog_digest() -> str:
 
 
 def _validate_catalog(catalog: Mapping[str, object]) -> None:
-    if catalog.get("schema_version") != "cisco-iosxe-desired-state-catalog/2":
+    if catalog.get("schema_version") != "cisco-iosxe-desired-state-catalog/3":
         raise CiscoDesiredStateError("unsupported desired-state catalog schema")
     if catalog.get("vendor") != "Cisco" or catalog.get("os_family") != "IOS XE":
         raise CiscoDesiredStateError("desired-state catalog vendor/OS mismatch")
-    for key in (
-        "runtime_ai_rendering",
-        "write_authorized",
-        "production_write_authorized",
-        "c07_complete",
-    ):
+    for key in ("runtime_ai_rendering", "write_authorized", "production_write_authorized", "c07_complete"):
         if catalog.get(key) is not False:
             raise CiscoDesiredStateError(f"desired-state safety boundary must remain false: {key}")
 
@@ -96,8 +92,8 @@ def _validate_catalog(catalog: Mapping[str, object]) -> None:
         raise CiscoDesiredStateError("desired-state documentation trains must be 17.18 and 26")
 
     features = catalog.get("features")
-    if not isinstance(features, list) or len(features) != 2 or any(not isinstance(item, Mapping) for item in features):
-        raise CiscoDesiredStateError("desired-state catalog must define exactly two bounded slices")
+    if not isinstance(features, list) or len(features) != 3 or any(not isinstance(item, Mapping) for item in features):
+        raise CiscoDesiredStateError("desired-state catalog must define exactly three bounded slices")
     feature_by_id = {str(feature.get("id")): feature for feature in features}
     if set(feature_by_id) != _FEATURE_IDS:
         raise CiscoDesiredStateError("unexpected desired-state feature set")
@@ -110,18 +106,22 @@ def _validate_catalog(catalog: Mapping[str, object]) -> None:
         if feature.get("required_capabilities") != [_CANDIDATE_CAPABILITY]:
             raise CiscoDesiredStateError("desired-state candidate capability binding mismatch")
 
-    description_feature = feature_by_id[_DESCRIPTION_FEATURE_ID]
-    description_constraints = description_feature.get("yang_constraints")
+    description_constraints = feature_by_id[_DESCRIPTION_FEATURE_ID].get("yang_constraints")
     if not isinstance(description_constraints, Mapping) or description_constraints.get("description_length") != [0, 200]:
         raise CiscoDesiredStateError("desired-state YANG description constraint mismatch")
-    renderer = description_feature.get("renderer_constraints")
+    renderer = feature_by_id[_DESCRIPTION_FEATURE_ID].get("renderer_constraints")
     if not isinstance(renderer, Mapping) or renderer.get("nonempty_description") is not True:
         raise CiscoDesiredStateError("desired-state renderer must retain its conservative description subset")
 
-    mtu_feature = feature_by_id[_MTU_FEATURE_ID]
-    mtu_constraints = mtu_feature.get("yang_constraints")
+    mtu_constraints = feature_by_id[_MTU_FEATURE_ID].get("yang_constraints")
     if not isinstance(mtu_constraints, Mapping) or mtu_constraints.get("mtu_range") != [_MIN_INTERFACE_MTU, _MAX_INTERFACE_MTU]:
         raise CiscoDesiredStateError("desired-state YANG interface MTU constraint mismatch")
+
+    shutdown_constraints = feature_by_id[_SHUTDOWN_FEATURE_ID].get("yang_constraints")
+    if not isinstance(shutdown_constraints, Mapping) or shutdown_constraints.get("yang_type") != "empty":
+        raise CiscoDesiredStateError("desired-state YANG shutdown constraint mismatch")
+    if shutdown_constraints.get("delete_semantics_admitted") is not False:
+        raise CiscoDesiredStateError("shutdown slice must not infer no-shutdown/delete semantics")
 
 
 def _clean_text(value: object, field: str, *, max_len: int, nonempty: bool = True) -> str:
@@ -150,140 +150,55 @@ def _bounded_uint(value: object, field: str, *, minimum: int, maximum: int) -> i
     return value
 
 
-def _admit_renderer(
-    *,
-    model: str,
-    iosxe_version: str,
-    schema_inventory_digest_sha256: str,
-    observed_modules: Iterable[str],
-    netconf_capabilities: Iterable[str],
-):
+def _admit_renderer(*, model: str, iosxe_version: str, schema_inventory_digest_sha256: str, observed_modules: Iterable[str], netconf_capabilities: Iterable[str]):
     catalog = load_desired_state_catalog()
     decision = assess_read_only_candidate(model, iosxe_version)
     if not decision.read_only_candidate or decision.role is None:
         raise CiscoDesiredStateError(f"platform/version not admitted: {decision.status}")
-
     train = documentation_train(iosxe_version)
     if train not in catalog["documentation_trains"]:
         raise CiscoDesiredStateError("desired-state schema train is not source-bound")
-
     schema_digest = schema_inventory_digest_sha256.strip().lower()
     if not _SHA256_RE.fullmatch(schema_digest):
         raise CiscoDesiredStateError("valid YANG inventory digest is required")
-
     modules = {str(item).strip() for item in observed_modules if str(item).strip()}
     if _REQUIRED_MODULE not in modules:
         raise CiscoDesiredStateError("required Cisco-IOS-XE-native module was not advertised")
-
     capabilities = {str(item).strip() for item in netconf_capabilities if str(item).strip()}
     if _CANDIDATE_CAPABILITY not in capabilities:
         raise CiscoDesiredStateError("NETCONF candidate capability was not advertised")
-
     return catalog, decision, train, schema_digest
 
 
-def _render_interface_leaf(
-    *,
-    catalog: Mapping[str, object],
-    decision,
-    model: str,
-    iosxe_version: str,
-    train: str,
-    schema_digest: str,
-    interface_name: str,
-    feature_id: str,
-    leaf_name: str,
-    leaf_value: str,
-) -> DesiredStateRender:
+def _render_interface_leaf(*, catalog: Mapping[str, object], decision, model: str, iosxe_version: str, train: str, schema_digest: str, interface_name: str, feature_id: str, leaf_name: str, leaf_value: str | None) -> DesiredStateRender:
     ET.register_namespace("", _IOSXE_NATIVE_NS)
     native = ET.Element(f"{{{_IOSXE_NATIVE_NS}}}native")
     interfaces = ET.SubElement(native, f"{{{_IOSXE_NATIVE_NS}}}interface")
     gigabit = ET.SubElement(interfaces, f"{{{_IOSXE_NATIVE_NS}}}GigabitEthernet")
     ET.SubElement(gigabit, f"{{{_IOSXE_NATIVE_NS}}}name").text = interface_name
-    ET.SubElement(gigabit, f"{{{_IOSXE_NATIVE_NS}}}{leaf_name}").text = leaf_value
+    leaf = ET.SubElement(gigabit, f"{{{_IOSXE_NATIVE_NS}}}{leaf_name}")
+    if leaf_value is not None:
+        leaf.text = leaf_value
     payload_xml = ET.tostring(native, encoding="unicode", short_empty_elements=True)
     payload_digest = hashlib.sha256(payload_xml.encode("utf-8")).hexdigest()
-    return DesiredStateRender(
-        model=model.strip(),
-        iosxe_version=iosxe_version.strip(),
-        documentation_train=train,
-        platform_family=decision.family or "",
-        role=decision.role.value,
-        feature_id=feature_id,
-        target_datastore="candidate",
-        required_module=_REQUIRED_MODULE,
-        schema_inventory_digest_sha256=schema_digest,
-        catalog_digest_sha256=_canonical_sha256(catalog),
-        payload_digest_sha256=payload_digest,
-        payload_xml=payload_xml,
-    )
+    return DesiredStateRender(model=model.strip(), iosxe_version=iosxe_version.strip(), documentation_train=train, platform_family=decision.family or "", role=decision.role.value, feature_id=feature_id, target_datastore="candidate", required_module=_REQUIRED_MODULE, schema_inventory_digest_sha256=schema_digest, catalog_digest_sha256=_canonical_sha256(catalog), payload_digest_sha256=payload_digest, payload_xml=payload_xml)
 
 
-def render_interface_description(
-    *,
-    model: str,
-    iosxe_version: str,
-    schema_inventory_digest_sha256: str,
-    observed_modules: Iterable[str],
-    netconf_capabilities: Iterable[str],
-    interface_name: str,
-    description: str,
-) -> DesiredStateRender:
-    """Render a deterministic Cisco Native candidate fragment for one description."""
-
-    catalog, decision, train, schema_digest = _admit_renderer(
-        model=model,
-        iosxe_version=iosxe_version,
-        schema_inventory_digest_sha256=schema_inventory_digest_sha256,
-        observed_modules=observed_modules,
-        netconf_capabilities=netconf_capabilities,
-    )
-    name = _clean_interface_name(interface_name)
-    value = _clean_text(description, "description", max_len=200)
-    return _render_interface_leaf(
-        catalog=catalog,
-        decision=decision,
-        model=model,
-        iosxe_version=iosxe_version,
-        train=train,
-        schema_digest=schema_digest,
-        interface_name=name,
-        feature_id=_DESCRIPTION_FEATURE_ID,
-        leaf_name="description",
-        leaf_value=value,
-    )
+def render_interface_description(*, model: str, iosxe_version: str, schema_inventory_digest_sha256: str, observed_modules: Iterable[str], netconf_capabilities: Iterable[str], interface_name: str, description: str) -> DesiredStateRender:
+    catalog, decision, train, schema_digest = _admit_renderer(model=model, iosxe_version=iosxe_version, schema_inventory_digest_sha256=schema_inventory_digest_sha256, observed_modules=observed_modules, netconf_capabilities=netconf_capabilities)
+    return _render_interface_leaf(catalog=catalog, decision=decision, model=model, iosxe_version=iosxe_version, train=train, schema_digest=schema_digest, interface_name=_clean_interface_name(interface_name), feature_id=_DESCRIPTION_FEATURE_ID, leaf_name="description", leaf_value=_clean_text(description, "description", max_len=200))
 
 
-def render_interface_mtu(
-    *,
-    model: str,
-    iosxe_version: str,
-    schema_inventory_digest_sha256: str,
-    observed_modules: Iterable[str],
-    netconf_capabilities: Iterable[str],
-    interface_name: str,
-    mtu: int,
-) -> DesiredStateRender:
-    """Render a deterministic Cisco Native candidate fragment for interface MTU."""
-
-    catalog, decision, train, schema_digest = _admit_renderer(
-        model=model,
-        iosxe_version=iosxe_version,
-        schema_inventory_digest_sha256=schema_inventory_digest_sha256,
-        observed_modules=observed_modules,
-        netconf_capabilities=netconf_capabilities,
-    )
-    name = _clean_interface_name(interface_name)
+def render_interface_mtu(*, model: str, iosxe_version: str, schema_inventory_digest_sha256: str, observed_modules: Iterable[str], netconf_capabilities: Iterable[str], interface_name: str, mtu: int) -> DesiredStateRender:
+    catalog, decision, train, schema_digest = _admit_renderer(model=model, iosxe_version=iosxe_version, schema_inventory_digest_sha256=schema_inventory_digest_sha256, observed_modules=observed_modules, netconf_capabilities=netconf_capabilities)
     value = _bounded_uint(mtu, "mtu", minimum=_MIN_INTERFACE_MTU, maximum=_MAX_INTERFACE_MTU)
-    return _render_interface_leaf(
-        catalog=catalog,
-        decision=decision,
-        model=model,
-        iosxe_version=iosxe_version,
-        train=train,
-        schema_digest=schema_digest,
-        interface_name=name,
-        feature_id=_MTU_FEATURE_ID,
-        leaf_name="mtu",
-        leaf_value=str(value),
-    )
+    return _render_interface_leaf(catalog=catalog, decision=decision, model=model, iosxe_version=iosxe_version, train=train, schema_digest=schema_digest, interface_name=_clean_interface_name(interface_name), feature_id=_MTU_FEATURE_ID, leaf_name="mtu", leaf_value=str(value))
+
+
+def render_interface_shutdown(*, model: str, iosxe_version: str, schema_inventory_digest_sha256: str, observed_modules: Iterable[str], netconf_capabilities: Iterable[str], interface_name: str) -> DesiredStateRender:
+    """Render the source-bound Cisco Native empty `shutdown` leaf only.
+
+    This slice intentionally does not infer delete/no-shutdown semantics.
+    """
+    catalog, decision, train, schema_digest = _admit_renderer(model=model, iosxe_version=iosxe_version, schema_inventory_digest_sha256=schema_inventory_digest_sha256, observed_modules=observed_modules, netconf_capabilities=netconf_capabilities)
+    return _render_interface_leaf(catalog=catalog, decision=decision, model=model, iosxe_version=iosxe_version, train=train, schema_digest=schema_digest, interface_name=_clean_interface_name(interface_name), feature_id=_SHUTDOWN_FEATURE_ID, leaf_name="shutdown", leaf_value=None)

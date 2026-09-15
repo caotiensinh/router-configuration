@@ -37,7 +37,6 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-
           text = Path("src/router_configuration/vendors/cisco/desired_state.py").read_text(encoding="utf-8")
           forbidden = ("ncclient", "requests.", "socket.", "edit_config(", "commit(", "dispatch(")
           found = [token for token in forbidden if token in text]
@@ -51,19 +50,17 @@ jobs:
           python - <<'PY'
           import json
           import os
-          from router_configuration.vendors.cisco.desired_state import (
-              desired_state_catalog_digest,
-              load_desired_state_catalog,
-          )
+          from router_configuration.vendors.cisco.desired_state import desired_state_catalog_digest, load_desired_state_catalog
 
           catalog = load_desired_state_catalog()
           result = {
-              "schema_version": "cisco-c07-contract-evidence/2",
+              "schema_version": "cisco-c07-contract-evidence/3",
               "source_sha": os.environ["SOURCE_SHA"],
-              "stage": "desired_state_two_vertical_slices_ready_more_features_and_acceptance_required",
+              "stage": "desired_state_three_vertical_slices_ready_more_features_and_acceptance_required",
               "catalog_digest_sha256": desired_state_catalog_digest(),
               "feature_ids": sorted(feature["id"] for feature in catalog["features"]),
               "documentation_trains": sorted(catalog["documentation_trains"]),
+              "shutdown_delete_semantics_admitted": False,
               "runtime_ai_rendering": False,
               "approval_bound": False,
               "apply_authorized": False,
