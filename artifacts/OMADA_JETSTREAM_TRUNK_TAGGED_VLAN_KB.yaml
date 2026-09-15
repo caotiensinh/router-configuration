@@ -1,0 +1,187 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_trunk_tagged_vlan_kb
+task: '4.06'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_TRUNK_TAGGED_VLAN_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: OMADA_JETSTREAM_TYPICAL_CLI
+  url: https://support.omadanetworks.com/kr/document/13117/
+  title: Typical CLI Configuration Examples for TP-Link Omada / JetStream Switch
+  source_type: CONFIGURATION_GUIDE
+  page_date: '2022-12-22'
+  retrieved_at: '2026-09-15'
+  scope_note: Generic JetStream CLI workflow. Trunk example uses GigabitEthernet 1/0/1
+    and explicitly tags VLANs 20,30,40.
+- id: OMADA_SMART_MANAGED_8021Q_GUI
+  url: https://support.omadanetworks.com/en/document/12981/
+  title: How to Configure 802.1Q VLAN on Smart and Managed Switches Using the New
+    GUI
+  source_type: CONFIGURATION_GUIDE
+  retrieved_at: '2026-09-15'
+  scope_note: Standalone Smart/Managed example assigns the inter-switch/uplink port
+    as Tagged in multiple VLANs while keeping a separate PVID.
+- id: OMADA_AGILE_EASY_8021Q_STANDALONE_2026
+  url: https://support.omadanetworks.com/en/document/129217/
+  title: How to Configure 802.1Q VLAN on Omada Agile/Easy Managed Switches in Standalone
+    Mode
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-07-25'
+  scope_note: Current Agile/Easy Managed standalone 802.1Q tagged/untagged membership
+    guidance; family-specific scope only.
+- id: OMADA_CONTROLLER_8021Q_SWITCH
+  url: https://support.omadanetworks.com/en/document/13215/
+  title: How to Configure 802.1Q VLAN on Omada Switches in Controller Mode
+  source_type: CONFIGURATION_GUIDE
+  published: '2024-07-11'
+  scope_note: Controller v6.0+ workflow for documented Omada switch classes. Router
+    uplink carries VLAN 1 native/untagged and VLANs 10/20 tagged; unselected port
+    that remains Trunk carries the created VLAN as tagged traffic.
+parallel_lane_execution:
+  task_manifest: orchestration/OMADA_PHASE4_06_PARALLEL_TASKS.json
+  plan: orchestration/OMADA_PHASE4_06_PARALLEL_PLAN.json
+  wave_1_read_only_lanes: 10
+  wave_2_integration_lanes: 1
+  external_worker_processes_claimed: 0
+  rule: Parallel evidence lanes are assignment slots; write ownership remains serialized.
+canonical_semantics:
+  tagged_membership: A tagged member carries the VLAN on egress with the IEEE 802.1Q
+    tag in the applicable source scope.
+  native_pvid_separation: Native/PVID VLAN state is independent from the set of VLANs
+    carried tagged on the same port.
+  trunk_definition_boundary: Normalize a trunk/uplink as a port intended to carry
+    multiple VLANs according to an exact tagged/native membership set. Do not equate
+    the word Trunk with an unrestricted all-VLANs wildcard unless the applicable management
+    plane explicitly documents that behavior.
+standalone_cli:
+  documented_sequence:
+  - Ensure/create every intended VLAN before port assignment.
+  - Enter the exact applicable Ethernet interface configuration mode.
+  - switchport general allowed vlan <VLAN_LIST> tagged
+  - Read back the interface switchport state.
+  - Apply the 4.02 save contract only after running-state verification when persistence
+    is required.
+  example:
+    port: gigabitEthernet 1/0/1
+    tagged_vlans:
+    - 20
+    - 30
+    - 40
+    command: switchport general allowed vlan 20,30,40 tagged
+    observed_pvid_after_example: 1
+  read_back:
+    commands:
+    - show interface switchport
+    - show interface switchport <exact-interface>
+    required_observations:
+    - PVID
+    - VLAN membership
+    - Egress-rule Tagged for every intended VLAN
+  critical_boundary: The vendor guide removes VLAN 1 in a separate section after configuring
+    the trunk. Task 4.06 does not synthesize `no switchport general allowed vlan 1`;
+    that belongs to 4.07.
+  interface_boundary: The cited trunk example uses gigabitEthernet. Exact command
+    support for other interface classes requires applicable evidence.
+  privilege_boundary: Authenticated privilege and runtime command support remain execution-time
+    gates; generic example scope is not a global RBAC grant.
+standalone_gui:
+  observed_pattern:
+    uplink_port: Port 1 in the cited topology
+    tagged_vlans:
+    - 10
+    - 20
+    - 30
+    pvid: 1
+    meaning: The same port is tagged in multiple VLANs while PVID remains a separate
+      field.
+  verification: Re-open/read VLAN membership and PVID. PASS requires every intended
+    VLAN to show Tagged on the target port and native/PVID state to match the intended
+    design.
+  boundary: GUI evidence does not authorize CLI syntax or Controller behavior.
+controller_mode:
+  documented_uplink_semantics:
+    router_uplink: G1/0/1
+    native_untagged_vlan: 1
+    tagged_vlans:
+    - 10
+    - 20
+    workflow_rule: When creating a VLAN, leave the router uplink unselected; an unselected
+      port that remains in Trunk mode automatically carries that VLAN as tagged traffic
+      in the cited workflow.
+  applicability:
+    switch_classes:
+    - Omada Access
+    - Omada Access Plus
+    - Omada Access Pro
+    - Omada Access Max
+    - Omada Aggregation
+    - Omada Campus
+    controller_minimum: v6.0+
+  safety_boundary: The automatic tagged behavior is retained only for the cited Controller
+    workflow and Trunk-mode condition. It is not a generic standalone-switch rule
+    and does not prove an unrestricted all-VLAN tagged set.
+  verification: Verify the Controller port's native/untagged VLAN and tagged VLAN
+    set, then verify required uplink reachability.
+safe_transaction:
+  preconditions:
+  - Resolve exact model, hardware revision, region, firmware, management mode and
+    port identity.
+  - Verify every target VLAN exists in the applicable management plane.
+  - Read current tagged/untagged/non-member membership and native/PVID state.
+  - Detect whether the target is the active router/controller/management uplink.
+  - Confirm exact command/UI/controller applicability and authenticated privilege.
+  - Obtain production-write approval.
+  write:
+  - Apply only the intended tagged VLAN membership delta.
+  - Do not implicitly alter native/PVID VLAN unless explicitly required and separately
+    evidenced.
+  - Do not implicitly remove VLAN 1; defer membership/default-VLAN removal to 4.07.
+  - Do not synthesize LAG/LACP creation in this task.
+  verify:
+  - Read back every intended tagged VLAN membership/egress rule.
+  - Read back native/PVID state to detect unintended change.
+  - Verify required uplink reachability and management/controller path.
+  - Record EXECUTED_UNVERIFIED rather than PASS if semantic read-back is incomplete.
+  persist: For standalone CLI durability, apply 4.02 running-to-startup save only
+    after verified running state.
+rollback:
+  required_pre_state:
+  - previous tagged VLAN set
+  - previous native/PVID state
+  - previous untagged/non-member states for affected VLANs
+  - management/uplink dependency
+  policy: Restore the exact observed pre-change membership and native/PVID state.
+    Never assume VLAN 1, all VLANs, or an empty tagged set is the correct rollback
+    target.
+validation_cases:
+- id: CLI_TAGGED_SET
+  expected: PASS only when all intended VLANs are read back as Tagged and native/PVID
+    remains as intended.
+- id: TRUNK_ALL_VLAN_ASSUMPTION
+  expected: BLOCKED; do not infer all-VLAN membership from the label Trunk.
+- id: IMPLICIT_NATIVE_CHANGE
+  expected: BLOCKED; tagged-set mutation does not authorize changing PVID/native VLAN.
+- id: IMPLICIT_REMOVE_VLAN1
+  expected: BLOCKED; VLAN1 removal belongs to 4.07.
+- id: MGMT_UPLINK
+  expected: BLOCKED_BY_MANAGEMENT_PATH_RISK until recovery/alternate path is verified.
+- id: CONTROLLER_WRONG_VERSION
+  expected: BLOCKED_BY_APPLICABILITY if Controller v6.0+ requirement is unresolved/not
+    met for cited workflow.
+- id: PARTIAL_TAGGED_SET
+  expected: NOT PASS if only a subset of intended VLANs is verified Tagged.
+- id: RUNNING_ONLY
+  expected: Running-state VERIFIED may remain non-durable until 4.02 save verification
+    succeeds.
+- id: LAG_CREATION_REQUEST
+  expected: DEFER to 4.10; 4.06 does not synthesize LAG/LACP construction.
+deferred_boundaries:
+  '4.07': VLAN membership/removal/default VLAN behavior
+  '4.08': VLAN interface / switch management IP
+  '4.10': LAG/LACP construction and negotiation
+closure:
+  task_4_06_complete: true
+  boundary: Trunk/tagged VLAN membership, native/PVID separation, CLI/GUI/Controller
+    mappings, read-back, uplink-risk, rollback and persistence gates are normalized
+    without consuming 4.07, 4.08 or 4.10.
+  next_task: 4.07 VLAN membership/removal/default VLAN behavior

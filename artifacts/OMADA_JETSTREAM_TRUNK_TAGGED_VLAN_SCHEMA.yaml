@@ -1,0 +1,63 @@
+schema_version: 1.0.0
+schema_id: omada.jetstream_trunk_tagged_vlan
+task: '4.06'
+observed_at: '2026-09-15'
+status: VALIDATED_FOR_OFFICIAL_TRUNK_TAGGED_VLAN_SCOPE
+authority: TP-Link / Omada official documentation only
+scope:
+  product_family: Omada / JetStream managed-switch tagged/trunk VLAN knowledge
+  source_scope: Official generic JetStream CLI examples, current standalone Smart/Managed
+    and Agile/Easy Managed VLAN guidance, and current Omada Controller VLAN guidance.
+    Exact model, hardware revision, region, firmware, management mode, port identity/capability,
+    privilege, controller version and runtime support remain execution gates.
+normalized_fields:
+- target_vlan_ids
+- port_identity
+- tagged_membership_set
+- native_or_pvid_vlan
+- management_mode
+- pre_change_membership
+- pre_change_pvid
+- verification_state
+- persistence_state
+trunk_contract:
+  required_semantic_components:
+  - every intended tagged VLAN exists in the applicable management plane
+  - the intended uplink/trunk port is a tagged member of each intended tagged VLAN
+  - native/PVID VLAN state is tracked separately from tagged membership
+  - the exact tagged VLAN set is read back before PASS
+  forbidden_shortcuts:
+  - TRUNK_DOES_NOT_MEAN_ALL_VLANS_WITHOUT_SOURCE_SCOPE
+  - TAGGED_SET_DOES_NOT_IMPLY_NATIVE_OR_PVID
+  - DO_NOT_IMPLICITLY_REMOVE_VLAN1_IN_4_06
+verification_state_enum:
+- VERIFIED
+- EXECUTED_UNVERIFIED
+- BLOCKED_BY_APPLICABILITY
+- BLOCKED_BY_CAPABILITY
+- BLOCKED_BY_PRIVILEGE
+- BLOCKED_BY_MANAGEMENT_PATH_RISK
+- NOT_APPLICABLE
+- UNKNOWN
+rules:
+- Keep tagged VLAN membership separate from native/PVID VLAN state.
+- For the generic CLI example, tagged trunk membership uses switchport general allowed
+  vlan <VLAN_LIST> tagged.
+- The generic CLI example's VLAN-1 removal is a separate step and is not synthesized
+  by task 4.06.
+- Do not infer that every Trunk port automatically carries every VLAN; retain the
+  exact management-mode/source scope.
+- Do not translate standalone CLI/GUI operations into Controller operations, or vice
+  versa.
+- Read back every intended tagged VLAN and its egress rule before declaring PASS.
+- If the trunk/uplink carries the active management/controller path, fail closed until
+  a verified recovery path exists.
+- Batch/range changes require per-port and per-VLAN verification; partial success
+  is not atomic PASS.
+- Running-state success is not reboot durability; persistence uses the task 4.02 save
+  contract where applicable.
+- Rollback restores the exact observed pre-change tagged/native/PVID membership, not
+  an assumed VLAN/default set.
+- LAG/LACP-specific trunk construction remains task 4.10 even when VLAN tagging on
+  an existing logical LAG is separately documented.
+- Unmanaged/inventory-only devices are not configuration targets.

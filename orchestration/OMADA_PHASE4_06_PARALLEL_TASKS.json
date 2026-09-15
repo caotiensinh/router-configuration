@@ -1,0 +1,115 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "d7f453160833655761d5f72e2fe9395131cee57f",
+  "purpose": "Parallel official-source research/review for Omada Phase 4.06 before one serialized integration write.",
+  "tasks": [
+    {
+      "task_id": "OMADA-4.06-CLI-TAGGED",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.06-STANDALONE-GUI",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.06-CONTROLLER-TRUNK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.06-TAGGED-SET",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.06-NATIVE-PVID-SEPARATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.06-READBACK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.06-MGMT-UPLINK-RISK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.06-ROLLBACK-PERSISTENCE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.06-APPLICABILITY-VERSION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 80
+    },
+    {
+      "task_id": "OMADA-4.06-VALIDATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 75
+    },
+    {
+      "task_id": "OMADA-4.06-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_TRUNK_TAGGED_VLAN_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_TRUNK_TAGGED_VLAN_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_TRUNK_TAGGED_VLAN_KB.md",
+        "orchestration/OMADA_PHASE4_06_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_06_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.06-CLI-TAGGED",
+        "OMADA-4.06-STANDALONE-GUI",
+        "OMADA-4.06-CONTROLLER-TRUNK",
+        "OMADA-4.06-TAGGED-SET",
+        "OMADA-4.06-NATIVE-PVID-SEPARATION",
+        "OMADA-4.06-READBACK",
+        "OMADA-4.06-MGMT-UPLINK-RISK",
+        "OMADA-4.06-ROLLBACK-PERSISTENCE",
+        "OMADA-4.06-APPLICABILITY-VERSION",
+        "OMADA-4.06-VALIDATION"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.06"
+      ],
+      "priority": 110
+    }
+  ]
+}

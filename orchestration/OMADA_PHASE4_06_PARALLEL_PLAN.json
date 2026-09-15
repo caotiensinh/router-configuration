@@ -1,0 +1,107 @@
+{
+  "schema_version": "parallel-lane-plan/1",
+  "base_sha": "d7f453160833655761d5f72e2fe9395131cee57f",
+  "lane_capacity": 500,
+  "requested_max_lanes": 10,
+  "worker_processes_started": 0,
+  "capacity_is_not_worker_count": true,
+  "execution_note": "Conflict-free evidence assignments only; this ChatGPT session batches official-source retrieval and does not claim ten external worker processes.",
+  "waves": [
+    {
+      "wave": 1,
+      "assignments": [
+        {
+          "lane_id": "LANE-0001",
+          "task_id": "OMADA-4.06-CLI-TAGGED",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0002",
+          "task_id": "OMADA-4.06-STANDALONE-GUI",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0003",
+          "task_id": "OMADA-4.06-CONTROLLER-TRUNK",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0004",
+          "task_id": "OMADA-4.06-TAGGED-SET",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0005",
+          "task_id": "OMADA-4.06-NATIVE-PVID-SEPARATION",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0006",
+          "task_id": "OMADA-4.06-READBACK",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0007",
+          "task_id": "OMADA-4.06-MGMT-UPLINK-RISK",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0008",
+          "task_id": "OMADA-4.06-ROLLBACK-PERSISTENCE",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0009",
+          "task_id": "OMADA-4.06-APPLICABILITY-VERSION",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0010",
+          "task_id": "OMADA-4.06-VALIDATION",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "assignments": [
+        {
+          "lane_id": "LANE-0001",
+          "task_id": "OMADA-4.06-INTEGRATE",
+          "mode": "write",
+          "write_paths": [
+            "artifacts/OMADA_JETSTREAM_TRUNK_TAGGED_VLAN_SCHEMA.yaml",
+            "artifacts/OMADA_JETSTREAM_TRUNK_TAGGED_VLAN_KB.yaml",
+            "artifacts/OMADA_JETSTREAM_TRUNK_TAGGED_VLAN_KB.md",
+            "orchestration/OMADA_PHASE4_06_PARALLEL_TASKS.json",
+            "orchestration/OMADA_PHASE4_06_PARALLEL_PLAN.json"
+          ],
+          "conflict_keys": [
+            "phase:omada-4.06",
+            "vendor:omada"
+          ]
+        }
+      ]
+    }
+  ]
+}
