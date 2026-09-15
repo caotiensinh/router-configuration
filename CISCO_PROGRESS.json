@@ -11,14 +11,14 @@
     "weight_change_rule": "Weights are fixed; changing them requires an explicit measurement-policy change and may not silently dilute completed work."
   },
   "budgets": {
-    "engineering": {"total": 79, "earned": 67, "percent": 84.8},
+    "engineering": {"total": 79, "earned": 74, "percent": 93.7},
     "acceptance": {"total": 21, "earned": 0, "percent": 0.0}
   },
   "reconciliation": {
     "from_schema": "1.0",
     "previous_points": 12,
-    "reconciled_points": 67,
-    "delta_points": 55,
+    "reconciled_points": 74,
+    "delta_points": 62,
     "delta_kind": "measurement_reclassification",
     "new_work_points": 0,
     "baseline_commit": "2f3f286e5092eacda55447915684f80e1c77b7ea"
@@ -46,10 +46,10 @@
       {"id":"evidence_pipeline","weight":1,"kind":"eng","status":"pending","earned":0},
       {"id":"live_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"verified live HTTPS RESTCONF evidence required"}
     ]},
-    {"id":"C05","title":"Router normalized state","weight":10,"earned":0,"status":"not_started","gates":[
-      {"id":"schema_mapping","weight":2,"kind":"eng","status":"pending","earned":0},
-      {"id":"normalizer_impl","weight":3,"kind":"eng","status":"pending","earned":0},
-      {"id":"tests_ci","weight":2,"kind":"eng","status":"pending","earned":0},
+    {"id":"C05","title":"Router normalized state","weight":10,"earned":7,"status":"in_progress","gates":[
+      {"id":"schema_mapping","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/data/router_state_catalog.json","path:src/router_configuration/vendors/cisco/router_state.py"]},
+      {"id":"normalizer_impl","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["path:src/router_configuration/vendors/cisco/router_state.py"]},
+      {"id":"tests_ci","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:tests/test_cisco_router_state.py","path:.github/workflows/cisco-router-state.yml","run:34990233893"]},
       {"id":"evidence_pipeline","weight":1,"kind":"eng","status":"pending","earned":0},
       {"id":"live_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"live router normalized-state evidence required"}
     ]},
@@ -105,9 +105,9 @@
       {"id":"final_handover_acceptance","weight":1,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"evidence-backed handover package acceptance required"}
     ]}
   ],
-  "completed_points": 67,
-  "remaining_points": 33,
-  "overall_percent": 67,
+  "completed_points": 74,
+  "remaining_points": 26,
+  "overall_percent": 74,
   "production_write_authorized": false,
   "physical_device_verified": false
 }
