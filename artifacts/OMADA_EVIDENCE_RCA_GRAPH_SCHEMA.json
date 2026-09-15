@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "evidence_based_rca_graph",
+  "task": "9.12",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "node_types": ["evidence", "hypothesis"],
+  "evidence_states": ["CONFIRMED", "REJECTED", "UNKNOWN"],
+  "edge_types": ["REQUIRES", "SUPPORTS", "CONTRADICTS"],
+  "evaluation_rules": [
+    "A confirmed contradiction rejects the hypothesis.",
+    "Every required evidence node must be CONFIRMED before a hypothesis can be CONFIRMED.",
+    "Missing, rejected, or unknown required evidence keeps a non-contradicted hypothesis UNKNOWN.",
+    "No confidence score may override missing required evidence.",
+    "next_checks returns unresolved required evidence deterministically."
+  ],
+  "safety": {
+    "default": "UNKNOWN",
+    "fail_closed": true,
+    "no_inference_from_absence": true,
+    "no_auto_mutation": true
+  }
+}
