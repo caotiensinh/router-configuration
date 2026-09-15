@@ -56,6 +56,8 @@ Parsed evidence is rejected when sensitive field names are present, including pa
 
 Hardware serial values are not retained in plaintext live evidence; only a deterministic digest is preserved. Interface evidence stores aggregate state plus a deterministic normalized digest instead of persisting a full device configuration.
 
+Before artifact upload, the workflow removes plaintext target host, device hostname, and transient NETCONF session ID. It preserves deterministic SHA-256 bindings for the target host, device hostname, trusted SSH host-key pin, hardware serial inventory, capabilities, schemas, platform components, and interfaces. This allows later evidence correlation without publishing the target address or hostname.
+
 ## C03 live acceptance gate
 
 Synthetic fixtures and contract tests prove parser and policy behavior, but they do not complete C03.
@@ -65,10 +67,10 @@ C03 acceptance requires an identified live IOS XE target and preserved evidence 
 1. a live NETCONF session with pinned SSH host-key verification;
 2. NETCONF server capability inventory;
 3. device-advertised YANG/schema inventory and exact live schema retrieval for required models;
-4. exact IOS XE hostname and version through a bounded query;
+4. exact IOS XE hostname and version through a bounded query, with the hostname minimized to an artifact digest after verification;
 5. exact platform/model evidence that passes the repository IOS XE platform/version admission gate;
 6. bounded interface inventory and operational-state evidence;
-7. deterministic normalized digests;
+7. deterministic normalized digests and minimized target/host-key bindings;
 8. confirmation that no configuration write was authorized or performed.
 
 The live workflow fails its acceptance step when `c03_complete` is not exactly `true`. Missing credentials, target outage, authentication failure, unsupported model/version, missing YANG models, host-key mismatch, schema mismatch, or parsing uncertainty are all valid fail-closed outcomes.

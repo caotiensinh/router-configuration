@@ -99,6 +99,44 @@ jobs:
           path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           PY
 
+      - name: Minimize target metadata before artifact upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("evidence/cisco/c03-live.json")
+          evidence = json.loads(path.read_text(encoding="utf-8"))
+
+          for field, digest_field in (
+              ("target_host", "target_host_digest_sha256"),
+              ("hostname", "hostname_digest_sha256"),
+          ):
+              value = evidence.pop(field, None)
+              if isinstance(value, str) and value:
+                  evidence[digest_field] = hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+          # Session identifiers are transient and do not add durable target identity.
+          evidence.pop("session_id", None)
+
+          hostkey_b64 = (os.environ.get("CISCO_NETCONF_HOSTKEY_B64") or "").strip()
+          if hostkey_b64:
+              try:
+                  hostkey = base64.b64decode(hostkey_b64, validate=True)
+              except Exception:
+                  hostkey = b""
+              if hostkey:
+                  evidence["hostkey_pin_digest_sha256"] = hashlib.sha256(hostkey).hexdigest()
+
+          path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
       - name: Preserve sanitized live C03 evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -130,5 +168,15 @@ jobs:
               raise SystemExit("C03 evidence reports a write operation")
           if evidence.get("hostkey_verified") is not True:
               raise SystemExit("C03 evidence does not prove SSH host-key verification")
+          for field in (
+              "target_host_digest_sha256",
+              "hostname_digest_sha256",
+              "hostkey_pin_digest_sha256",
+          ):
+              value = evidence.get(field)
+              if not isinstance(value, str) or len(value) != 64:
+                  raise SystemExit(f"C03 evidence lacks minimized target binding: {field}")
+          if "target_host" in evidence or "hostname" in evidence or "session_id" in evidence:
+              raise SystemExit("C03 evidence contains unminimized target/session metadata")
           print("C03 live read-only acceptance evidence passed")
           PY
