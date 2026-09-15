@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_controller_adoption_discovery_provisioning",
+  "task": "7.03",
+  "observed_at": "2026-09-16",
+  "authority": "TP-Link / Omada official sources only",
+  "status": "COMPLETE_FOR_CURRENT_OFFICIAL_EVIDENCE_SCOPE",
+  "sources": [
+    {"id": "CURRENT_CONTROLLER_GUIDE", "title": "Omada SDN Controller User Guide - Manage Omada Managed Devices and Sites", "url": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-3-manage-omada-managed-devices-and-sites.html"},
+    {"id": "CURRENT_DEVICE_GUIDE", "title": "Omada SDN Controller User Guide - Configure and Monitor Omada Managed Devices", "url": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-6-configure-and-monitor-omada-managed-devices.html"}
+  ],
+  "state_machine": {
+    "known_states": ["Pending", "Adopting", "Provisioning", "Configuring", "Connected", "Managed by Others", "Heartbeat Missed", "Disconnected", "Isolated"],
+    "normal_adoption_path": ["Pending", "Adopting", "Provisioning", "Configuring", "Connected"],
+    "pass_terminal_state": "Connected",
+    "failure_rule": "Any timeout, credential failure, controller reachability failure, wrong-site ownership, Managed by Others, or unexpected terminal state remains NOT_PASS."
+  },
+  "discovery": {
+    "same_lan_subnet_vlan": {"direct": true, "additional_discovery_configuration_required": false},
+    "different_lan_subnet_vlan": {
+      "direct": false,
+      "supported_methods": ["Controller Inform URL", "Discovery Utility", "DHCP Option 138"],
+      "precondition": "Bidirectional controller-device communication must exist."
+    }
+  },
+  "site_binding": {
+    "rule": "Adopt the device into the intended site; site context is part of desired state and must be explicit.",
+    "move_warning": "Moving a managed switch to another site can replace prior-site configuration with new-site configuration and clear traffic history."
+  },
+  "provisioning": {
+    "force_provision": {
+      "effect": "Synchronize controller configuration to the device.",
+      "expected_transient": "Device loses connection temporarily and is adopted again to obtain controller configuration.",
+      "risk": "NETWORK_CHANGE"
+    },
+    "remember_device": {
+      "effect": "Controller can automatically adopt the remembered device after reset/power-on if it can find the device.",
+      "authorization": "Must be explicit; never inferred."
+    }
+  },
+  "credential_and_ownership_gates": [
+    "Do not attempt credential mutation as a discovery shortcut.",
+    "Managed by Others must be treated as an ownership conflict, not silently overridden.",
+    "Wrong or unknown device credentials block adoption and require explicit operator remediation."
+  ],
+  "verification": {
+    "pass_requires": ["intended site", "final Connected state", "expected controller ownership", "expected configuration/provisioning state", "management reachability"],
+    "accepted_or_in_progress_is_not_pass": true
+  },
+  "rollback": {"rule": "Before ownership/site/provisioning changes, record prior controller/site/management state. If adoption or provisioning fails, stop additional writes and restore/rebind only through an explicitly authorized recovery path."}
+}
