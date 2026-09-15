@@ -19,6 +19,12 @@ _IOSXE_NATIVE_NS = "http://cisco.com/ns/yang/Cisco-IOS-XE-native"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _CHANGE_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,96}$")
 _TARGET_ID_RE = re.compile(r"^[A-Za-z0-9_.:/-]{1,128}$")
+_SUPPORTED_FEATURE_LEAVES = {
+    "interface.description.set": "description",
+    "interface.mtu.set": "mtu",
+}
+_MIN_INTERFACE_MTU = 64
+_MAX_INTERFACE_MTU = 18000
 
 
 class CiscoValidationApprovalError(ValueError):
@@ -108,13 +114,19 @@ class CiscoApprovalBinding:
         return payload
 
 
-def _validate_exact_native_description_payload(render: DesiredStateRender) -> None:
+def _validate_exact_native_payload(render: DesiredStateRender) -> None:
     calculated = hashlib.sha256(render.payload_xml.encode("utf-8")).hexdigest()
     if calculated != _require_sha256(
         render.payload_digest_sha256,
         "render.payload_digest_sha256",
     ):
         raise CiscoValidationApprovalError("desired-state payload digest mismatch")
+
+    leaf_name = _SUPPORTED_FEATURE_LEAVES.get(render.feature_id)
+    if leaf_name is None:
+        raise CiscoValidationApprovalError(
+            f"unsupported desired-state feature for C08 validation: {render.feature_id}"
+        )
 
     try:
         root = ET.fromstring(render.payload_xml)
@@ -125,7 +137,7 @@ def _validate_exact_native_description_payload(render: DesiredStateRender) -> No
     interface = f"{{{_IOSXE_NATIVE_NS}}}interface"
     gigabit = f"{{{_IOSXE_NATIVE_NS}}}GigabitEthernet"
     name = f"{{{_IOSXE_NATIVE_NS}}}name"
-    description = f"{{{_IOSXE_NATIVE_NS}}}description"
+    feature_leaf = f"{{{_IOSXE_NATIVE_NS}}}{leaf_name}"
 
     if root.tag != native or root.attrib:
         raise CiscoValidationApprovalError("payload root is outside the bounded Cisco Native schema")
@@ -144,12 +156,23 @@ def _validate_exact_native_description_payload(render: DesiredStateRender) -> No
     ):
         raise CiscoValidationApprovalError("payload must contain exactly one GigabitEthernet entry")
     leaves = list(interface_children[0])
-    if [leaf.tag for leaf in leaves] != [name, description] or any(leaf.attrib for leaf in leaves):
+    if [leaf.tag for leaf in leaves] != [name, feature_leaf] or any(leaf.attrib for leaf in leaves):
         raise CiscoValidationApprovalError(
-            "payload structure differs from the source-bound interface description slice"
+            f"payload structure differs from the source-bound {render.feature_id} slice"
         )
-    if not (leaves[0].text or "").strip() or not (leaves[1].text or "").strip():
-        raise CiscoValidationApprovalError("payload name and description must remain nonempty")
+    if not (leaves[0].text or "").strip():
+        raise CiscoValidationApprovalError("payload interface name must remain nonempty")
+
+    value = (leaves[1].text or "").strip()
+    if render.feature_id == "interface.description.set":
+        if not value:
+            raise CiscoValidationApprovalError("payload description must remain nonempty")
+    elif render.feature_id == "interface.mtu.set":
+        if not value.isdigit():
+            raise CiscoValidationApprovalError("payload MTU must be an unsigned decimal integer")
+        mtu = int(value)
+        if not _MIN_INTERFACE_MTU <= mtu <= _MAX_INTERFACE_MTU:
+            raise CiscoValidationApprovalError("payload MTU is outside the source-bound range")
 
 
 def validate_desired_state_render(
@@ -179,7 +202,7 @@ def validate_desired_state_render(
     if render.required_module != "Cisco-IOS-XE-native":
         raise CiscoValidationApprovalError("C08 validation requires the pinned Cisco Native module")
 
-    _validate_exact_native_description_payload(render)
+    _validate_exact_native_payload(render)
     payload_digest = _require_sha256(
         render.payload_digest_sha256,
         "render.payload_digest_sha256",
