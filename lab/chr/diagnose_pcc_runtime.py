@@ -15,6 +15,7 @@ class PccRuntimeDiagnosticError(RuntimeError):
 
 
 PREFIX = "routercfg:diagnostic:pcc:"
+MANAGED_PREFIX = "routercfg:managed:pcc-"
 SCRIPT_FILE = "routercfg-pcc-runtime-diagnostic.rsc"
 VERDICT_FILE = "routercfg-pcc-runtime-diagnostic-verdict.txt"
 TEMP_FILES = (SCRIPT_FILE, VERDICT_FILE)
@@ -76,98 +77,40 @@ def _routing_tables(admin: base.LoopbackCHRAdmin) -> list[dict[str, Any]]:
 
 
 def _diagnostic_commands() -> tuple[tuple[str, str], ...]:
-    """Return CLI variants that isolate mark registration, PCC modulus and routing-table validity."""
+    """Deep CLI variants used only when --deep is explicitly requested."""
 
     common = "chain=prerouting action=mark-connection new-connection-mark=diag-common passthrough=yes"
     existing = "chain=prerouting action=mark-connection new-connection-mark=routercfg-pcc-lab-wan10g passthrough=yes"
     return (
-        (
-            "mc_existing_plain",
-            f'/ip/firewall/mangle/add {existing} comment="{PREFIX}mc_existing_plain"',
-        ),
-        (
-            "mc_existing_pcc_2_0",
-            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:2/0" comment="{PREFIX}mc_existing_pcc_2_0"',
-        ),
-        (
-            "mc_existing_pcc_2_1",
-            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:2/1" comment="{PREFIX}mc_existing_pcc_2_1"',
-        ),
-        (
-            "mc_existing_pcc_3_1",
-            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:3/1" comment="{PREFIX}mc_existing_pcc_3_1"',
-        ),
-        (
-            "mc_existing_pcc_10_1",
-            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:10/1" comment="{PREFIX}mc_existing_pcc_10_1"',
-        ),
-        (
-            "mc_existing_pcc_11_1",
-            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_existing_pcc_11_1"',
-        ),
-        (
-            "mc_existing_pcc_11_10",
-            f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:11/10" comment="{PREFIX}mc_existing_pcc_11_10"',
-        ),
-        (
-            "mc_pcc_11_0_min",
-            f'/ip/firewall/mangle/add {common} per-connection-classifier="both-addresses-and-ports:11/0" comment="{PREFIX}mc_pcc_11_0_min"',
-        ),
-        (
-            "mc_pcc_11_1_min",
-            f'/ip/firewall/mangle/add {common} per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_pcc_11_1_min"',
-        ),
-        (
-            "mc_second_mark_11_1",
-            f'/ip/firewall/mangle/add chain=prerouting action=mark-connection new-connection-mark=diag-second passthrough=yes per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_second_mark_11_1"',
-        ),
-        (
-            "mc_11_1_state",
-            f'/ip/firewall/mangle/add {common} connection-state=new per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_11_1_state"',
-        ),
-        (
-            "mc_11_1_state_nomark",
-            f'/ip/firewall/mangle/add {common} connection-state=new connection-mark=no-mark per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_11_1_state_nomark"',
-        ),
-        (
-            "mc_11_1_state_nomark_dst",
-            f'/ip/firewall/mangle/add {common} connection-state=new connection-mark=no-mark dst-address-type=!local per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_11_1_state_nomark_dst"',
-        ),
-        (
-            "mc_11_1_full",
-            f'/ip/firewall/mangle/add {common} connection-state=new connection-mark=no-mark dst-address-type=!local in-interface-list="routercfg-CORE" per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_11_1_full"',
-        ),
-        (
-            "routing_mark_table_only",
-            f'/ip/firewall/mangle/add chain=prerouting action=mark-routing new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_table_only"',
-        ),
-        (
-            "routing_mark_existing_connection",
-            f'/ip/firewall/mangle/add chain=prerouting action=mark-routing connection-mark=routercfg-pcc-lab-wan10g new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_existing_connection"',
-        ),
-        (
-            "routing_mark_full_existing",
-            f'/ip/firewall/mangle/add chain=prerouting action=mark-routing connection-mark=routercfg-pcc-lab-wan10g dst-address-type=!local in-interface-list="routercfg-CORE" new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_full_existing"',
-        ),
+        ("mc_existing_plain", f'/ip/firewall/mangle/add {existing} comment="{PREFIX}mc_existing_plain"'),
+        ("mc_existing_pcc_2_0", f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:2/0" comment="{PREFIX}mc_existing_pcc_2_0"'),
+        ("mc_existing_pcc_2_1", f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:2/1" comment="{PREFIX}mc_existing_pcc_2_1"'),
+        ("mc_existing_pcc_3_1", f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:3/1" comment="{PREFIX}mc_existing_pcc_3_1"'),
+        ("mc_existing_pcc_10_1", f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:10/1" comment="{PREFIX}mc_existing_pcc_10_1"'),
+        ("mc_existing_pcc_11_1", f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_existing_pcc_11_1"'),
+        ("mc_existing_pcc_11_10", f'/ip/firewall/mangle/add {existing} per-connection-classifier="both-addresses-and-ports:11/10" comment="{PREFIX}mc_existing_pcc_11_10"'),
+        ("mc_pcc_11_0_min", f'/ip/firewall/mangle/add {common} per-connection-classifier="both-addresses-and-ports:11/0" comment="{PREFIX}mc_pcc_11_0_min"'),
+        ("mc_pcc_11_1_min", f'/ip/firewall/mangle/add {common} per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_pcc_11_1_min"'),
+        ("mc_second_mark_11_1", f'/ip/firewall/mangle/add chain=prerouting action=mark-connection new-connection-mark=diag-second passthrough=yes per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_second_mark_11_1"'),
+        ("mc_11_1_state", f'/ip/firewall/mangle/add {common} connection-state=new per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_11_1_state"'),
+        ("mc_11_1_state_nomark", f'/ip/firewall/mangle/add {common} connection-state=new connection-mark=no-mark per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_11_1_state_nomark"'),
+        ("mc_11_1_state_nomark_dst", f'/ip/firewall/mangle/add {common} connection-state=new connection-mark=no-mark dst-address-type=!local per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_11_1_state_nomark_dst"'),
+        ("mc_11_1_full", f'/ip/firewall/mangle/add {common} connection-state=new connection-mark=no-mark dst-address-type=!local in-interface-list="routercfg-CORE" per-connection-classifier="both-addresses-and-ports:11/1" comment="{PREFIX}mc_11_1_full"'),
+        ("routing_mark_table_only", f'/ip/firewall/mangle/add chain=prerouting action=mark-routing new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_table_only"'),
+        ("routing_mark_existing_connection", f'/ip/firewall/mangle/add chain=prerouting action=mark-routing connection-mark=routercfg-pcc-lab-wan10g new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_existing_connection"'),
+        ("routing_mark_full_existing", f'/ip/firewall/mangle/add chain=prerouting action=mark-routing connection-mark=routercfg-pcc-lab-wan10g dst-address-type=!local in-interface-list="routercfg-CORE" new-routing-mark="to-lab-wan10g" passthrough=no comment="{PREFIX}routing_mark_full_existing"'),
     )
 
 
-def diagnose(*, admin_url: str, output: Path) -> dict[str, Any]:
-    admin = base.LoopbackCHRAdmin(admin_url)
-    platform = admin.assert_disposable_chr()
+def _run_deep_matrix(admin: base.LoopbackCHRAdmin) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Run the synthetic diagnostic matrix for RCA, never for normal hard acceptance."""
+
     _delete_diagnostics(admin)
     for name in TEMP_FILES:
         base._delete_file_if_present(admin, name)
 
-    before = [
-        _summary(row)
-        for row in _mangle_rows(admin)
-        if str(row.get("comment") or "").startswith("routercfg:managed:pcc-")
-    ]
-    tables = _routing_tables(admin)
     variants = _diagnostic_commands()
     script = "\n".join(command for _name, command in variants) + "\n"
-
     created: list[dict[str, Any]] = []
     import_result: dict[str, Any] | None = None
     try:
@@ -197,21 +140,56 @@ def diagnose(*, admin_url: str, output: Path) -> dict[str, Any]:
             base._delete_file_if_present(admin, name)
         base._assert_files_absent(admin, TEMP_FILES)
 
+    if import_result is None:
+        raise PccRuntimeDiagnosticError("deep diagnostic import did not produce a result")
+    return import_result, created
+
+
+def diagnose(*, admin_url: str, output: Path, deep: bool = False) -> dict[str, Any]:
+    admin = base.LoopbackCHRAdmin(admin_url)
+    platform = admin.assert_disposable_chr()
+
+    # Hard acceptance needs only the runtime truth of the managed rules that
+    # were actually applied.  Do not add synthetic diagnostic rules on this
+    # path: under QEMU/TCG they can create avoidable CPU pressure and make a
+    # diagnostic workload, rather than the product dataplane, the failure
+    # source.  The heavier matrix remains available through --deep for RCA.
+    managed = [
+        _summary(row)
+        for row in _mangle_rows(admin)
+        if str(row.get("comment") or "").startswith(MANAGED_PREFIX)
+    ]
+    if not managed:
+        raise PccRuntimeDiagnosticError("no managed PCC rules were present after apply")
+
+    tables = _routing_tables(admin)
+    import_result: dict[str, Any] | None = None
+    created: list[dict[str, Any]] = []
+    if deep:
+        import_result, created = _run_deep_matrix(admin)
+
     result = {
-        "schema_version": "chr-pcc-runtime-diagnostic/3",
+        "schema_version": "chr-pcc-runtime-diagnostic/4",
         "ok": True,
-        "method": "routeros_cli_import_existing_mark_and_modulus_matrix",
+        "method": (
+            "routeros_cli_import_existing_mark_and_modulus_matrix"
+            if deep
+            else "managed_rule_runtime_readback_without_synthetic_mutation"
+        ),
+        "mode": "deep" if deep else "managed_readback",
         "platform": {
             "version": str(platform.get("version") or ""),
             "architecture": str(platform.get("architecture-name") or ""),
             "board_name": str(platform.get("board-name") or ""),
         },
         "routing_tables": tables,
-        "managed_before": before,
-        "managed_invalid_count": sum(1 for row in before if row["invalid"]),
+        "managed_before": managed,
+        "managed_rule_count": len(managed),
+        "managed_invalid_count": sum(1 for row in managed if row["invalid"]),
         "diagnostic_import": import_result,
         "diagnostic_variants": created,
         "diagnostic_invalid_count": sum(1 for row in created if row["invalid"]),
+        "synthetic_mutation_performed": deep,
         "temporary_rules_removed": True,
         "temporary_files_removed": True,
         "production_writer_available": False,
@@ -223,12 +201,17 @@ def diagnose(*, admin_url: str, output: Path) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Diagnose PCC invalid-rule causes on disposable CHR")
+    parser = argparse.ArgumentParser(description="Diagnose PCC runtime validity on disposable CHR")
     parser.add_argument("--admin-url", default="http://127.0.0.1:9380")
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="run the synthetic CLI variant matrix for RCA; default acceptance is readback-only",
+    )
     args = parser.parse_args()
     try:
-        result = diagnose(admin_url=args.admin_url, output=Path(args.output))
+        result = diagnose(admin_url=args.admin_url, output=Path(args.output), deep=args.deep)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (OSError, base.CHRRenderDryRunError, PccRuntimeDiagnosticError) as exc:
