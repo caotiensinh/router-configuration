@@ -60,8 +60,14 @@ class CHRPacketFlowContractTests(unittest.TestCase):
         source = HARNESS.read_text(encoding="utf-8")
         self.assertIn("set -Eeuo pipefail", source)
         self.assertNotIn("set +e", source)
+        self.assertIn("ensure_connection_tracking_ready.py", source)
+        self.assertIn("connection-tracking-readiness.json", source)
         self.assertIn("probe_pcc_pristine_runtime.py", source)
-        self.assertIn("--fingerprint-mode connection-tracking", source)
+        self.assertIn("--fingerprint-mode none", source)
+        self.assertLess(
+            source.index("ensure_connection_tracking_ready.py"),
+            source.index("probe_pcc_pristine_runtime.py"),
+        )
         self.assertIn("pcc-pristine-runtime.json", source)
         self.assertIn("diagnose_pcc_runtime.py", source)
         self.assertIn("pcc-runtime-diagnostic.json", source)
