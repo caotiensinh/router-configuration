@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_jetstream_l3_routing_knowledge",
+  "task": "4.17",
+  "observed_at": "2026-09-16",
+  "authority": "TP-Link / Omada official sources only",
+  "status": "COMPLETE_FOR_CURRENT_OFFICIAL_EVIDENCE_SCOPE",
+  "sources": [
+    {
+      "id": "OMADA_SWITCH_CONTROLLER_6_1_0",
+      "title": "Manage Switches via the Omada Controller",
+      "revision": "6.1.0",
+      "published": "2026-02-28",
+      "url": "https://static.tp-link.com/upload/manual/2026/202602/20260228/1900002158_Manage%20Switches%20via%20the%20Omada%20Controller_6.1.0.pdf",
+      "visual_verification": {"pages": [18, 19], "verified": true}
+    },
+    {
+      "id": "OMADA_CONTROLLER_WEB_GUIDE",
+      "title": "Omada SDN Controller User Guide - Configure the Network",
+      "url": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html"
+    }
+  ],
+  "applicability_gate": {
+    "required": ["device_model", "hardware_revision", "region", "firmware_version", "management_mode", "controller_type", "controller_version", "runtime_feature_presence"],
+    "rule": "FAIL_CLOSED",
+    "notes": [
+      "Static Route, OSPF, VRF, routed VLAN interfaces and routing-table views must not be assumed from product-family naming.",
+      "The 6.1.0 switch guide explicitly marks VRF and OSPF as available only for certain models.",
+      "Controller functions may vary by region, controller type/version and device model."
+    ]
+  },
+  "state_planes": {
+    "static_route": {
+      "controller_path": "Devices > Device List > switch > Manage Device > Config > Routing > Static Route",
+      "fields": ["enabled", "ip_version", "destination_prefix", "next_hop", "distance"],
+      "ip_versions": ["IPv4", "IPv6"],
+      "distance": {"min": 1, "max": 255, "unreachable": 255},
+      "readback": ["configured route entry", "routing table", "next-hop reachability"]
+    },
+    "routing_table": {"controller_surface": "Device > Network View", "read_only": true},
+    "vrf": {"controller_path": "Config > Advanced > VRF", "availability": "CERTAIN_MODELS_ONLY", "fields": ["vrf_name", "ipv4_enabled", "ipv6_enabled"]},
+    "ospf": {"controller_path": "Config > Routing > OSPF", "availability": "CERTAIN_MODELS_ONLY", "boundary": "Capability recorded for L3-scope gating; task 4.17 does not authorize unsourced model-wide OSPF deployment."}
+  },
+  "safety_gates": [
+    "Snapshot the active routing table and management path before mutation.",
+    "Reject a route when the next hop is not provably reachable through an intended connected path.",
+    "Reject management/default-route changes without an independent recovery path.",
+    "Do not treat controller Apply/accepted state as operational PASS.",
+    "Do not create overlapping or broader routes unless precedence and rollback are explicitly understood."
+  ],
+  "verification": {
+    "configuration_state": "EXECUTED_UNVERIFIED",
+    "pass_requires": ["exact static-route readback", "expected route present in routing table", "next-hop reachability", "positive traffic test for intended destination", "negative test showing unrelated traffic is not diverted", "controller/management reachability remains healthy"]
+  },
+  "rollback": {"rule": "Restore the exact pre-change route set and L3 feature state, then re-read the routing table and prove management and representative data-plane reachability before persistence."}
+}
