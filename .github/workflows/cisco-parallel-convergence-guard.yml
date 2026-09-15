@@ -1,0 +1,60 @@
+name: Cisco Parallel Convergence Guard
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/convergence_guard.py"
+      - "tests/test_cisco_convergence_guard.py"
+      - "docs/cisco/PARALLEL_CONVERGENCE_GUARD.md"
+      - ".github/workflows/cisco-parallel-convergence-guard.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/convergence_guard.py"
+      - "tests/test_cisco_convergence_guard.py"
+      - "docs/cisco/PARALLEL_CONVERGENCE_GUARD.md"
+      - ".github/workflows/cisco-parallel-convergence-guard.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run convergence-guard tests
+        run: python -m unittest tests.test_cisco_convergence_guard -v
+      - name: Record guard status
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json, os
+          result = {
+              "schema_version": "cisco-parallel-convergence-guard-status/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "same_base_required": True,
+              "required_checks_pass_required": True,
+              "disjoint_path_ownership_required": True,
+              "guard_performs_merge": False,
+              "parent_ref_updated": False,
+              "production_write_authorized": False,
+          }
+          with open("evidence/cisco/parallel-convergence-guard.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cisco-parallel-convergence-guard-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/parallel-convergence-guard.json
+          if-no-files-found: error
+          retention-days: 30
