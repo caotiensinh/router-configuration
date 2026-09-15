@@ -1,0 +1,252 @@
+name: CHR Integrated Transaction Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/router_configuration/transaction_*.py"
+      - "lab/chr/verify_integrated_transaction_acceptance.py"
+      - "lab/chr/verify_transaction_backup_acceptance.py"
+      - "lab/chr/verify_transaction_management_survival.py"
+      - "lab/chr/verify_transaction_post_apply.py"
+      - "lab/chr/verify_transaction_runtime_admission.py"
+      - "lab/chr/verify_mutation_rollback.py"
+      - "lab/chr/verify_render_dry_run.py"
+      - "lab/chr/verify_render_dry_run_chunked.py"
+      - "lab/chr/build_renderer_syntax_fixture.py"
+      - "tests/test_chr_integrated_transaction_acceptance_contract.py"
+      - ".github/workflows/chr-integrated-transaction-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  chr-integrated-transaction:
+    concurrency:
+      group: router-config-chr-integrated-transaction-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CHR_VERSION: "7.24.1"
+      CHR_ARCHIVE: /tmp/chr-7.24.1.img.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and CHR transaction dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 qemu-utils unzip openssh-client sshpass
+
+      - name: Restore official MikroTik CHR archive cache
+        id: chr-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Download official MikroTik CHR image on cache miss
+        if: steps.chr-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -4 --http1.1 -fL \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --retry 1 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            "https://download.mikrotik.com/routeros/${CHR_VERSION}/chr-${CHR_VERSION}.img.zip" \
+            -o "$CHR_ARCHIVE"
+
+      - name: Prepare official CHR image
+        run: |
+          set -euo pipefail
+          test -s "$CHR_ARCHIVE"
+          sha256sum "$CHR_ARCHIVE" > /tmp/chr-download.sha256
+          unzip -p "$CHR_ARCHIVE" > /tmp/chr.img
+          test -s /tmp/chr.img
+
+      - name: Persist verified CHR archive cache
+        if: success() && steps.chr-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/chr-${{ env.CHR_VERSION }}.img.zip
+          key: chr-${{ runner.os }}-${{ env.CHR_VERSION }}
+
+      - name: Boot isolated CHR in QEMU snapshot mode
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 \
+            -accel tcg,thread=multi \
+            -smp 1 \
+            -m 256 \
+            -snapshot \
+            -drive file=/tmp/chr.img,format=raw,if=virtio \
+            -netdev user,id=net0,hostfwd=tcp:127.0.0.1:9880-:80,hostfwd=tcp:127.0.0.1:9823-:22 \
+            -device virtio-net-pci,netdev=net0 \
+            -netdev user,id=net1 \
+            -device virtio-net-pci,netdev=net1 \
+            -netdev user,id=net2 \
+            -device virtio-net-pci,netdev=net2 \
+            -display none \
+            -serial file:/tmp/chr-integrated-transaction-serial.log \
+            -daemonize \
+            -pidfile /tmp/chr-integrated-transaction.pid
+
+      - name: Wait for disposable CHR REST
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS --max-time 2 --user 'admin:' \
+              http://127.0.0.1:9880/rest/system/resource \
+              > /tmp/chr-integrated-transaction-resource.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo 'Disposable CHR REST did not become reachable' >&2
+            cat /tmp/chr-integrated-transaction-serial.log >&2 || true
+            exit 1
+          fi
+
+      - name: Execute one integrated transaction through verified recovery
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python lab/chr/verify_integrated_transaction_acceptance.py \
+            --admin-url http://127.0.0.1:9880 \
+            --ssh-port 9823 \
+            --workflow-sha "$GITHUB_SHA" \
+            --export-output evidence/chr-integrated-transaction-prechange-export.rsc \
+            --output evidence/chr-integrated-transaction-acceptance.json
+          test ! -e evidence/routercfg-prechange-system.backup
+
+      - name: Validate integrated transaction evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          evidence_path = Path("evidence/chr-integrated-transaction-acceptance.json")
+          export_path = Path("evidence/chr-integrated-transaction-prechange-export.rsc")
+          payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+          export_bytes = export_path.read_bytes()
+
+          assert payload["ok"] is True
+          assert payload["acceptance"] == "PASS"
+          assert payload["schema_version"] == "chr-integrated-transaction-acceptance/1"
+          assert payload["scope"] == (
+              "disposable_chr_single_transaction_backup_apply_verify_failure_rollback_recovery"
+          )
+          assert payload["workflow_sha"] == "${{ github.sha }}"
+
+          transaction = payload["transaction"]
+          assert transaction["single_transaction_binding"] is True
+          assert transaction["command_count"] == 38
+          assert transaction["pre_state_sha256"] == transaction["final_state_sha256"]
+          assert transaction["post_apply_state_sha256"] != transaction["pre_state_sha256"]
+
+          backup = payload["real_dual_backup"]
+          assert backup["production_backup_requirements_satisfied"] is True
+          assert backup["protected_binary_bytes"] >= 128
+          assert backup["protected_binary_sha256_from_downloaded_bytes"] is True
+          assert backup["protected_binary_encryption_requested"] == "aes-sha256"
+          assert backup["backup_password_persisted"] is False
+          assert backup["fetch_password_persisted"] is False
+          assert backup["router_binary_removed"] is True
+          assert backup["runner_binary_removed"] is True
+          assert backup["temporary_fetch_user_removed"] is True
+          assert backup["raw_binary_payload_present"] is False
+          assert hashlib.sha256(export_bytes).hexdigest() == backup["sanitized_export_sha256"]
+
+          management = payload["management_survival"]
+          assert management["independent_rest_session"] is True
+          assert management["all_probes_successful"] is True
+          assert management["mutation_visible_during_apply"] is True
+          assert management["management_interface_running_all_probes"] is True
+
+          post_apply = payload["post_apply_verification"]
+          assert post_apply["fresh_rest_session"] is True
+          assert post_apply["all_applicable_checks_passed"] is True
+          assert post_apply["wan"]["applicable"] is True
+          assert post_apply["wan"]["passed"] is True
+          assert post_apply["routing"]["applicable"] is True
+          assert post_apply["routing"]["passed"] is True
+          if post_apply["dns"]["applicable"]:
+              assert post_apply["dns"]["passed"] is True
+          else:
+              assert post_apply["dns"]["not_applicable_reason"]
+
+          assert payload["post_apply_verification_completed_before_failure"] is True
+          assert payload["failure_injection"]["verdict"] == "ERROR"
+          assert payload["rollback"]["import"]["verdict"] == "OK"
+          assert payload["rollback"]["baseline_digest_restored"] is True
+          assert payload["rollback"]["managed_objects_removed"] is True
+
+          recovery = payload["recovery_verification"]
+          assert recovery["fresh_rest_session"] is True
+          assert recovery["management_rest_recovered"] is True
+          assert recovery["required_interfaces_running"] is True
+          assert recovery["managed_objects_reconciled"] is True
+          assert recovery["rollback_digest_matches_pre_state"] is True
+
+          assert payload["lifecycle"]["phase"] == "rolled_back"
+          assert payload["management_survival_during_apply_claimed"] is True
+          assert payload["recovery_verification_claimed"] is True
+          assert payload["routed_data_plane_claimed"] is False
+          assert payload["production_writer_available"] is False
+          assert payload["transport_exposed_to_product"] is False
+          assert payload["physical_router_targeted"] is False
+          assert payload["production_allowed"] is False
+          assert payload["write_authorized"] is False
+
+          lowered_export = export_bytes.decode("utf-8").lower()
+          assert "private-key=" not in lowered_export
+          assert "preshared-key=" not in lowered_export
+          assert not Path("evidence/routercfg-prechange-system.backup").exists()
+
+          print(json.dumps({
+              "acceptance": payload["acceptance"],
+              "workflow_sha": payload["workflow_sha"],
+              "transaction_id": transaction["transaction_id"],
+              "pre_state_sha256": transaction["pre_state_sha256"],
+              "post_apply_state_sha256": transaction["post_apply_state_sha256"],
+              "final_state_sha256": transaction["final_state_sha256"],
+              "protected_binary_bytes": backup["protected_binary_bytes"],
+              "lifecycle_phase": payload["lifecycle"]["phase"],
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Preserve repository-safe integrated evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-integrated-transaction-${{ github.sha }}
+          path: |
+            evidence/chr-integrated-transaction-acceptance.json
+            evidence/chr-integrated-transaction-prechange-export.rsc
+            /tmp/chr-integrated-transaction-resource.json
+            /tmp/chr-download.sha256
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable CHR
+        if: always()
+        run: |
+          rm -f evidence/routercfg-prechange-system.backup /tmp/routercfg-prechange-system.backup || true
+          if [ -f /tmp/chr-integrated-transaction.pid ]; then
+            kill "$(cat /tmp/chr-integrated-transaction.pid)" 2>/dev/null || true
+          fi
