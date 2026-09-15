@@ -1,0 +1,133 @@
+{
+  "schema_version": "parallel-lane-task-set/1",
+  "base_sha": "7a2d2fd6d6ab96eff866efbeb11d44888dc76f0c",
+  "purpose": "Parallel official-source research/review for Omada Phase 4.12 before one serialized integration write.",
+  "tasks": [
+    {
+      "task_id": "OMADA-4.12-ACL-MODEL-TYPES",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.12-CLI-CREATE-NAMESPACES",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.12-CLI-MATCH-FIELDS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.12-ORDER-EVALUATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.12-BINDING",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 100
+    },
+    {
+      "task_id": "OMADA-4.12-ADVANCED-ACTION-BOUNDARIES",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.12-CONTROLLER-SWITCH-ACL",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.12-STANDALONE-MGMT-ACL",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.12-TCAM-SDM-RESOURCE",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 95
+    },
+    {
+      "task_id": "OMADA-4.12-READBACK-COUNTERS",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.12-MGMT-SAFETY-ROLLBACK",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 90
+    },
+    {
+      "task_id": "OMADA-4.12-APPLICABILITY-VALIDATION",
+      "mode": "read_only",
+      "write_paths": [],
+      "dependencies": [],
+      "conflict_keys": [],
+      "priority": 85
+    },
+    {
+      "task_id": "OMADA-4.12-INTEGRATE",
+      "mode": "write",
+      "write_paths": [
+        "artifacts/OMADA_JETSTREAM_ACL_SCHEMA.yaml",
+        "artifacts/OMADA_JETSTREAM_ACL_KB.yaml",
+        "artifacts/OMADA_JETSTREAM_ACL_KB.md",
+        "orchestration/OMADA_PHASE4_12_PARALLEL_TASKS.json",
+        "orchestration/OMADA_PHASE4_12_PARALLEL_PLAN.json"
+      ],
+      "dependencies": [
+        "OMADA-4.12-ACL-MODEL-TYPES",
+        "OMADA-4.12-CLI-CREATE-NAMESPACES",
+        "OMADA-4.12-CLI-MATCH-FIELDS",
+        "OMADA-4.12-ORDER-EVALUATION",
+        "OMADA-4.12-BINDING",
+        "OMADA-4.12-ADVANCED-ACTION-BOUNDARIES",
+        "OMADA-4.12-CONTROLLER-SWITCH-ACL",
+        "OMADA-4.12-STANDALONE-MGMT-ACL",
+        "OMADA-4.12-TCAM-SDM-RESOURCE",
+        "OMADA-4.12-READBACK-COUNTERS",
+        "OMADA-4.12-MGMT-SAFETY-ROLLBACK",
+        "OMADA-4.12-APPLICABILITY-VALIDATION"
+      ],
+      "conflict_keys": [
+        "vendor:omada",
+        "phase:omada-4.12"
+      ],
+      "priority": 110
+    }
+  ]
+}

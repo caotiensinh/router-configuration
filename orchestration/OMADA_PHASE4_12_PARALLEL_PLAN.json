@@ -1,0 +1,121 @@
+{
+  "schema_version": "parallel-lane-plan/1",
+  "base_sha": "7a2d2fd6d6ab96eff866efbeb11d44888dc76f0c",
+  "lane_capacity": 500,
+  "requested_max_lanes": 12,
+  "worker_processes_started": 0,
+  "capacity_is_not_worker_count": true,
+  "execution_note": "Conflict-free evidence assignments only; this ChatGPT session batches official-source retrieval and does not claim twelve external worker processes.",
+  "waves": [
+    {
+      "wave": 1,
+      "assignments": [
+        {
+          "lane_id": "LANE-0001",
+          "task_id": "OMADA-4.12-ACL-MODEL-TYPES",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0002",
+          "task_id": "OMADA-4.12-CLI-CREATE-NAMESPACES",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0003",
+          "task_id": "OMADA-4.12-CLI-MATCH-FIELDS",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0004",
+          "task_id": "OMADA-4.12-ORDER-EVALUATION",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0005",
+          "task_id": "OMADA-4.12-BINDING",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0006",
+          "task_id": "OMADA-4.12-ADVANCED-ACTION-BOUNDARIES",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0007",
+          "task_id": "OMADA-4.12-CONTROLLER-SWITCH-ACL",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0008",
+          "task_id": "OMADA-4.12-STANDALONE-MGMT-ACL",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0009",
+          "task_id": "OMADA-4.12-TCAM-SDM-RESOURCE",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0010",
+          "task_id": "OMADA-4.12-READBACK-COUNTERS",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0011",
+          "task_id": "OMADA-4.12-MGMT-SAFETY-ROLLBACK",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        },
+        {
+          "lane_id": "LANE-0012",
+          "task_id": "OMADA-4.12-APPLICABILITY-VALIDATION",
+          "mode": "read_only",
+          "write_paths": [],
+          "conflict_keys": []
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "assignments": [
+        {
+          "lane_id": "LANE-0001",
+          "task_id": "OMADA-4.12-INTEGRATE",
+          "mode": "write",
+          "write_paths": [
+            "artifacts/OMADA_JETSTREAM_ACL_SCHEMA.yaml",
+            "artifacts/OMADA_JETSTREAM_ACL_KB.yaml",
+            "artifacts/OMADA_JETSTREAM_ACL_KB.md",
+            "orchestration/OMADA_PHASE4_12_PARALLEL_TASKS.json",
+            "orchestration/OMADA_PHASE4_12_PARALLEL_PLAN.json"
+          ],
+          "conflict_keys": [
+            "phase:omada-4.12",
+            "vendor:omada"
+          ]
+        }
+      ]
+    }
+  ]
+}

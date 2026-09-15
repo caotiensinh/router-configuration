@@ -1,0 +1,143 @@
+schema_version: 1.0.1
+record_type: omada_jetstream_acl_kb
+task: '4.12'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_ACL_EVIDENCE_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+  - id: MANAGED_SWITCH_CLI_2026
+    url: https://static.tp-link.com/upload/manual/2026/202607/20260724/1900003588_Managed%20SwitchMulti-model_CLI.pdf
+    title: CLI Reference Guide — Managed Switches
+    revision: REV2.0.0
+    document_date: 2026-05
+    scope: Chapter 78 ACL Commands; exact model/firmware/runtime support remains gated.
+  - id: CONTROLLER_USER_GUIDE_V6
+    url: https://support.omadanetworks.com/en/document/111217/
+    title: Omada Controller User Guide_V6.0
+    scope: Switch ACL first-match ordering, implicit Permit All, match fields and binding.
+  - id: SWITCH_ACL_SCENARIOS_2026
+    url: https://support.omadanetworks.com/en/document/13238/?app=wifi-toolkit
+    title: Recommended ACL Configurations on Omada Switch for Common Scenarios
+    published: '2026-08-24'
+    scope: Controller V5.0+ permit-before-deny ordering examples.
+  - id: STANDALONE_MGMT_ACCESS_2026
+    url: https://support.omadanetworks.com/us/document/13135/?app=t
+    title: How to Configure Management VLAN on Omada Smart and Managed Switches Using the New GUI
+    published: '2026-07-17'
+    scope: Management-plane IP Access Control for HTTP/HTTPS; not transit Switch ACL semantics.
+  - id: SDM_TCAM_2026
+    url: https://support.omadanetworks.com/au/document/114354/?app=iframe
+    title: What Is the SDM Template for Omada Switches Managed by an Omada Network
+    published: '2026-08-17'
+    scope: Controller v6.2.10+ finite/shared TCAM and ACL/QoS resource guidance.
+parallel_lane_execution:
+  read_only_lanes: 12
+  integration_lanes: 1
+  external_worker_processes_claimed: 0
+  rule: Evidence lanes are assignment slots; writes remain serialized.
+state_planes:
+  - acl_object_and_rules
+  - binding
+  - evaluation_order
+  - hardware_resource
+cli_2026:
+  create:
+    syntax: access-list create <ACL_ID> [ name <ACL_NAME> ]
+    remove: no access-list create <ACL_ID>
+    id_ranges: {MAC: '0..499', IPV4: '500..999', COMBINED: '1000..1499', IPV6: '1500..1999', PACKET_CONTENT: '2000..2499'}
+    packet_content: certain devices only
+  rule_families:
+    MAC: [source_mac_mask, destination_mac_mask, ethertype, dot1p_priority, vlan_id, time_range]
+    IPV4: [source_ipv4_mask, destination_ipv4_mask, dscp, tos, precedence, fragment_if_supported, protocol, l4_ports, tcp_flags, time_range, vrf]
+    COMBINED: [mac_vlan_ethertype_dot1p, ipv4_l4_time_vrf]
+    IPV6: [ipv6_source_destination_masks, class, flow_label, l4_ports, time_range, vrf]
+    PACKET_CONTENT: [four_4byte_chunks_within_first_128_bytes_after_profile_offsets]
+  policy:
+    values: [permit, deny]
+    compiler_rule: Always emit explicit intent; never depend on omitted/default policy.
+    logging: Match-count logging/counter behavior is source-scoped and verified through counters where meaningful.
+  ordering:
+    resequence: access-list resequence <ACL_ID_OR_NAME> start <START_RULE_ID> step <STEP>
+    action_stop_enable: access-list mode action-stop
+    action_stop_disable: no access-list mode action-stop
+    enabled_semantics: Stop at first matched ACL according to priority.
+    disabled_semantics: Continue evaluating matches; later matched action may override earlier action.
+    boundary: Do not import Controller first-match semantics without discovering exact CLI action-stop state.
+  binding:
+    syntax: access-list bind <ACL> interface { vlan <VLAN_LIST> | fastEthernet <PORT_LIST> | gigabitEthernet <PORT_LIST> | ten-gigabitEthernet <PORT_LIST> }
+    vlan_range: '1..4094'
+    rule: Do not invent additional interface tokens from unrelated chapters.
+  read_back:
+    commands:
+      - show access-list <ACL_ID_OR_NAME>
+      - show access-list bind
+      - show access-list status
+      - show access-list <ACL_ID_OR_NAME> counter
+    clear_counter: clear access-list <ACL_ID_OR_NAME> [ rule <RULE_ID> ]
+  ipv6_dependency: Cited CLI requires applicable enterpriseV6 SDM state saved before IPv6 ACL binding; exact applicability remains gated.
+  advanced_action_hooks: [hard_drop, pbr_redirect, policing_rate_condition, mirroring, qos_remark]
+controller:
+  path: Network Config > Security > ACL > Switch ACL
+  evaluation: first_match_wins
+  unmatched: implicit_permit_all
+  ordering: Top-down; reorder is semantic state. Put narrow permit exceptions above broader deny rules when design requires it.
+  fields: [description, status, permit_deny, protocols, source, destination, time_range, ethertype, bi_directional]
+  binding_required: true
+  binding_targets: [all_ports, custom_ports, vlan]
+standalone_management_access:
+  path: Security > Access Security > Access control
+  scope: IP-based management access such as HTTP/HTTPS; never silently translate to transit Controller Switch ACL.
+resource_capacity:
+  principle: TCAM is finite and shared among ACL/QoS and other hardware policy tables; configuration acceptance is not hardware-installation proof.
+  controller_scope: v6.2.10+ where cited and supported
+  templates: [omada, omada-enterpriseV4, omada-enterpriseV6, omada-enterpriseMix]
+  default_in_cited_scope: omada
+  rule: Never change SDM template automatically just to make one ACL fit.
+pass_gate:
+  require:
+    - exact_acl_type_rules_matches_policy_and_order
+    - exact_binding_targets
+    - sufficient_resource_status
+    - counters_for_exercised_rules_when_meaningful
+    - representative_positive_traffic_succeeds
+    - representative_negative_traffic_is_blocked_when_intended
+    - management_and_controller_reachability_healthy
+  command_or_ui_acceptance_only: EXECUTED_UNVERIFIED
+management_safety:
+  preconditions:
+    - resolve exact model hardware region firmware management mode controller version ports and VLANs
+    - read ACLs order/evaluation bindings resources counters
+    - identify active management VLAN/IP and Controller/SSH/HTTPS path plus recovery access
+    - stage required management permit exceptions before broad deny where ordering requires
+    - obtain production-write approval
+  write_rules:
+    - apply only intended ACL/rule/order/binding delta
+    - do not silently alter action-stop, SDM, QoS/PBR/mirror, VLAN or LAG state
+    - block management-path deny when recovery cannot be proven
+  verify:
+    - read back rules order and binding
+    - verify resource installation/capacity
+    - test permitted and denied traffic
+    - verify counters where meaningful
+    - verify management/controller heartbeat and recovery path
+  persist: Use task 4.02 only after enforcement and reachability verification.
+rollback:
+  restore_exact: [acl_objects_types, rule_ids_order, matches_policy_log_time, action_stop_if_applicable, bindings, advanced_hooks_if_present, resource_sdm_assumptions, management_recovery_path]
+  forbidden_generic: [delete_all_acls, permit_all]
+validation_cases:
+  CONTROLLER_PERMIT_BELOW_DENY: BLOCKED_BY_ORDERING_RISK
+  ACL_CREATED_NOT_BOUND: BLOCKED_BY_BINDING
+  CLI_ACTION_STOP_UNKNOWN: BLOCKED_BY_ORDERING_RISK
+  MANAGEMENT_DENY_WITHOUT_RECOVERY: BLOCKED_BY_MANAGEMENT_PATH_RISK
+  TCAM_EXHAUSTED: BLOCKED_BY_RESOURCE
+  IPV6_ACL_DEPENDENCY_UNKNOWN: BLOCKED_BY_APPLICABILITY
+  PACKET_CONTENT_MODEL_UNKNOWN: BLOCKED_BY_CAPABILITY
+  POSITIVE_ONLY_TEST: NOT_PASS
+deferred_boundaries:
+  '4.13': QoS detailed policy/remarking
+  '4.14': Port security / 802.1X / authentication
+  '4.16': DHCP Snooping / ARP Inspection / anti-spoofing
+  '4.17': Static routing/L3 and PBR redirect semantics
+closure:
+  task_4_12_complete: true
+  next_task: 4.13 QoS
