@@ -7,7 +7,6 @@ from router_configuration.vendors.cisco.physical_acceptance import (
     validate_physical_readonly_claim,
 )
 
-
 D1 = "1" * 64
 D2 = "2" * 64
 D3 = "3" * 64
@@ -58,16 +57,20 @@ class CiscoPhysicalAcceptanceTests(unittest.TestCase):
         self.assertFalse(first.physical_device_verified)
         self.assertFalse(first.production_write_authorized)
 
-    def test_router_role_and_restconf_are_admitted(self):
+    def test_physical_router_and_restconf_are_admitted(self):
         claim = self._claim(
             target_kind="physical_router",
-            model="C8000V",
+            model="C8200-1N-4T",
             iosxe_version="26.1.1",
             transport="restconf",
         )
         self.assertEqual(claim.role, "router")
-        self.assertEqual(claim.platform_family, "Catalyst 8000V")
+        self.assertEqual(claim.platform_family, "Catalyst 8200")
         self.assertEqual(claim.transport, "restconf")
+
+    def test_virtual_platform_family_cannot_be_labeled_physical(self):
+        with self.assertRaisesRegex(CiscoPhysicalAcceptanceError, "virtual platform family"):
+            self._claim(target_kind="physical_router", model="C8000V", iosxe_version="26.1.1")
 
     def test_virtualization_is_rejected(self):
         with self.assertRaisesRegex(CiscoPhysicalAcceptanceError, "virtual evidence"):
@@ -102,13 +105,12 @@ class CiscoPhysicalAcceptanceTests(unittest.TestCase):
             self._claim(transport="ssh-cli")
 
     def test_all_identity_and_evidence_digests_are_required(self):
-        fields = (
+        for field in (
             "schema_inventory_digest_sha256",
             "observation_digest_sha256",
             "target_identity_digest_sha256",
             "human_attestation_digest_sha256",
-        )
-        for field in fields:
+        ):
             with self.subTest(field=field):
                 with self.assertRaisesRegex(CiscoPhysicalAcceptanceError, "sha256"):
                     self._claim(**{field: "bad"})

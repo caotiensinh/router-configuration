@@ -20,6 +20,7 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _ALLOWED_TARGET_KINDS = frozenset({"physical_router", "physical_switch"})
 _ALLOWED_TRANSPORTS = frozenset({"netconf", "restconf"})
+_VIRTUAL_PLATFORM_FAMILIES = frozenset({"Catalyst 8000V"})
 
 
 class CiscoPhysicalAcceptanceError(ValueError):
@@ -127,6 +128,8 @@ def validate_physical_readonly_claim(
     decision = assess_read_only_candidate(model, iosxe_version)
     if not decision.read_only_candidate or decision.role is None:
         raise CiscoPhysicalAcceptanceError(f"platform/version not admitted: {decision.status}")
+    if decision.family in _VIRTUAL_PLATFORM_FAMILIES:
+        raise CiscoPhysicalAcceptanceError("virtual platform family cannot satisfy physical evidence")
     expected_role = "router" if kind == "physical_router" else "switch"
     if decision.role.value != expected_role:
         raise CiscoPhysicalAcceptanceError("physical target kind conflicts with admitted device role")
