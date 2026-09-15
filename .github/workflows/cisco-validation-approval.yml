@@ -8,6 +8,7 @@ on:
       - "src/router_configuration/vendors/cisco/data/desired_state_catalog.json"
       - "tests/test_cisco_desired_state.py"
       - "tests/test_cisco_validation_approval.py"
+      - "tests/test_cisco_shutdown_validation_integration.py"
       - ".github/workflows/cisco-validation-approval.yml"
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - "src/router_configuration/vendors/cisco/data/desired_state_catalog.json"
       - "tests/test_cisco_desired_state.py"
       - "tests/test_cisco_validation_approval.py"
+      - "tests/test_cisco_shutdown_validation_integration.py"
       - ".github/workflows/cisco-validation-approval.yml"
 
 permissions:
@@ -38,6 +40,7 @@ jobs:
         run: |
           python -m unittest tests.test_cisco_desired_state -v
           python -m unittest tests.test_cisco_validation_approval -v
+          python -m unittest tests.test_cisco_shutdown_validation_integration -v
       - name: Reject runtime write and network surfaces
         run: |
           set -euo pipefail
@@ -75,9 +78,15 @@ jobs:
           import os
 
           result = {
-              "schema_version": "cisco-c08-contract-evidence/1",
+              "schema_version": "cisco-c08-contract-evidence/2",
               "source_sha": os.environ["SOURCE_SHA"],
-              "stage": "validation_approval_vertical_slice_ready_more_features_and_acceptance_required",
+              "stage": "validation_approval_three_bounded_features_ready_more_acceptance_required",
+              "validated_feature_ids": [
+                  "interface.description.set",
+                  "interface.mtu.set",
+                  "interface.shutdown.set",
+              ],
+              "shutdown_delete_semantics_admitted": False,
               "exact_target_binding_required": True,
               "exact_pre_state_binding_required": True,
               "exact_payload_binding_required": True,

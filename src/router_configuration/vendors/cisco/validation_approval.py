@@ -20,7 +20,11 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _CHANGE_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,96}$")
 _TARGET_ID_RE = re.compile(r"^[A-Za-z0-9_.:/-]{1,128}$")
 _INTERFACE_NAME_RE = re.compile(r"^[A-Za-z0-9./:_-]{1,64}$")
-_SUPPORTED_FEATURES = frozenset({"interface.description.set", "interface.mtu.set"})
+_SUPPORTED_FEATURES = frozenset({
+    "interface.description.set",
+    "interface.mtu.set",
+    "interface.shutdown.set",
+})
 
 
 class CiscoValidationApprovalError(ValueError):
@@ -143,6 +147,8 @@ def _validate_exact_native_payload(render: DesiredStateRender) -> None:
     leaves = list(interface_children[0])
     if len(leaves) != 2 or leaves[0].tag != name_tag or any(leaf.attrib for leaf in leaves):
         raise CiscoValidationApprovalError("payload structure differs from the source-bound interface slice")
+    if list(leaves[0]) or list(leaves[1]):
+        raise CiscoValidationApprovalError("payload leaves must not contain nested XML")
 
     interface_name = (leaves[0].text or "").strip()
     if not _INTERFACE_NAME_RE.fullmatch(interface_name):
@@ -167,6 +173,12 @@ def _validate_exact_native_payload(render: DesiredStateRender) -> None:
         mtu = int(text)
         if not 64 <= mtu <= 18000:
             raise CiscoValidationApprovalError("payload MTU is outside the source-bound range")
+    elif render.feature_id == "interface.shutdown.set":
+        expected_tag = f"{{{_IOSXE_NATIVE_NS}}}shutdown"
+        if leaves[1].tag != expected_tag:
+            raise CiscoValidationApprovalError("payload structure differs from the source-bound interface shutdown slice")
+        if (leaves[1].text or "").strip():
+            raise CiscoValidationApprovalError("payload shutdown leaf must remain an empty YANG leaf")
 
 
 def validate_desired_state_render(
