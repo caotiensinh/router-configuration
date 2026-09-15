@@ -41,17 +41,26 @@ jobs:
           python - <<'PY'
           import json
           import os
-          from router_configuration.vendors.cisco.switch_state import load_switch_state_catalog, switch_state_catalog_digest
+          from router_configuration.vendors.cisco.switch_state import (
+              load_switch_state_catalog,
+              switch_state_catalog_digest,
+          )
 
           catalog = load_switch_state_catalog()
+          required_modules = set()
+          for observation in catalog["observations"]:
+              required_modules.add(observation["module"])
+              required_modules.update(observation.get("required_modules", []))
+
           result = {
-              "schema_version": "cisco-c06-contract-evidence/1",
+              "schema_version": "cisco-c06-contract-evidence/2",
               "source_sha": os.environ["SOURCE_SHA"],
-              "stage": "normalized_switch_state_contract_ready_live_state_and_trunk_model_required",
+              "stage": "normalized_switch_state_contract_source_bound_live_state_required",
               "catalog_digest_sha256": switch_state_catalog_digest(),
-              "required_modules": sorted(item["module"] for item in catalog["observations"]),
+              "required_modules": sorted(required_modules),
               "documentation_trains": sorted(catalog["documentation_trains"]),
-              "trunk_state_verified": False,
+              "trunk_state_verified": catalog["trunk_state_verified"],
+              "c06_contract_complete": True,
               "live_state_observed": False,
               "synthetic_fixture_can_complete_c06": False,
               "c06_complete": False,

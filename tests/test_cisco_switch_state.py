@@ -8,12 +8,19 @@ from router_configuration.vendors.cisco.switch_state import (
 )
 
 
-MODULES = {
+BASE_MODULES = {
     "Cisco-IOS-XE-interfaces-oper",
     "Cisco-IOS-XE-vlan-oper",
     "Cisco-IOS-XE-matm-oper",
     "Cisco-IOS-XE-spanning-tree-oper",
 }
+TRUNK_MODULES = {
+    "openconfig-interfaces",
+    "openconfig-if-ethernet",
+    "openconfig-vlan",
+    "openconfig-vlan-types",
+}
+MODULES = BASE_MODULES | TRUNK_MODULES
 SCHEMA_DIGEST = "b" * 64
 
 
@@ -60,6 +67,21 @@ class CiscoSwitchNormalizedStateTests(unittest.TestCase):
             }
         ]
 
+    def _trunks(self):
+        return [
+            {
+                "interface": "GigabitEthernet1/0/1",
+                "interface-mode": "TRUNK",
+                "native-vlan": 10,
+                "trunk-vlans": [10, "20..22", 30],
+            },
+            {
+                "interface": "GigabitEthernet1/0/2",
+                "interface-mode": "ACCESS",
+                "access-vlan": 20,
+            },
+        ]
+
     def _normalize(self, **overrides):
         values = dict(
             model="C9300-24T",
@@ -70,22 +92,32 @@ class CiscoSwitchNormalizedStateTests(unittest.TestCase):
             vlan_records=self._vlans(),
             mac_records=self._mac(),
             stp_records=self._stp(),
+            trunk_records=self._trunks(),
         )
         values.update(overrides)
         return normalize_switch_state(**values)
 
-    def test_catalog_is_pinned_read_only_live_gated_and_trunk_unverified(self):
+    def test_catalog_is_pinned_read_only_live_gated_and_trunk_source_bound(self):
         catalog = load_switch_state_catalog()
         self.assertEqual(catalog["role"], "switch")
         self.assertFalse(catalog["write_authorized"])
         self.assertFalse(catalog["physical_device_verified"])
         self.assertFalse(catalog["synthetic_fixture_can_complete_c06"])
         self.assertTrue(catalog["live_state_evidence_required_for_c06"])
-        self.assertFalse(catalog["trunk_state_verified"])
+        self.assertTrue(catalog["trunk_state_verified"])
         self.assertEqual(set(catalog["documentation_trains"]), {"17.18", "26"})
+        trunk = next(item for item in catalog["observations"] if item["id"] == "switch-trunk-operational-state")
+        self.assertEqual(
+            trunk["schema_path"],
+            "/oc-if:interfaces/oc-if:interface/oc-eth:ethernet/oc-vlan:switched-vlan/oc-vlan:state",
+        )
+        self.assertEqual(trunk["list_key"], "oc-if:name")
+        self.assertEqual(set(trunk["required_modules"]), TRUNK_MODULES)
+        self.assertEqual(trunk["interface_mode_enum"], ["ACCESS", "TRUNK"])
+        self.assertEqual(trunk["vlan_id_range"], "1..4094")
         self.assertEqual(len(switch_state_catalog_digest()), 64)
 
-    def test_switch_state_normalizes_deterministically(self):
+    def test_switch_state_normalizes_deterministically_with_trunk_state(self):
         first = self._normalize()
         second = self._normalize(
             observed_modules=reversed(sorted(MODULES)),
@@ -93,6 +125,7 @@ class CiscoSwitchNormalizedStateTests(unittest.TestCase):
             vlan_records=list(reversed(self._vlans())),
             mac_records=list(reversed(self._mac())),
             stp_records=list(reversed(self._stp())),
+            trunk_records=list(reversed(self._trunks())),
         )
         self.assertEqual(first.state_digest_sha256, second.state_digest_sha256)
         self.assertEqual(first.platform_family, "Catalyst 9300")
@@ -100,15 +133,39 @@ class CiscoSwitchNormalizedStateTests(unittest.TestCase):
         self.assertEqual(first.vlans[0].vlan_id, 10)
         self.assertEqual(first.mac_entries[1].mac, "aa:bb:cc:dd:ee:ff")
         self.assertEqual(first.stp_instances[0].interfaces[0].role, "stp-root")
-        self.assertFalse(first.trunk_state_verified)
+        self.assertTrue(first.trunk_state_verified)
+        self.assertTrue(first.c06_contract_complete)
         self.assertFalse(first.c06_complete)
         self.assertFalse(first.production_write_authorized)
         self.assertFalse(first.physical_device_verified)
+        trunk = first.switched_vlans[0]
+        self.assertEqual(trunk.interface_mode, "TRUNK")
+        self.assertEqual(trunk.native_vlan, 10)
+        self.assertEqual(trunk.trunk_vlans, (10, 20, 21, 22, 30))
+        self.assertFalse(trunk.all_vlans_allowed)
+        access = first.switched_vlans[1]
+        self.assertEqual(access.interface_mode, "ACCESS")
+        self.assertEqual(access.access_vlan, 20)
+
+    def test_trunk_absence_semantics_are_source_bound_and_canonical(self):
+        state = self._normalize(
+            trunk_records=[{"interface": "GigabitEthernet1/0/1", "interface-mode": "TRUNK"}]
+        )
+        self.assertEqual(state.switched_vlans[0].trunk_vlans, ())
+        self.assertTrue(state.switched_vlans[0].all_vlans_allowed)
+
+    def test_partial_contract_without_trunk_observation_stays_unverified(self):
+        state = self._normalize(observed_modules=BASE_MODULES, trunk_records=None)
+        self.assertFalse(state.trunk_state_verified)
+        self.assertFalse(state.c06_contract_complete)
+        self.assertFalse(state.c06_complete)
+        self.assertEqual(state.switched_vlans, ())
 
     def test_iosxe_26_switch_is_source_bound(self):
         state = self._normalize(model="C9500-24Y4C", iosxe_version="26.1.1")
         self.assertEqual(state.documentation_train, "26")
         self.assertEqual(state.platform_family, "Catalyst 9500")
+        self.assertTrue(state.trunk_state_verified)
 
     def test_router_model_is_rejected_from_switch_lane(self):
         with self.assertRaises(CiscoSwitchStateError):
@@ -117,6 +174,8 @@ class CiscoSwitchNormalizedStateTests(unittest.TestCase):
     def test_missing_module_or_inventory_digest_fails_closed(self):
         with self.assertRaisesRegex(CiscoSwitchStateError, "required YANG modules"):
             self._normalize(observed_modules=MODULES - {"Cisco-IOS-XE-matm-oper"})
+        with self.assertRaisesRegex(CiscoSwitchStateError, "required trunk YANG modules"):
+            self._normalize(observed_modules=MODULES - {"openconfig-vlan-types"})
         with self.assertRaisesRegex(CiscoSwitchStateError, "inventory digest"):
             self._normalize(schema_inventory_digest_sha256="bad")
 
@@ -165,11 +224,47 @@ class CiscoSwitchNormalizedStateTests(unittest.TestCase):
         with self.assertRaisesRegex(CiscoSwitchStateError, "duplicate STP interface"):
             self._normalize(stp_records=broken)
 
+    def test_openconfig_trunk_enums_ranges_and_mode_constraints_fail_closed(self):
+        broken = self._trunks()
+        broken[0]["interface-mode"] = "DESIRABLE"
+        with self.assertRaisesRegex(CiscoSwitchStateError, "interface-mode"):
+            self._normalize(trunk_records=broken)
+
+        broken = self._trunks()
+        broken[0]["native-vlan"] = 0
+        with self.assertRaisesRegex(CiscoSwitchStateError, "OpenConfig VLAN id"):
+            self._normalize(trunk_records=broken)
+
+        broken = self._trunks()
+        broken[0]["trunk-vlans"] = ["22..20"]
+        with self.assertRaisesRegex(CiscoSwitchStateError, "low < high"):
+            self._normalize(trunk_records=broken)
+
+        broken = self._trunks()
+        broken[1]["native-vlan"] = 10
+        with self.assertRaisesRegex(CiscoSwitchStateError, "ACCESS"):
+            self._normalize(trunk_records=broken)
+
+        broken = self._trunks()
+        broken[0]["access-vlan"] = 20
+        with self.assertRaisesRegex(CiscoSwitchStateError, "TRUNK"):
+            self._normalize(trunk_records=broken)
+
+    def test_openconfig_trunk_interface_key_and_cross_reference_fail_closed(self):
+        duplicate = self._trunks() + [dict(self._trunks()[0])]
+        with self.assertRaisesRegex(CiscoSwitchStateError, "duplicate switched-VLAN"):
+            self._normalize(trunk_records=duplicate)
+
+        broken = self._trunks()
+        broken[0]["interface"] = "GigabitEthernet9/9/9"
+        with self.assertRaisesRegex(CiscoSwitchStateError, "unknown interface"):
+            self._normalize(trunk_records=broken)
+
     def test_sensitive_fields_are_rejected_before_normalization(self):
-        broken = self._vlans()
+        broken = self._trunks()
         broken[0]["secret"] = "must-never-enter-normalized-state"
         with self.assertRaisesRegex(CiscoSwitchStateError, "sensitive field"):
-            self._normalize(vlan_records=broken)
+            self._normalize(trunk_records=broken)
 
 
 if __name__ == "__main__":

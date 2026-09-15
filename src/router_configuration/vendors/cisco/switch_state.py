@@ -2,8 +2,8 @@
 
 The normalizer consumes already decoded, source-bound YANG observations. It
 never performs device writes and cannot by itself satisfy the C06 live gate.
-Trunk operational state remains deliberately unverified until a source-bound
-IOS XE model/path is admitted.
+OpenConfig switched-VLAN operational state is source-bound for IOS XE 17.18.1
+and 26.1.1, but synthetic observations still cannot complete C06.
 """
 
 from __future__ import annotations
@@ -17,14 +17,24 @@ from typing import Iterable, Mapping, Sequence
 
 from .platforms import CiscoDeviceRole, assess_read_only_candidate, documentation_train
 
-_REQUIRED_MODULES = frozenset({
+
+_BASE_REQUIRED_MODULES = frozenset({
     "Cisco-IOS-XE-interfaces-oper",
     "Cisco-IOS-XE-vlan-oper",
     "Cisco-IOS-XE-matm-oper",
     "Cisco-IOS-XE-spanning-tree-oper",
 })
+_TRUNK_REQUIRED_MODULES = frozenset({
+    "openconfig-interfaces",
+    "openconfig-if-ethernet",
+    "openconfig-vlan",
+    "openconfig-vlan-types",
+})
+_REQUIRED_MODULES = _BASE_REQUIRED_MODULES | _TRUNK_REQUIRED_MODULES
+_OBSERVATION_MODULES = _BASE_REQUIRED_MODULES | {"openconfig-vlan"}
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _MAC_RE = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+_TRUNK_RANGE_RE = re.compile(r"^(?P<low>[1-9][0-9]{0,3})\.\.(?P<high>[1-9][0-9]{0,3})$")
 _SENSITIVE_PARTS = (
     "password", "secret", "private-key", "private_key", "pre-shared-key",
     "preshared-key", "psk", "token", "community", "key-string", "key_string",
@@ -42,6 +52,9 @@ _STP_STATES = frozenset({
     "stp-disabled", "stp-blocking", "stp-listening", "stp-learning",
     "stp-forwarding", "stp-broken", "stp-invalid",
 })
+_SWITCHPORT_MODES = frozenset({"ACCESS", "TRUNK"})
+_MIN_VLAN_ID = 1
+_MAX_VLAN_ID = 4094
 
 
 class CiscoSwitchStateError(ValueError):
@@ -103,6 +116,16 @@ class NormalizedStpInstance:
 
 
 @dataclass(frozen=True)
+class NormalizedSwitchedVlanState:
+    interface: str
+    interface_mode: str
+    native_vlan: int | None
+    access_vlan: int | None
+    trunk_vlans: tuple[int, ...]
+    all_vlans_allowed: bool
+
+
+@dataclass(frozen=True)
 class SwitchNormalizedState:
     model: str
     iosxe_version: str
@@ -114,9 +137,11 @@ class SwitchNormalizedState:
     vlans: tuple[NormalizedSwitchVlan, ...]
     mac_entries: tuple[NormalizedMacEntry, ...]
     stp_instances: tuple[NormalizedStpInstance, ...]
+    switched_vlans: tuple[NormalizedSwitchedVlanState, ...]
     catalog_digest_sha256: str
     state_digest_sha256: str
     trunk_state_verified: bool = False
+    c06_contract_complete: bool = False
     c06_complete: bool = False
     production_write_authorized: bool = False
     physical_device_verified: bool = False
@@ -142,36 +167,66 @@ def switch_state_catalog_digest() -> str:
 
 
 def _validate_catalog(catalog: Mapping[str, object]) -> None:
-    if catalog.get("schema_version") != "cisco-iosxe-switch-state-catalog/1":
+    if catalog.get("schema_version") != "cisco-iosxe-switch-state-catalog/2":
         raise CiscoSwitchStateError("unsupported switch-state catalog schema")
     if catalog.get("vendor") != "Cisco" or catalog.get("os_family") != "IOS XE":
         raise CiscoSwitchStateError("switch-state catalog vendor/OS mismatch")
     if catalog.get("role") != "switch":
         raise CiscoSwitchStateError("switch-state catalog role mismatch")
-    for key in ("write_authorized", "physical_device_verified", "synthetic_fixture_can_complete_c06", "trunk_state_verified"):
+    for key in ("write_authorized", "physical_device_verified", "synthetic_fixture_can_complete_c06"):
         if catalog.get(key) is not False:
             raise CiscoSwitchStateError(f"switch-state safety boundary must remain false: {key}")
+    if catalog.get("trunk_state_verified") is not True:
+        raise CiscoSwitchStateError("authoritative switched-VLAN operational schema must remain pinned")
     if catalog.get("live_state_evidence_required_for_c06") is not True:
         raise CiscoSwitchStateError("C06 must retain a live-state evidence gate")
+
     provenance = catalog.get("schema_provenance")
     if not isinstance(provenance, Mapping):
         raise CiscoSwitchStateError("switch-state schema provenance missing")
-    if not re.fullmatch(r"[0-9a-f]{40}", str(provenance.get("yangmodels_commit", "")).lower()):
-        raise CiscoSwitchStateError("switch-state YANG schema commit must be pinned")
+    for key in ("yangmodels_commit", "cisco_devnet_commit"):
+        if not re.fullmatch(r"[0-9a-f]{40}", str(provenance.get(key, "")).lower()):
+            raise CiscoSwitchStateError(f"switch-state source commit must be pinned: {key}")
+
     trains = catalog.get("documentation_trains")
     if not isinstance(trains, Mapping) or set(trains) != {"17.18", "26"}:
         raise CiscoSwitchStateError("switch-state documentation trains must be 17.18 and 26")
+    for train, entry in trains.items():
+        if not isinstance(entry, Mapping):
+            raise CiscoSwitchStateError(f"switch-state train metadata invalid: {train}")
+        if not re.fullmatch(r"[0-9a-f]{40}", str(entry.get("openconfig_vlan_tree_blob", "")).lower()):
+            raise CiscoSwitchStateError(f"OpenConfig VLAN tree blob must be pinned: {train}")
+
     observations = catalog.get("observations")
-    if not isinstance(observations, list) or len(observations) != 4:
-        raise CiscoSwitchStateError("switch-state catalog must define four admitted observations")
+    if not isinstance(observations, list) or len(observations) != 5:
+        raise CiscoSwitchStateError("switch-state catalog must define five admitted observations")
     modules = {str(item.get("module")) for item in observations if isinstance(item, Mapping)}
-    if modules != _REQUIRED_MODULES:
-        raise CiscoSwitchStateError("switch-state module set mismatch")
+    if modules != _OBSERVATION_MODULES:
+        raise CiscoSwitchStateError("switch-state observation module set mismatch")
     if any(item.get("required_module_advertisement") is not True for item in observations):
         raise CiscoSwitchStateError("all switch-state models require runtime advertisement")
+
+    trunk = next(
+        (item for item in observations if isinstance(item, Mapping) and item.get("id") == "switch-trunk-operational-state"),
+        None,
+    )
+    if not isinstance(trunk, Mapping):
+        raise CiscoSwitchStateError("source-bound trunk observation missing")
+    trunk_required = trunk.get("required_modules")
+    if not isinstance(trunk_required, list) or set(map(str, trunk_required)) != _TRUNK_REQUIRED_MODULES:
+        raise CiscoSwitchStateError("trunk observation required-module set mismatch")
+    if trunk.get("schema_path") != (
+        "/oc-if:interfaces/oc-if:interface/oc-eth:ethernet/"
+        "oc-vlan:switched-vlan/oc-vlan:state"
+    ):
+        raise CiscoSwitchStateError("trunk observation schema path mismatch")
+    if trunk.get("list_key") != "oc-if:name":
+        raise CiscoSwitchStateError("trunk observation interface key mismatch")
     unverified = catalog.get("unverified_observations")
-    if not isinstance(unverified, list) or not any(isinstance(item, Mapping) and item.get("id") == "switch-trunk-operational-state" for item in unverified):
-        raise CiscoSwitchStateError("trunk state must remain explicitly unverified")
+    if not isinstance(unverified, list):
+        raise CiscoSwitchStateError("unverified observation list missing")
+    if any(isinstance(item, Mapping) and item.get("id") == "switch-trunk-operational-state" for item in unverified):
+        raise CiscoSwitchStateError("trunk state cannot be both admitted and unverified")
 
 
 def _reject_sensitive(value: object, path: str = "$") -> None:
@@ -186,7 +241,13 @@ def _reject_sensitive(value: object, path: str = "$") -> None:
             _reject_sensitive(child, f"{path}[{index}]")
 
 
-def _bounded_text(value: object, field: str, *, required: bool = False, max_len: int = 255) -> str | None:
+def _bounded_text(
+    value: object,
+    field: str,
+    *,
+    required: bool = False,
+    max_len: int = 255,
+) -> str | None:
     if value is None:
         if required:
             raise CiscoSwitchStateError(f"missing required field: {field}")
@@ -207,6 +268,17 @@ def _uint(value: object, field: str, maximum: int) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= maximum:
         raise CiscoSwitchStateError(f"invalid unsigned integer field: {field}")
     return value
+
+
+def _source_vlan_id(value: object, field: str, *, required: bool = False) -> int | None:
+    result = _uint(value, field, _MAX_VLAN_ID)
+    if result is None:
+        if required:
+            raise CiscoSwitchStateError(f"missing required field: {field}")
+        return None
+    if result < _MIN_VLAN_ID:
+        raise CiscoSwitchStateError(f"invalid OpenConfig VLAN id: {field}")
+    return result
 
 
 def _mac(value: object, field: str, *, required: bool = False) -> str | None:
@@ -233,7 +305,10 @@ def _normalize_interface(record: Mapping[str, object]) -> NormalizedSwitchInterf
 def _normalize_vlan_port(record: Mapping[str, object], field: str) -> NormalizedVlanPort:
     interface = _bounded_text(record.get("interface"), f"{field}.interface", required=True, max_len=128)
     assert interface is not None
-    return NormalizedVlanPort(interface=interface, subinterface=_uint(record.get("subinterface"), f"{field}.subinterface", 0xFFFFFFFF))
+    return NormalizedVlanPort(
+        interface=interface,
+        subinterface=_uint(record.get("subinterface"), f"{field}.subinterface", 0xFFFFFFFF),
+    )
 
 
 def _normalize_vlan(record: Mapping[str, object]) -> NormalizedSwitchVlan:
@@ -257,9 +332,23 @@ def _normalize_vlan(record: Mapping[str, object]) -> NormalizedSwitchVlan:
         keys = [(item.interface, item.subinterface) for item in parsed]
         if len(set(keys)) != len(keys):
             raise CiscoSwitchStateError(f"duplicate {field} entry")
-        return tuple(sorted(parsed, key=lambda item: (item.interface, -1 if item.subinterface is None else item.subinterface)))
+        return tuple(
+            sorted(
+                parsed,
+                key=lambda item: (
+                    item.interface,
+                    -1 if item.subinterface is None else item.subinterface,
+                ),
+            )
+        )
 
-    return NormalizedSwitchVlan(vlan_id=vlan_id, name=name, status=status, ports=parse_ports(record.get("ports"), "vlan.ports"), vlan_interfaces=parse_ports(record.get("vlan-interfaces"), "vlan.vlan-interfaces"))
+    return NormalizedSwitchVlan(
+        vlan_id=vlan_id,
+        name=name,
+        status=status,
+        ports=parse_ports(record.get("ports"), "vlan.ports"),
+        vlan_interfaces=parse_ports(record.get("vlan-interfaces"), "vlan.vlan-interfaces"),
+    )
 
 
 def _normalize_mac(record: Mapping[str, object]) -> NormalizedMacEntry:
@@ -278,7 +367,13 @@ def _normalize_mac(record: Mapping[str, object]) -> NormalizedMacEntry:
     vlan_all_raw = record.get("vlan-all", False)
     if vlan_all_raw not in (False, True, None):
         raise CiscoSwitchStateError("mac.vlan-all must represent YANG empty-leaf presence")
-    return NormalizedMacEntry(vlan_id=vlan_id, mac=mac, address_type=address_type, port=port, vlan_all=vlan_all_raw is not False)
+    return NormalizedMacEntry(
+        vlan_id=vlan_id,
+        mac=mac,
+        address_type=address_type,
+        port=port,
+        vlan_all=vlan_all_raw is not False,
+    )
 
 
 def _normalize_stp_interface(record: Mapping[str, object]) -> NormalizedStpInterface:
@@ -290,7 +385,14 @@ def _normalize_stp_interface(record: Mapping[str, object]) -> NormalizedStpInter
         raise CiscoSwitchStateError(f"unsupported STP port role: {role}")
     if state not in _STP_STATES:
         raise CiscoSwitchStateError(f"unsupported STP port state: {state}")
-    return NormalizedStpInterface(name=name, role=role, state=state, cost=_uint(record.get("cost"), "stp.interface.cost", 0xFFFFFFFFFFFFFFFF), port_priority=_uint(record.get("port-priority"), "stp.interface.port-priority", 0xFFFF), port_number=_uint(record.get("port-num"), "stp.interface.port-num", 0xFFFF))
+    return NormalizedStpInterface(
+        name=name,
+        role=role,
+        state=state,
+        cost=_uint(record.get("cost"), "stp.interface.cost", 0xFFFFFFFFFFFFFFFF),
+        port_priority=_uint(record.get("port-priority"), "stp.interface.port-priority", 0xFFFF),
+        port_number=_uint(record.get("port-num"), "stp.interface.port-num", 0xFFFF),
+    )
 
 
 def _normalize_stp(record: Mapping[str, object]) -> NormalizedStpInstance:
@@ -304,10 +406,116 @@ def _normalize_stp(record: Mapping[str, object]) -> NormalizedStpInstance:
     interfaces = [_normalize_stp_interface(item) for item in raw_interfaces]
     if len({item.name for item in interfaces}) != len(interfaces):
         raise CiscoSwitchStateError("duplicate STP interface name within instance")
-    return NormalizedStpInstance(instance=instance, bridge_priority=_uint(record.get("bridge-priority"), "stp.bridge-priority", 0xFFFF), bridge_address=_mac(record.get("bridge-address"), "stp.bridge-address"), designated_root_priority=_uint(record.get("designated-root-priority"), "stp.designated-root-priority", 0xFFFFFFFF), designated_root_address=_mac(record.get("designated-root-address"), "stp.designated-root-address"), root_port=_uint(record.get("root-port"), "stp.root-port", 0xFFFF), root_cost=_uint(record.get("root-cost"), "stp.root-cost", 0xFFFFFFFFFFFFFFFF), topology_changes=_uint(record.get("topology-changes"), "stp.topology-changes", 0xFFFFFFFFFFFFFFFF), interfaces=tuple(sorted(interfaces, key=lambda item: item.name)))
+    return NormalizedStpInstance(
+        instance=instance,
+        bridge_priority=_uint(record.get("bridge-priority"), "stp.bridge-priority", 0xFFFF),
+        bridge_address=_mac(record.get("bridge-address"), "stp.bridge-address"),
+        designated_root_priority=_uint(
+            record.get("designated-root-priority"),
+            "stp.designated-root-priority",
+            0xFFFFFFFF,
+        ),
+        designated_root_address=_mac(
+            record.get("designated-root-address"),
+            "stp.designated-root-address",
+        ),
+        root_port=_uint(record.get("root-port"), "stp.root-port", 0xFFFF),
+        root_cost=_uint(record.get("root-cost"), "stp.root-cost", 0xFFFFFFFFFFFFFFFF),
+        topology_changes=_uint(
+            record.get("topology-changes"),
+            "stp.topology-changes",
+            0xFFFFFFFFFFFFFFFF,
+        ),
+        interfaces=tuple(sorted(interfaces, key=lambda item: item.name)),
+    )
 
 
-def normalize_switch_state(*, model: str, iosxe_version: str, schema_inventory_digest_sha256: str, observed_modules: Iterable[str], interface_records: Sequence[Mapping[str, object]], vlan_records: Sequence[Mapping[str, object]], mac_records: Sequence[Mapping[str, object]], stp_records: Sequence[Mapping[str, object]]) -> SwitchNormalizedState:
+def _expand_trunk_vlans(raw: object) -> tuple[int, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        raise CiscoSwitchStateError("switched-vlan.trunk-vlans must be a sequence")
+    expanded: set[int] = set()
+    for item in raw:
+        if isinstance(item, bool):
+            raise CiscoSwitchStateError("invalid OpenConfig trunk VLAN value")
+        if isinstance(item, int):
+            vlan_id = _source_vlan_id(item, "switched-vlan.trunk-vlans", required=True)
+            assert vlan_id is not None
+            expanded.add(vlan_id)
+            continue
+        if not isinstance(item, str):
+            raise CiscoSwitchStateError("invalid OpenConfig trunk VLAN value")
+        match = _TRUNK_RANGE_RE.fullmatch(item.strip())
+        if not match:
+            raise CiscoSwitchStateError("invalid OpenConfig trunk VLAN range")
+        low = int(match.group("low"))
+        high = int(match.group("high"))
+        _source_vlan_id(low, "switched-vlan.trunk-vlans.range-low", required=True)
+        _source_vlan_id(high, "switched-vlan.trunk-vlans.range-high", required=True)
+        if low >= high:
+            raise CiscoSwitchStateError("OpenConfig trunk VLAN range must satisfy low < high")
+        expanded.update(range(low, high + 1))
+    return tuple(sorted(expanded))
+
+
+def _normalize_switched_vlan(record: Mapping[str, object]) -> NormalizedSwitchedVlanState:
+    interface = _bounded_text(
+        record.get("interface"),
+        "switched-vlan.interface",
+        required=True,
+        max_len=128,
+    )
+    mode = _bounded_text(
+        record.get("interface-mode"),
+        "switched-vlan.interface-mode",
+        required=True,
+        max_len=16,
+    )
+    assert interface is not None and mode is not None
+    if mode not in _SWITCHPORT_MODES:
+        raise CiscoSwitchStateError(f"unsupported OpenConfig interface-mode: {mode}")
+
+    native_vlan = _source_vlan_id(record.get("native-vlan"), "switched-vlan.native-vlan")
+    access_vlan = _source_vlan_id(record.get("access-vlan"), "switched-vlan.access-vlan")
+    trunk_vlans = _expand_trunk_vlans(record.get("trunk-vlans"))
+
+    if mode == "ACCESS":
+        if native_vlan is not None or trunk_vlans:
+            raise CiscoSwitchStateError("ACCESS switched-VLAN state cannot carry trunk-only fields")
+        return NormalizedSwitchedVlanState(
+            interface=interface,
+            interface_mode=mode,
+            native_vlan=None,
+            access_vlan=access_vlan,
+            trunk_vlans=(),
+            all_vlans_allowed=False,
+        )
+
+    if access_vlan is not None:
+        raise CiscoSwitchStateError("TRUNK switched-VLAN state cannot carry access-vlan")
+    return NormalizedSwitchedVlanState(
+        interface=interface,
+        interface_mode=mode,
+        native_vlan=native_vlan,
+        access_vlan=None,
+        trunk_vlans=trunk_vlans,
+        all_vlans_allowed=not trunk_vlans,
+    )
+
+
+def normalize_switch_state(
+    *,
+    model: str,
+    iosxe_version: str,
+    schema_inventory_digest_sha256: str,
+    observed_modules: Iterable[str],
+    interface_records: Sequence[Mapping[str, object]],
+    vlan_records: Sequence[Mapping[str, object]],
+    mac_records: Sequence[Mapping[str, object]],
+    stp_records: Sequence[Mapping[str, object]],
+    trunk_records: Sequence[Mapping[str, object]] | None = None,
+) -> SwitchNormalizedState:
     catalog = load_switch_state_catalog()
     decision = assess_read_only_candidate(model, iosxe_version)
     if not decision.read_only_candidate or decision.role is not CiscoDeviceRole.SWITCH:
@@ -315,29 +523,105 @@ def normalize_switch_state(*, model: str, iosxe_version: str, schema_inventory_d
     train = documentation_train(iosxe_version)
     if train not in catalog["documentation_trains"]:
         raise CiscoSwitchStateError("switch-state schema train is not source-bound")
+
     schema_digest = schema_inventory_digest_sha256.strip().lower()
     if not _SHA256_RE.fullmatch(schema_digest):
         raise CiscoSwitchStateError("valid live YANG inventory digest is required")
     modules = tuple(sorted({str(module).strip() for module in observed_modules if str(module).strip()}))
-    missing = _REQUIRED_MODULES.difference(modules)
+    missing = _BASE_REQUIRED_MODULES.difference(modules)
     if missing:
-        raise CiscoSwitchStateError("required YANG modules were not advertised: " + ",".join(sorted(missing)))
-    groups = {"interfaces": interface_records, "vlans": vlan_records, "mac": mac_records, "stp": stp_records}
+        raise CiscoSwitchStateError(
+            "required YANG modules were not advertised: " + ",".join(sorted(missing))
+        )
+    if trunk_records is not None:
+        missing_trunk = _TRUNK_REQUIRED_MODULES.difference(modules)
+        if missing_trunk:
+            raise CiscoSwitchStateError(
+                "required trunk YANG modules were not advertised: "
+                + ",".join(sorted(missing_trunk))
+            )
+
+    groups: dict[str, object] = {
+        "interfaces": interface_records,
+        "vlans": vlan_records,
+        "mac": mac_records,
+        "stp": stp_records,
+    }
+    if trunk_records is not None:
+        groups["switched-vlan"] = trunk_records
     for name, records in groups.items():
         if not isinstance(records, Sequence) or isinstance(records, (str, bytes)):
             raise CiscoSwitchStateError(f"{name} records must be a sequence")
         _reject_sensitive(records, f"$.{name}")
-    interfaces = tuple(sorted((_normalize_interface(item) for item in interface_records), key=lambda item: item.name))
+
+    interfaces = tuple(
+        sorted((_normalize_interface(item) for item in interface_records), key=lambda item: item.name)
+    )
     if len({item.name for item in interfaces}) != len(interfaces):
         raise CiscoSwitchStateError("duplicate interface name in switch state")
+
     vlans = tuple(sorted((_normalize_vlan(item) for item in vlan_records), key=lambda item: item.vlan_id))
     if len({item.vlan_id for item in vlans}) != len(vlans):
         raise CiscoSwitchStateError("duplicate VLAN id in switch state")
-    mac_entries = tuple(sorted((_normalize_mac(item) for item in mac_records), key=lambda item: (item.vlan_id, item.mac)))
+
+    mac_entries = tuple(
+        sorted((_normalize_mac(item) for item in mac_records), key=lambda item: (item.vlan_id, item.mac))
+    )
     if len({(item.vlan_id, item.mac) for item in mac_entries}) != len(mac_entries):
         raise CiscoSwitchStateError("duplicate MATM MAC key in bounded VLAN table")
-    stp_instances = tuple(sorted((_normalize_stp(item) for item in stp_records), key=lambda item: item.instance))
+
+    stp_instances = tuple(
+        sorted((_normalize_stp(item) for item in stp_records), key=lambda item: item.instance)
+    )
     if len({item.instance for item in stp_instances}) != len(stp_instances):
         raise CiscoSwitchStateError("duplicate STP instance in switch state")
-    state_payload = {"model": model.strip(), "iosxe_version": iosxe_version.strip(), "documentation_train": train, "platform_family": decision.family, "schema_inventory_digest_sha256": schema_digest, "observed_modules": modules, "interfaces": [asdict(item) for item in interfaces], "vlans": [asdict(item) for item in vlans], "mac_entries": [asdict(item) for item in mac_entries], "stp_instances": [asdict(item) for item in stp_instances], "trunk_state_verified": False}
-    return SwitchNormalizedState(model=model.strip(), iosxe_version=iosxe_version.strip(), documentation_train=train, platform_family=decision.family or "", schema_inventory_digest_sha256=schema_digest, observed_modules=modules, interfaces=interfaces, vlans=vlans, mac_entries=mac_entries, stp_instances=stp_instances, catalog_digest_sha256=_canonical_sha256(catalog), state_digest_sha256=_canonical_sha256(state_payload))
+
+    switched_vlans: tuple[NormalizedSwitchedVlanState, ...] = ()
+    trunk_state_verified = trunk_records is not None
+    if trunk_records is not None:
+        switched_vlans = tuple(
+            sorted((_normalize_switched_vlan(item) for item in trunk_records), key=lambda item: item.interface)
+        )
+        if len({item.interface for item in switched_vlans}) != len(switched_vlans):
+            raise CiscoSwitchStateError("duplicate switched-VLAN interface key")
+        known_interfaces = {item.name for item in interfaces}
+        unknown = sorted(item.interface for item in switched_vlans if item.interface not in known_interfaces)
+        if unknown:
+            raise CiscoSwitchStateError(
+                "switched-VLAN state references unknown interface: " + ",".join(unknown)
+            )
+
+    c06_contract_complete = trunk_state_verified
+    state_payload = {
+        "model": model.strip(),
+        "iosxe_version": iosxe_version.strip(),
+        "documentation_train": train,
+        "platform_family": decision.family,
+        "schema_inventory_digest_sha256": schema_digest,
+        "observed_modules": modules,
+        "interfaces": [asdict(item) for item in interfaces],
+        "vlans": [asdict(item) for item in vlans],
+        "mac_entries": [asdict(item) for item in mac_entries],
+        "stp_instances": [asdict(item) for item in stp_instances],
+        "switched_vlans": [asdict(item) for item in switched_vlans],
+        "trunk_state_verified": trunk_state_verified,
+        "c06_contract_complete": c06_contract_complete,
+        "c06_complete": False,
+    }
+    return SwitchNormalizedState(
+        model=model.strip(),
+        iosxe_version=iosxe_version.strip(),
+        documentation_train=train,
+        platform_family=decision.family or "",
+        schema_inventory_digest_sha256=schema_digest,
+        observed_modules=modules,
+        interfaces=interfaces,
+        vlans=vlans,
+        mac_entries=mac_entries,
+        stp_instances=stp_instances,
+        switched_vlans=switched_vlans,
+        catalog_digest_sha256=_canonical_sha256(catalog),
+        state_digest_sha256=_canonical_sha256(state_payload),
+        trunk_state_verified=trunk_state_verified,
+        c06_contract_complete=c06_contract_complete,
+    )
