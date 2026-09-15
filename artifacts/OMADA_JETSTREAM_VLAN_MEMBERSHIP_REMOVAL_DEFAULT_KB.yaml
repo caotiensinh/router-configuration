@@ -1,0 +1,186 @@
+schema_version: 1.0.0
+record_type: omada_jetstream_vlan_membership_removal_default_kb
+task: '4.07'
+observed_at: '2026-09-15'
+status: COMPLETE_FOR_OFFICIAL_VLAN_MEMBERSHIP_REMOVAL_DEFAULT_SCOPE
+authority: TP-Link / Omada official sources only
+sources:
+- id: OMADA_JETSTREAM_TYPICAL_CLI
+  url: https://support.omadanetworks.com/kr/document/13117/
+  title: Typical CLI Configuration Examples for TP-Link Omada / JetStream Switch
+  source_type: CONFIGURATION_GUIDE
+  page_date: '2022-12-22'
+  retrieved_at: '2026-09-15'
+  scope_note: Generic JetStream CLI example. Documents port membership add/remove, VLAN object deletion, explicit
+    VLAN-1 removal and switchport read-back.
+- id: OMADA_AGILE_EASY_USER_GUIDE_NEW_VI
+  url: https://support.omadanetworks.com/en/document/46791/
+  title: Omada Agile (Easy Managed) Switch (New VI)_User Guide
+  source_type: USER_GUIDE
+  retrieved_at: '2026-09-15'
+  scope_note: Agile/Easy Managed 802.1Q membership and source-scoped default VLAN-1 behavior.
+- id: OMADA_AGILE_EASY_8021Q_STANDALONE_2026
+  url: https://support.omadanetworks.com/en/document/129217/
+  title: How to Configure 802.1Q VLAN on Omada Agile/Easy Managed Switches in Standalone Mode
+  source_type: CONFIGURATION_GUIDE
+  published: '2026-07-25'
+  scope_note: Current Agile/Easy Managed tagged/untagged/non-member workflow and PVID dependency.
+- id: OMADA_SMART_MANAGED_8021Q_GUI
+  url: https://support.omadanetworks.com/en/document/12981/
+  title: How to Configure 802.1Q VLAN on Smart and Managed Switches Using the New GUI
+  source_type: CONFIGURATION_GUIDE
+  retrieved_at: '2026-09-15'
+  scope_note: Standalone Smart/Managed tagged/untagged membership and PVID examples; no generic default-VLAN deletion
+    rule inferred.
+- id: OMADA_CONTROLLER_8021Q_SWITCH
+  url: https://support.omadanetworks.com/en/document/13215/
+  title: How to Configure 802.1Q VLAN on Omada Switches in Controller Mode
+  source_type: CONFIGURATION_GUIDE
+  published: '2024-07-11'
+  scope_note: Controller v6.0+ tagged/untagged/native/access/trunk workflow for documented Omada switch classes;
+    not translated into standalone CLI syntax.
+parallel_lane_execution:
+  task_manifest: orchestration/OMADA_PHASE4_07_PARALLEL_TASKS.json
+  plan: orchestration/OMADA_PHASE4_07_PARALLEL_PLAN.json
+  wave_1_read_only_lanes: 12
+  wave_2_integration_lanes: 1
+  external_worker_processes_claimed: 0
+  rule: Parallel evidence lanes are assignment slots; write ownership remains serialized.
+canonical_semantics:
+  membership_add: Membership addition is an explicit per-VLAN/per-port operation with an egress state such as Tagged
+    or Untagged where documented.
+  membership_remove: Port membership removal is distinct from VLAN object deletion and from PVID change.
+  membership_transition: A transition Tagged↔Untagged↔Non-member is modeled as an exact before/after membership
+    state, not as a boolean member flag.
+  pvid_separation: PVID remains a separate ingress-classification field. Membership removal/change does not silently
+    rewrite PVID.
+  default_vlan_boundary: Default VLAN-1 rules are retained at source scope only; no project-wide VLAN-1 invariant
+    is invented.
+generic_jetstream_cli:
+  membership_add:
+    syntax: switchport general allowed vlan <VLAN_LIST> { tagged | untagged }
+    documented_meaning: Add the desired port to IEEE 802.1Q VLAN and set tagged/untagged egress.
+  membership_remove:
+    syntax: no switchport general allowed vlan <VLAN_LIST>
+    documented_meaning: Remove the port from the corresponding VLAN.
+  vlan_object_delete:
+    syntax: no vlan <VLAN_ID>
+    documented_meaning: Delete the VLAN object; this is not equivalent to removing one port membership.
+  explicit_vlan1_example:
+    command: no switchport general allowed vlan 1
+    context: Separate section after trunk configuration removes trunk port 1 from VLAN 1.
+    normalization: EXPLICIT_OPERATION_NOT_IMPLICIT_ACCESS_OR_TRUNK_SIDE_EFFECT
+  read_back:
+    commands:
+    - show interface switchport
+    - show interface switchport <exact-interface>
+    required_observations:
+    - PVID
+    - per-VLAN membership
+    - per-VLAN egress rule
+  scope_boundary: The generic examples do not establish universal exact-model defaults or command support; exact
+    applicable CLI evidence remains required.
+agile_easy_managed:
+  membership_states:
+  - TAGGED_MEMBER
+  - UNTAGGED_MEMBER
+  - NON_MEMBER
+  default_vlan1_rules:
+  - By default all ports are added to VLAN 1.
+  - A port can be removed from VLAN 1 only when it is also a member of another VLAN.
+  - Once a port is removed from all current VLANs, it is added to VLAN 1 automatically.
+  - VLAN 1 cannot be deleted.
+  pvid_dependencies:
+  - PVID takes effect only when 802.1Q mode is enabled.
+  - A PVID can be specified only when the corresponding VLAN exists.
+  normalization: SOURCE_SCOPED_ONLY_DO_NOT_GENERALIZE_TO_ALL_OMADA_JETSTREAM
+standalone_smart_managed:
+  observed_membership_model:
+  - Tagged member
+  - Untagged member
+  pvid_separate: true
+  boundary: The current example supports membership/PVID separation but is not used to invent universal VLAN-1 auto-return/deletion
+    behavior.
+controller_mode:
+  observed_semantics:
+  - Client-facing selected ports become Access ports for the VLAN.
+  - An unselected port remaining Trunk carries the create` vlan tagged in the cited workflow.
+  - Router uplink can have VLAN 1 native/untagged and other VLANs tagged.
+  applicability:
+    switch_classes:
+    - Omada Access
+    - Omada Access Plus
+    - Omada Access Pro
+    - Omada Access Max
+    - Omada Aggregation
+    - Omada Campus
+    controller_minimum: v6.0+
+  boundary: Controller membership/profile behavior is not translated into standalone no/switchport commands.
+dependency_rules:
+  pvid_target_vlan_removal: If a removal/delete would affect the VLAN currently referenced by a port PVID, do not
+    guess post-removal behavior. Resolve exact source/runtime dependency first or block the operation.
+  management_path: If the affected VLAN/port carries switch/controller/router management reachability, require an
+    alternate or recovery path before mutation.
+  vlan_object_delete: Before deleting a VLAN object, discover all affected port memberships, PVID/native references,
+    SVI/management-IP dependencies (4.08), and controller/network-object dependencies. If any are unresolved, block
+    rather than cascade implicitly.
+safe_transaction:
+  preconditions:
+  - Resolve exact model, hardware revision, region, firmware, management mode and port identity.
+  - Read current VLAN objects, per-port membership/egress rules and PVID.
+  - Resolve management/uplink and PVID/native dependencies.
+  - Confirm exact write surface and privilege.
+  - Obtain production-write approval.
+  write:
+  - Apply only the explicitly requested membership transition/removal or VLAN-object delete.
+  - Do not implicitly change PVID/native VLAN.
+  - Do not implicitly remove VLAN 1 unless the requested operation explicitly requires it and applicable evidence
+    permits it.
+  - Never cascade-delete dependent configuration without explicit task/evidence.
+  verify:
+  - Read back exact per-port membership and egress rule.
+  - Read back PVID/native state to ensure no unintended change.
+  - If deleting a VLAN object, verify object absence plus all expected dependent states.
+  - Verify required management/uplink/client reachability.
+  - Record EXECUTED_UNVERIFIED rather than PASS if semantic read-back is incomplete.
+  persist: For standalone CLI durability, apply the 4.02 running-to-startup save only after verified running state.
+rollback:
+  required_pre_state:
+  - VLAN object existence/name where relevant
+  - exact tagged/untagged/non-member membership for affected ports
+  - PVID/native state
+  - management/uplink dependencies
+  policy: Restore the exact observed pre-change state. Do not assume VLAN 1, Non-member, or any vendor default is
+    the correct rollback target.
+validation_cases:
+- id: REMOVE_MEMBER_EXPLICIT
+  expected: PASS only if the exact target port is read back absent/non-member for the requested VLAN while unrelated
+    VLAN/PVID state remains as intended.
+- id: TAGGED_TO_UNTAGGED
+  expected: PASS only if the exact egress rule transitions to Untagged and PVID behavior matches the explicit intended
+    design; membership change alone does not imply PVID change.
+- id: REMOVE_VLAN1_GENERIC_CLI
+  expected: Allowed only as an explicit requested, exact-applicable operation; never injected as an access/trunk
+    side effect.
+- id: AGILE_REMOVE_LAST_MEMBERSHIP
+  expected: Expect source-scoped auto-return to VLAN 1 for Agile/Easy Managed; never generalize to other families.
+- id: AGILE_DELETE_VLAN1
+  expected: BLOCKED_BY_CAPABILITY in the cited Agile/Easy Managed scope because VLAN 1 cannot be deleted.
+- id: REMOVE_PVID_REFERENCED_VLAN
+  expected: BLOCKED_BY_DEPENDENCY until exact post-removal PVID behavior/dependency is resolved.
+- id: DELETE_VLAN_WITH_SVI_OR_MGMT_DEPENDENCY
+  expected: BLOCKED_BY_DEPENDENCY until 4.08 interface/management-IP dependencies are resolved; do not cascade.
+- id: MGMT_PATH_MEMBERSHIP_REMOVE
+  expected: BLOCKED_BY_MANAGEMENT_PATH_RISK until verified recovery/alternate path exists.
+- id: PARTIAL_BATCH
+  expected: Mixed per-port/per-VLAN result; never aggregate partial execution to PASS.
+- id: RUNNING_ONLY
+  expected: Running-state VERIFIED may remain non-durable until 4.02 save verification succeeds.
+deferred_boundaries:
+  '4.08': VLAN interface / switch management IP
+  '4.10': LAG/LACP construction/negotiation
+closure:
+  task_4_07_complete: true
+  boundary: Membership add/remove/transition, explicit VLAN-1 removal, source-scoped default VLAN-1 behavior, PVID/dependency
+    gating, read-back, management-path protection, rollback and persistence are normalized without consuming 4.08.
+  next_task: 4.08 VLAN interface / switch management IP
