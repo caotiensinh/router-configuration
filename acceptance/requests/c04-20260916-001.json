@@ -1,0 +1,12 @@
+{
+  "expected_source_sha": "6a4201ecd99e7c5e63d7fcfef7fb012ce64fbcc8",
+  "production_write_authorized": false,
+  "read_only_required": true,
+  "request_id": "ACC-C04-20260916-001",
+  "request_sha256": "31d802bc583c6cf503835191308b2eaf5a0b3c8ec8603050665e6a982c17a9d2",
+  "requested_by_attestation_sha256": "30dfbbc5b66d4a0792da7cb1a87d004469e2b9fcbdfc23885c59c7b0d54919e2",
+  "requested_by_ref": "human-master:caotiensinh",
+  "schema_version": "cisco-acceptance-dispatch-request/1",
+  "stage": "c04",
+  "target_ref": "feat/cisco-iosxe-router-switch-domain-20260915"
+}
