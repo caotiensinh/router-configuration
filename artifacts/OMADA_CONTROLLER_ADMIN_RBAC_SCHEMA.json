@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_controller_admin_rbac_contract",
+  "task": "7.10",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "administrator_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-9-manage-administrator-accounts-of-omada-sdn-controller.html"
+  },
+  "principal_planes": [
+    "local_user",
+    "cloud_user"
+  ],
+  "roles": [
+    "master_administrator",
+    "administrator",
+    "viewer"
+  ],
+  "permission_planes": [
+    "site_privileges",
+    "adopt_devices",
+    "device_manage",
+    "account_self_service",
+    "viewer_account_management"
+  ],
+  "controller_facts": {
+    "one_master_administrator": true,
+    "master_has_all_features": true,
+    "master_cannot_be_deleted": true,
+    "administrator_can_manage_viewers_in_privileged_sites": true,
+    "administrator_cannot_manage_master_or_peer_administrators": true,
+    "viewer_is_read_only_for_privileged_sites": true,
+    "site_privilege_all_includes_future_sites": true,
+    "device_permissions_separate_adopt_from_manage": true,
+    "local_and_cloud_principals_are_distinct": true
+  },
+  "safety": {
+    "least_privilege_required": true,
+    "passwords_or_tokens_in_evidence_forbidden": true,
+    "role_change_is_security_sensitive": true,
+    "unknown_permission_effect": "DENY_UNVERIFIED",
+    "negative_permission_tests_required": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "principal type and identity read-back without secrets",
+    "role read-back",
+    "site privilege read-back",
+    "device permission read-back",
+    "authorized action succeeds",
+    "representative unauthorized action is denied",
+    "master administrator remains recoverable"
+  ]
+}
