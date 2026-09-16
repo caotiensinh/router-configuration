@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_configuration_templates_profiles_contract",
+  "task": "7.06",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "site_template_guide": "https://support.omadanetworks.com/au/document/15093/",
+    "managed_device_profile_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-6-configure-and-monitor-omada-managed-devices.html",
+    "site_template_current_documented_min_controller": "5.15.20",
+    "site_template_documented_controller_types": ["software_controller", "cloud_based_controller"],
+    "hardware_controller_site_template_support": "NOT_SUPPORTED_UNVERIFIED"
+  },
+  "state_planes": [
+    "site_template",
+    "device_template",
+    "switch_port_profile",
+    "feature_reference_profile",
+    "local_override"
+  ],
+  "site_template": {
+    "global_view_scope": true,
+    "selected_configurable_modules_are_fixed_after_creation": true,
+    "binding_synchronizes_template_configuration": true,
+    "reapply_reverts_overridden_managed_settings_to_template": true,
+    "unbind_stops_future_sync_and_retains_current_configuration": true
+  },
+  "device_template": {
+    "documented_device_types": ["gateway", "switch"],
+    "exact_device_model_binding_required": true,
+    "switch_template_must_be_completed_before_binding": true,
+    "gateway_template_can_overwrite_wan_related_configuration": true,
+    "auto_bind_can_disconnect_network_when_template_is_wrong": true
+  },
+  "switch_port_profile": {
+    "profile_and_profile_override_are_distinct": true,
+    "remove_override_returns_port_to_applied_profile": true,
+    "batch_configuration_keep_existing_is_not_equivalent_to_template_inheritance": true
+  },
+  "authorization": {
+    "unknown_controller_or_feature_support": "NOT_SUPPORTED_UNVERIFIED",
+    "bind_or_reapply_is_a_write": true,
+    "write_acceptance": "EXECUTED_UNVERIFIED",
+    "pre_bind_diff_required": true,
+    "management_path_impact_check_required": true
+  },
+  "pass_requires": [
+    "template/profile identity and version read-back",
+    "bound site/device set read-back",
+    "expected inherited values present",
+    "expected overrides preserved or intentionally removed",
+    "management path healthy",
+    "representative network services healthy"
+  ]
+}
