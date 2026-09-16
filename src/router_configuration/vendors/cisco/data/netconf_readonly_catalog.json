@@ -1,0 +1,92 @@
+{
+  "schema_version": "cisco-iosxe-netconf-readonly-catalog/1",
+  "vendor": "Cisco",
+  "os_family": "IOS XE",
+  "write_authorized": false,
+  "physical_device_verified": false,
+  "documentation_source_ids": [
+    "CISCO-IOSXE-17.18-NETCONF",
+    "CISCO-IOSXE-26-NETCONF"
+  ],
+  "transport": {
+    "protocol": "NETCONF",
+    "ssh_default_port": 830,
+    "capability_discovery": "server_hello",
+    "schema_inventory_model": "ietf-netconf-monitoring"
+  },
+  "allowed_rpc_operations": [
+    {
+      "name": "get",
+      "namespace": "urn:ietf:params:xml:ns:netconf:base:1.0",
+      "mutation": false,
+      "bounded_subtree_filter_required": true
+    },
+    {
+      "name": "get-config",
+      "namespace": "urn:ietf:params:xml:ns:netconf:base:1.0",
+      "mutation": false,
+      "bounded_subtree_filter_required": true,
+      "allowed_sources": [
+        "running"
+      ]
+    },
+    {
+      "name": "get-schema",
+      "namespace": "urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring",
+      "mutation": false,
+      "identifier_required": true
+    }
+  ],
+  "evidence_queries": [
+    {
+      "id": "netconf-schema-inventory",
+      "purpose": "Read the device-advertised NETCONF YANG schema inventory.",
+      "operation": "get",
+      "model": "ietf-netconf-monitoring",
+      "namespace": "urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring",
+      "subtree": [
+        "netconf-state",
+        "schemas"
+      ],
+      "source_ids": [
+        "CISCO-IOSXE-17.18-NETCONF",
+        "CISCO-IOSXE-26-NETCONF"
+      ],
+      "secret_safe_scope": true
+    },
+    {
+      "id": "iosxe-native-version",
+      "purpose": "Read only the IOS XE version leaf from the running Cisco native model.",
+      "operation": "get-config",
+      "source": "running",
+      "model": "Cisco-IOS-XE-native",
+      "namespace": "http://cisco.com/ns/yang/Cisco-IOS-XE-native",
+      "subtree": [
+        "native",
+        "version"
+      ],
+      "source_ids": [
+        "CISCO-IOSXE-17.18-NETCONF",
+        "CISCO-IOSXE-26-NETCONF"
+      ],
+      "secret_safe_scope": true
+    }
+  ],
+  "blocked_rpc_operations": [
+    "edit-config",
+    "copy-config",
+    "delete-config",
+    "commit",
+    "discard-changes",
+    "lock",
+    "unlock",
+    "kill-session",
+    "action"
+  ],
+  "admission_boundaries": {
+    "live_target_required_for_c03_completion": true,
+    "synthetic_fixture_can_complete_c03": false,
+    "production_write_authorized": false,
+    "physical_device_verified": false
+  }
+}

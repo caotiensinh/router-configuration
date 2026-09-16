@@ -16,4 +16,7 @@ routerctl = "router_configuration.routerctl:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-router_configuration = ["vendors/mikrotik/data/*.json"]
+router_configuration = [
+  "vendors/mikrotik/data/*.json",
+  "vendors/cisco/data/*.json",
+]

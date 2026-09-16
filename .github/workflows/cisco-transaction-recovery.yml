@@ -1,0 +1,108 @@
+name: Cisco Transaction Recovery Contract
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/transaction_recovery.py"
+      - "tests/test_cisco_transaction_recovery.py"
+      - "docs/cisco/TRANSACTION_RECOVERY.md"
+      - ".github/workflows/cisco-transaction-recovery.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/transaction_recovery.py"
+      - "tests/test_cisco_transaction_recovery.py"
+      - "docs/cisco/TRANSACTION_RECOVERY.md"
+      - ".github/workflows/cisco-transaction-recovery.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Run C08-C10 recovery contract chain
+        run: |
+          set -euo pipefail
+          python -m unittest tests.test_cisco_validation_approval -v
+          python -m unittest tests.test_cisco_virtual_lab_acceptance -v
+          python -m unittest tests.test_cisco_transaction_recovery -v
+
+      - name: Reject executor and production-write surfaces
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/router_configuration/vendors/cisco/transaction_recovery.py")
+          text = path.read_text(encoding="utf-8")
+          forbidden = (
+              "import ncclient",
+              "from ncclient",
+              "import paramiko",
+              "from paramiko",
+              "import requests",
+              "import socket",
+              "import subprocess",
+              "edit_config(",
+              ".commit(",
+              "connect(",
+          )
+          found = [token for token in forbidden if token in text]
+          if found:
+              raise SystemExit(f"C10 planning boundary contains executor/write surface: {found}")
+          PY
+
+      - name: Record contract-only C10 evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from router_configuration.vendors.cisco.transaction_recovery import contract_only_status
+
+          result = contract_only_status()
+          result["source_sha"] = os.environ["SOURCE_SHA"]
+          result["stage"] = "confirmed_commit_recovery_contract_ready_live_failure_rollback_evidence_required"
+          with open("evidence/cisco/c10-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
+      - name: Verify CI cannot claim C10 acceptance
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("evidence/cisco/c10-contract.json").read_text(encoding="utf-8"))
+          assert result["synthetic_fixture_can_complete_c10"] is False
+          assert result["live_rollback_observed"] is False
+          assert result["restored_state_verified"] is False
+          assert result["c10_complete"] is False
+          assert result["apply_available"] is False
+          assert result["production_writer_available"] is False
+          assert result["production_write_authorized"] is False
+          assert result["restconf_confirmed_commit_allowed"] is False
+          PY
+
+      - name: Preserve C10 contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-transaction-recovery-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c10-contract.json
+          if-no-files-found: error
+          retention-days: 30

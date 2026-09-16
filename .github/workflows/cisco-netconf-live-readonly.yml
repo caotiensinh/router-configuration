@@ -1,0 +1,251 @@
+name: Cisco NETCONF Live Read-Only Probe
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/live_netconf_probe.py"
+      - "tests/test_cisco_live_netconf_probe.py"
+      - ".github/workflows/cisco-netconf-live-readonly.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/live_netconf_probe.py"
+      - "tests/test_cisco_live_netconf_probe.py"
+      - ".github/workflows/cisco-netconf-live-readonly.yml"
+  workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact 40-character source SHA expected at the dispatched ref
+        required: true
+        type: string
+      dispatch_request_id:
+        description: Optional acceptance dispatch request identifier
+        required: false
+        default: manual
+        type: string
+      dispatch_request_sha256:
+        description: Optional immutable dispatch request SHA-256
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Run live-probe unit contracts without network
+        run: python -m unittest tests.test_cisco_live_netconf_probe -v
+
+  live-readonly:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      SOURCE_SHA: ${{ github.sha }}
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      DISPATCH_REQUEST_ID: ${{ inputs.dispatch_request_id }}
+      DISPATCH_REQUEST_SHA256: ${{ inputs.dispatch_request_sha256 }}
+      CISCO_NETCONF_HOST: ${{ secrets.CISCO_NETCONF_HOST }}
+      CISCO_NETCONF_PORT: ${{ secrets.CISCO_NETCONF_PORT }}
+      CISCO_NETCONF_USERNAME: ${{ secrets.CISCO_NETCONF_USERNAME }}
+      CISCO_NETCONF_PASSWORD: ${{ secrets.CISCO_NETCONF_PASSWORD }}
+      CISCO_NETCONF_HOSTKEY_B64: ${{ secrets.CISCO_NETCONF_HOSTKEY_B64 }}
+      CISCO_NETCONF_TIMEOUT: "20"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify exact dispatched source SHA before network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "expected_source_sha is not an exact lowercase Git SHA" >&2
+            exit 1
+          fi
+          if [ "$SOURCE_SHA" != "$EXPECTED_SOURCE_SHA" ]; then
+            echo "C03 dispatch source moved: expected=$EXPECTED_SOURCE_SHA observed=$SOURCE_SHA" >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package and pinned live NETCONF client
+        run: |
+          python -m pip install -e .
+          python -m pip install "ncclient==0.7.1"
+
+      - name: Record sanitized C03 secret preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from router_configuration.vendors.cisco.c03_secret_preflight import build_c03_secret_preflight
+
+          result = build_c03_secret_preflight(os.environ, source_sha=os.environ["SOURCE_SHA"])
+          Path("evidence/cisco/c03-secret-preflight.json").write_text(
+              json.dumps(result, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Preserve C03 secret preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-c03-secret-preflight-${{ github.sha }}
+          path: evidence/cisco/c03-secret-preflight.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce C03 secret preflight before network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          evidence = json.loads(Path("evidence/cisco/c03-secret-preflight.json").read_text(encoding="utf-8"))
+          if evidence.get("ready_for_live_probe") is not True:
+              raise SystemExit("C03 live preflight blocked; missing=" + ",".join(evidence.get("missing_secret_names", [])))
+          PY
+
+      - name: Run read-only live NETCONF probe
+        id: probe
+        shell: bash
+        run: |
+          set +e
+          mkdir -p evidence/cisco
+          python -m router_configuration.vendors.cisco.live_netconf_probe \
+            --output evidence/cisco/c03-live.json \
+            >/tmp/cisco-netconf-probe.stdout \
+            2>/tmp/cisco-netconf-probe.stderr
+          rc=$?
+          printf 'probe_rc=%s\n' "$rc" >> "$GITHUB_OUTPUT"
+          printf 'Cisco C03 live probe process exit code: %s\n' "$rc"
+          exit 0
+
+      - name: Ensure sanitized failure evidence exists
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("evidence/cisco/c03-live.json")
+          if path.exists():
+              raise SystemExit(0)
+          evidence = {
+              "schema_version": "cisco-c03-live-evidence/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "probe_process_failed",
+              "error_code": "LIVE_PROBE_PROCESS_FAILED",
+              "live_target_observed": False,
+              "hostkey_verified": False,
+              "write_operations_performed": False,
+              "production_write_authorized": False,
+              "physical_device_verified": False,
+              "c03_complete": False,
+          }
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Minimize target metadata before artifact upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("evidence/cisco/c03-live.json")
+          evidence = json.loads(path.read_text(encoding="utf-8"))
+
+          for field, digest_field in (
+              ("target_host", "target_host_digest_sha256"),
+              ("hostname", "hostname_digest_sha256"),
+          ):
+              value = evidence.pop(field, None)
+              if isinstance(value, str) and value:
+                  evidence[digest_field] = hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+          evidence.pop("session_id", None)
+
+          hostkey_b64 = (os.environ.get("CISCO_NETCONF_HOSTKEY_B64") or "").strip()
+          if hostkey_b64:
+              try:
+                  hostkey = base64.b64decode(hostkey_b64, validate=True)
+              except Exception:
+                  hostkey = b""
+              if hostkey:
+                  evidence["hostkey_pin_digest_sha256"] = hashlib.sha256(hostkey).hexdigest()
+
+          path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Preserve sanitized live C03 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-netconf-live-readonly-${{ github.sha }}
+          path: evidence/cisco/c03-live.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce live C03 acceptance result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("evidence/cisco/c03-live.json")
+          evidence = json.loads(path.read_text(encoding="utf-8"))
+          if evidence.get("c03_complete") is not True:
+              raise SystemExit(
+                  "C03 live gate not satisfied: " + str(evidence.get("stage", "unknown"))
+              )
+          if evidence.get("production_write_authorized") is not False:
+              raise SystemExit("C03 evidence attempted to authorize production write")
+          if evidence.get("physical_device_verified") is not False:
+              raise SystemExit("C03 evidence attempted to claim physical-device verification")
+          if evidence.get("write_operations_performed") is not False:
+              raise SystemExit("C03 evidence reports a write operation")
+          if evidence.get("hostkey_verified") is not True:
+              raise SystemExit("C03 evidence does not prove SSH host-key verification")
+          for field in (
+              "target_host_digest_sha256",
+              "hostname_digest_sha256",
+              "hostkey_pin_digest_sha256",
+          ):
+              value = evidence.get(field)
+              if not isinstance(value, str) or len(value) != 64:
+                  raise SystemExit(f"C03 evidence lacks minimized target binding: {field}")
+          if "target_host" in evidence or "hostname" in evidence or "session_id" in evidence:
+              raise SystemExit("C03 evidence contains unminimized target/session metadata")
+          print("C03 live read-only acceptance evidence passed")
+          PY

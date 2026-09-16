@@ -1,0 +1,284 @@
+name: Cisco RESTCONF Live Read-Only Probe
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/knowledge.py"
+      - "src/router_configuration/vendors/cisco/restconf_readonly.py"
+      - "src/router_configuration/vendors/cisco/live_restconf_probe.py"
+      - "src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json"
+      - "tests/test_cisco_restconf_readonly.py"
+      - "tests/test_cisco_live_restconf_probe.py"
+      - "docs/cisco/RESTCONF_LIVE_READONLY.md"
+      - ".github/workflows/cisco-restconf-live-readonly.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/knowledge.py"
+      - "src/router_configuration/vendors/cisco/restconf_readonly.py"
+      - "src/router_configuration/vendors/cisco/live_restconf_probe.py"
+      - "src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json"
+      - "tests/test_cisco_restconf_readonly.py"
+      - "tests/test_cisco_live_restconf_probe.py"
+      - "docs/cisco/RESTCONF_LIVE_READONLY.md"
+      - ".github/workflows/cisco-restconf-live-readonly.yml"
+  workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact 40-character source SHA expected at the dispatched ref
+        required: true
+        type: string
+      dispatch_request_id:
+        description: Optional acceptance dispatch request identifier
+        required: false
+        default: manual
+        type: string
+      dispatch_request_sha256:
+        description: Optional immutable dispatch request SHA-256
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Run RESTCONF contract and live-probe unit tests
+        run: |
+          python -m unittest \
+            tests.test_cisco_restconf_readonly \
+            tests.test_cisco_live_restconf_probe -v
+
+      - name: Record fail-closed live boundary
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from router_configuration.vendors.cisco import CiscoOfflineKnowledge
+          from router_configuration.vendors.cisco.restconf_readonly import query_definition
+
+          knowledge = CiscoOfflineKnowledge()
+          result = {
+              "schema_version": "cisco-c04-live-contract-evidence/2",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "live_probe_ready_dispatch_required",
+              "knowledge_digest_sha256": knowledge.digest_sha256,
+              "capability_query": query_definition("restconf-capabilities").relative_uri,
+              "native_identity_requires_observed_fields_capability": True,
+              "independent_platform_binding_required": True,
+              "live_target_observed": False,
+              "c04_complete": False,
+              "production_write_authorized": False,
+              "physical_device_verified": False,
+          }
+          with open("evidence/cisco/c04-live-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
+      - name: Preserve live-probe contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-restconf-live-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c04-live-contract.json
+          if-no-files-found: error
+          retention-days: 30
+
+  live-readonly:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      DISPATCH_REQUEST_ID: ${{ inputs.dispatch_request_id }}
+      DISPATCH_REQUEST_SHA256: ${{ inputs.dispatch_request_sha256 }}
+      CISCO_RESTCONF_HOST: ${{ secrets.CISCO_RESTCONF_HOST }}
+      CISCO_RESTCONF_PORT: ${{ secrets.CISCO_RESTCONF_PORT }}
+      CISCO_RESTCONF_USERNAME: ${{ secrets.CISCO_RESTCONF_USERNAME }}
+      CISCO_RESTCONF_PASSWORD: ${{ secrets.CISCO_RESTCONF_PASSWORD }}
+      CISCO_RESTCONF_CA_PEM_B64: ${{ secrets.CISCO_RESTCONF_CA_PEM_B64 }}
+      CISCO_RESTCONF_CERT_SHA256: ${{ secrets.CISCO_RESTCONF_CERT_SHA256 }}
+      CISCO_RESTCONF_PLATFORM_MODEL: ${{ secrets.CISCO_RESTCONF_PLATFORM_MODEL }}
+      CISCO_RESTCONF_PLATFORM_TARGET_SHA256: ${{ secrets.CISCO_RESTCONF_PLATFORM_TARGET_SHA256 }}
+      CISCO_RESTCONF_PLATFORM_EVIDENCE_SHA256: ${{ secrets.CISCO_RESTCONF_PLATFORM_EVIDENCE_SHA256 }}
+      CISCO_RESTCONF_TIMEOUT_SECONDS: "10"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify exact dispatched source SHA before network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "expected_source_sha is not an exact lowercase Git SHA" >&2
+            exit 1
+          fi
+          if [ "$SOURCE_SHA" != "$EXPECTED_SOURCE_SHA" ]; then
+            echo "C04 dispatch source moved: expected=$EXPECTED_SOURCE_SHA observed=$SOURCE_SHA" >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Record sanitized C04 secret preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from router_configuration.vendors.cisco.c04_secret_preflight import build_c04_secret_preflight
+
+          result = build_c04_secret_preflight(os.environ, source_sha=os.environ["SOURCE_SHA"])
+          Path("evidence/cisco/c04-secret-preflight.json").write_text(
+              json.dumps(result, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Preserve C04 secret preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-c04-secret-preflight-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c04-secret-preflight.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce C04 secret preflight before network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          evidence = json.loads(Path("evidence/cisco/c04-secret-preflight.json").read_text(encoding="utf-8"))
+          if evidence.get("ready_for_live_acceptance_probe") is not True:
+              raise SystemExit("C04 live preflight blocked; missing=" + ",".join(evidence.get("missing_required_secret_names", [])))
+          PY
+
+      - name: Execute bounded live RESTCONF GET probe
+        id: probe
+        shell: bash
+        run: |
+          set +e
+          mkdir -p evidence/cisco
+          python -m router_configuration.vendors.cisco.live_restconf_probe \
+            --output evidence/cisco/c04-live-restconf.json \
+            >/tmp/cisco-restconf-probe.stdout \
+            2>/tmp/cisco-restconf-probe.stderr
+          rc=$?
+          printf 'probe_rc=%s\n' "$rc" >> "$GITHUB_OUTPUT"
+          printf 'Cisco C04 live probe process exit code: %s\n' "$rc"
+          exit 0
+
+      - name: Ensure sanitized failure evidence exists
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("evidence/cisco/c04-live-restconf.json")
+          if path.exists():
+              raise SystemExit(0)
+          evidence = {
+              "schema_version": "cisco-c04-live-restconf-evidence/2",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "probe_process_failed",
+              "result": "live_probe_process_failed",
+              "live_target_observed": False,
+              "c04_complete": False,
+              "request_method_scope": ["GET"],
+              "tls_certificate_verification_required": True,
+              "redirect_following_allowed": False,
+              "credentials_persisted": False,
+              "platform_evidence_bound": False,
+              "production_write_authorized": False,
+              "physical_device_verified": False,
+              "write_operations_performed": False,
+          }
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Preserve sanitized live RESTCONF evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-restconf-live-evidence-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c04-live-restconf.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce live C04 acceptance result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = json.loads(Path("evidence/cisco/c04-live-restconf.json").read_text(encoding="utf-8"))
+          assert evidence["source_sha"] == os.environ["SOURCE_SHA"]
+          assert evidence["c04_complete"] is True
+          assert evidence["result"] == "live_readonly_admitted"
+          assert evidence["production_write_authorized"] is False
+          assert evidence["physical_device_verified"] is False
+          assert evidence["write_operations_performed"] is False
+          assert evidence["request_method_scope"] == ["GET"]
+          assert evidence["tls_certificate_verification_required"] is True
+          assert evidence["redirect_following_allowed"] is False
+          assert evidence["fields_capability_observed"] is True
+          assert evidence["platform_evidence_bound"] is True
+          assert evidence["platform_admission_status"] == "DOCUMENTED_READ_ONLY_CANDIDATE"
+
+          for field in (
+              "target_host_digest_sha256",
+              "hostname_digest_sha256",
+              "peer_certificate_sha256",
+              "capability_inventory_digest_sha256",
+              "platform_evidence_digest_sha256",
+              "evidence_digest_sha256",
+          ):
+              value = evidence.get(field)
+              assert isinstance(value, str) and len(value) == 64, field
+
+          rendered = json.dumps(evidence, sort_keys=True)
+          for secret_name in (
+              "CISCO_RESTCONF_HOST",
+              "CISCO_RESTCONF_USERNAME",
+              "CISCO_RESTCONF_PASSWORD",
+          ):
+              value = os.environ.get(secret_name, "")
+              if value:
+                  assert value not in rendered
+          for forbidden_key in ("target_host", "hostname", "username", "password", "authorization"):
+              assert forbidden_key not in evidence
+          PY

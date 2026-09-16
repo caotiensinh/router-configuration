@@ -1,0 +1,80 @@
+name: Cisco Desired-State Contract
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/desired_state.py"
+      - "src/router_configuration/vendors/cisco/data/desired_state_catalog.json"
+      - "tests/test_cisco_desired_state.py"
+      - ".github/workflows/cisco-desired-state.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/desired_state.py"
+      - "src/router_configuration/vendors/cisco/data/desired_state_catalog.json"
+      - "tests/test_cisco_desired_state.py"
+      - ".github/workflows/cisco-desired-state.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run C07 desired-state contract tests
+        run: python -m unittest tests.test_cisco_desired_state -v
+      - name: Reject runtime write surfaces in the C07 renderer
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          text = Path("src/router_configuration/vendors/cisco/desired_state.py").read_text(encoding="utf-8")
+          forbidden = ("ncclient", "requests.", "socket.", "edit_config(", "commit(", "dispatch(")
+          found = [token for token in forbidden if token in text]
+          if found:
+              raise SystemExit(f"runtime write/network surface found: {found}")
+          PY
+      - name: Record fail-closed C07 slice evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from router_configuration.vendors.cisco.desired_state import desired_state_catalog_digest, load_desired_state_catalog
+
+          catalog = load_desired_state_catalog()
+          result = {
+              "schema_version": "cisco-c07-contract-evidence/3",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "desired_state_three_vertical_slices_ready_more_features_and_acceptance_required",
+              "catalog_digest_sha256": desired_state_catalog_digest(),
+              "feature_ids": sorted(feature["id"] for feature in catalog["features"]),
+              "documentation_trains": sorted(catalog["documentation_trains"]),
+              "shutdown_delete_semantics_admitted": False,
+              "runtime_ai_rendering": False,
+              "approval_bound": False,
+              "apply_authorized": False,
+              "c07_complete": False,
+              "production_write_authorized": False,
+          }
+          with open("evidence/cisco/c07-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - name: Preserve C07 contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-desired-state-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c07-contract.json
+          if-no-files-found: error
+          retention-days: 30

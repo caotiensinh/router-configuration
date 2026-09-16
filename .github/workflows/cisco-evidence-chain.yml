@@ -1,0 +1,71 @@
+name: Cisco Evidence Chain Contract
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/evidence_chain.py"
+      - "src/router_configuration/vendors/cisco/validation_approval.py"
+      - "src/router_configuration/vendors/cisco/virtual_lab_evidence_ingest.py"
+      - "src/router_configuration/vendors/cisco/transaction_execution_contract.py"
+      - "tests/test_cisco_evidence_chain.py"
+      - "docs/cisco/EVIDENCE_CHAIN.md"
+      - ".github/workflows/cisco-evidence-chain.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/evidence_chain.py"
+      - "src/router_configuration/vendors/cisco/validation_approval.py"
+      - "src/router_configuration/vendors/cisco/virtual_lab_evidence_ingest.py"
+      - "src/router_configuration/vendors/cisco/transaction_execution_contract.py"
+      - "tests/test_cisco_evidence_chain.py"
+      - "docs/cisco/EVIDENCE_CHAIN.md"
+      - ".github/workflows/cisco-evidence-chain.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run evidence-chain contract tests
+        run: python -m unittest tests.test_cisco_evidence_chain -v
+      - name: Record non-promoting chain contract evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          result = {
+              "schema_version": "cisco-evidence-chain-contract-status/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "c08_c09_c10_structural_chain_verifier_ready_live_provenance_acceptance_still_required",
+              "tamper_evident_chain_supported": True,
+              "raw_c09_bundle_replayed": False,
+              "repository_live_evidence_accepted": False,
+              "c09_complete": False,
+              "c10_complete": False,
+              "physical_device_verified": False,
+              "production_writer_available": False,
+              "production_write_authorized": False,
+          }
+          with open("evidence/cisco/evidence-chain-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - name: Preserve evidence-chain contract status
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-evidence-chain-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/evidence-chain-contract.json
+          if-no-files-found: error
+          retention-days: 30

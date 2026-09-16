@@ -1,0 +1,72 @@
+name: Cisco IOS XE Virtual Lab Evidence Ingest Contract
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/virtual_lab_evidence_ingest.py"
+      - "src/router_configuration/vendors/cisco/virtual_lab_acceptance.py"
+      - "src/router_configuration/vendors/cisco/validation_approval.py"
+      - "tests/test_cisco_virtual_lab_evidence_ingest.py"
+      - "docs/cisco/IOSXE_VIRTUAL_LAB_EVIDENCE_INGEST.md"
+      - ".github/workflows/cisco-iosxe-virtual-lab-ingest.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/virtual_lab_evidence_ingest.py"
+      - "src/router_configuration/vendors/cisco/virtual_lab_acceptance.py"
+      - "src/router_configuration/vendors/cisco/validation_approval.py"
+      - "tests/test_cisco_virtual_lab_evidence_ingest.py"
+      - "docs/cisco/IOSXE_VIRTUAL_LAB_EVIDENCE_INGEST.md"
+      - ".github/workflows/cisco-iosxe-virtual-lab-ingest.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run C09 evidence-ingest contract tests
+        run: python -m unittest tests.test_cisco_virtual_lab_evidence_ingest -v
+      - name: Record contract-only ingestion evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+
+          result = {
+              "schema_version": "cisco-c09-ingest-contract-evidence/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "stage": "strict_live_artifact_ingest_ready_external_live_artifact_required",
+              "max_evidence_bytes": 131072,
+              "duplicate_json_keys_rejected": True,
+              "unknown_top_level_fields_rejected": True,
+              "sensitive_keys_rejected": True,
+              "contract_fixture_is_live_evidence": False,
+              "repository_live_evidence_accepted": False,
+              "repository_c09_complete": False,
+              "physical_hardware_claimed": False,
+              "production_writer_available": False,
+              "production_write_authorized": False,
+          }
+          with open("evidence/cisco/c09-ingest-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - name: Preserve C09 ingestion contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-c09-ingest-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c09-ingest-contract.json
+          if-no-files-found: error
+          retention-days: 30
