@@ -57,5 +57,48 @@ jobs:
           fi
           echo 'No hook body, secret value, or device endpoint was emitted.'
 
+      - name: Inspect local Cisco secure-input presence without reading values
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'LOCAL_CISCO_ENVIRONMENT_NAMES_BEGIN'
+          env | sed 's/=.*$//' | grep -E '^(CISCO_|NETCONF_|RESTCONF_|ROUTERCFG_|ROUTER_CONFIGURATION_)' | sort || true
+          echo 'LOCAL_CISCO_ENVIRONMENT_NAMES_END'
+
+          for directory in \
+            /etc/router-configuration \
+            /etc/router_configuration \
+            "${HOME}/.config/router-configuration" \
+            /opt/github-runners/router-configuration/_secure \
+            /opt/github-runners/router-configuration/secure \
+            /var/lib/router-configuration; do
+            if [ -d "$directory" ]; then
+              printf 'SECURE_DIR_EXISTS=true path=%s readable=%s writable=%s\n' \
+                "$directory" \
+                "$(test -r "$directory" && echo true || echo false)" \
+                "$(test -w "$directory" && echo true || echo false)"
+              stat -c 'SECURE_DIR_META path=%n owner=%U group=%G mode=%a' "$directory"
+            else
+              printf 'SECURE_DIR_EXISTS=false path=%s\n' "$directory"
+            fi
+          done
+
+          for file in \
+            /etc/router-configuration/cisco.env \
+            /etc/router-configuration/cisco-netconf.env \
+            /etc/router-configuration/acceptance.env \
+            "${HOME}/.config/router-configuration/cisco.env" \
+            /opt/github-runners/router-configuration/_secure/cisco.env \
+            /opt/github-runners/router-configuration/_secure/cisco-netconf.env; do
+            if [ -f "$file" ]; then
+              printf 'SECURE_FILE_EXISTS=true path=%s readable=%s\n' \
+                "$file" "$(test -r "$file" && echo true || echo false)"
+              stat -c 'SECURE_FILE_META path=%n owner=%U group=%G mode=%a size=%s' "$file"
+            else
+              printf 'SECURE_FILE_EXISTS=false path=%s\n' "$file"
+            fi
+          done
+          echo 'No environment values or secure-file contents were emitted.'
+
   reusable-call:
     uses: ./.github/workflows/cisco-self-hosted-reusable-diagnostic.yml
