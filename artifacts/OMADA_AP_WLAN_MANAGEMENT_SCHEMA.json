@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_ap_wlan_management_contract",
+  "task": "7.09",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_device_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-6-configure-and-monitor-omada-managed-devices.html",
+    "controller_network_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html"
+  },
+  "state_planes": [
+    "site_wlan_group",
+    "ssid",
+    "per_ap_wlan_override",
+    "radio_band",
+    "channel_width",
+    "channel",
+    "tx_power",
+    "management_vlan",
+    "mesh_state",
+    "client_state",
+    "device_status"
+  ],
+  "controller_facts": {
+    "adopted_ap_uses_site_wlan_group": true,
+    "per_ap_ssid_override_is_distinct_from_site_wlan_group": true,
+    "radio_parameters_are_band_specific": true,
+    "mesh_requires_supported_models_and_same_site": true,
+    "mesh_and_wired_uplink_are_distinct_operational_paths": true,
+    "features_vary_by_model_region_and_status": true
+  },
+  "safety": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "radio_disable_can_remove_service": true,
+    "wrong_management_vlan_can_break_management": true,
+    "ssid_or_security_change_requires_client_impact_analysis": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "AP identity/site/status read-back",
+    "effective WLAN group and per-AP overrides read-back",
+    "radio channel/width/power state read-back",
+    "management path healthy",
+    "expected SSIDs visible on intended APs/bands",
+    "representative client association and network access healthy",
+    "mesh/uplink state healthy when applicable"
+  ]
+}
