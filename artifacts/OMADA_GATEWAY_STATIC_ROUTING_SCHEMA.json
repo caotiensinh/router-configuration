@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_static_routing_contract",
+  "task": "5.04",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_network_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "controller_monitor_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-8-monitor-the-network.html",
+    "switch_guide_v6_2": "https://static.tp-link.com/upload/manual/2026/202604/20260401/1900002158_Manage%20Switches%20via%20the%20Omada%20Controller_6.2.0.pdf",
+    "switch_pdf_visual_verification": "ATTEMPTED_CACHE_MISS",
+    "scope_note": "Gateway/site static routing is distinct from per-switch L3 static routing."
+  },
+  "state_planes": [
+    "route_identity",
+    "enabled_state",
+    "destination_prefixes",
+    "route_type",
+    "next_hop",
+    "egress_interface",
+    "metric",
+    "effective_routing_table"
+  ],
+  "controller_facts": {
+    "gateway_path": "Settings > Transmission > Routing > Static Route",
+    "next_hop_and_interface_are_distinct_route_types": true,
+    "multiple_destination_subnets_supported": true,
+    "routing_table_is_operational_readback": true,
+    "switch_static_route_is_separate_device_plane": true
+  },
+  "safety": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "default_route_or_management_path_change_is_critical": true,
+    "next_hop_or_interface_reachability_required_before_change": true,
+    "route_overlap_and_more_specific_effect_must_be_analyzed": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "exact route object read-back",
+    "expected effective route visible in routing table",
+    "next-hop or egress reachability",
+    "positive destination flow follows intended path",
+    "negative/control traffic is not unintentionally rerouted",
+    "controller and management path remain healthy"
+  ]
+}
