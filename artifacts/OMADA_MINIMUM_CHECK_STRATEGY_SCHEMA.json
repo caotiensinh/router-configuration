@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "minimum_check_strategy",
+  "task": "9.13",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "atomic_model": "one diagnostic check resolves one evidence_id",
+  "strategy": ["Ignore already CONFIRMED and REJECTED hypotheses.", "Take the unique union of missing required evidence across unresolved hypotheses; duplicate checks are removed.", "Prefer the lowest-cost available check per evidence_id.", "Read-only checks are allowed by default; mutating checks require explicit allow_mutating authorization.", "Order checks deterministically by read-only status, cost, then evidence_id.", "If required evidence has no authorized check, report it as blocked and keep the plan non-executable."],
+  "safety": {"fail_closed": true, "default_mutation_authorization": false, "blocked_evidence_prevents_executable": true}
+}
