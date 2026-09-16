@@ -1,0 +1,24 @@
+name: Cisco Self-Hosted Runner Discovery
+
+on:
+  push:
+    paths:
+      - ".github/workflows/cisco-self-hosted-runner-discovery.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Record non-sensitive runner metadata
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.info(`RUNNER_NAME=${process.env.RUNNER_NAME || "unknown"}`)
+            core.info(`RUNNER_OS=${process.env.RUNNER_OS || "unknown"}`)
+            core.info(`RUNNER_ARCH=${process.env.RUNNER_ARCH || "unknown"}`)
+            core.info(`RUNNER_ENVIRONMENT=${process.env.RUNNER_ENVIRONMENT || "unknown"}`)
+            core.info("No repository secrets or device endpoints are accessed by this discovery job.")
