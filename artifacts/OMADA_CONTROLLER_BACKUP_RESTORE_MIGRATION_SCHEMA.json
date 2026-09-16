@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_controller_backup_restore_migration_contract",
+  "task": "7.12",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-5-configure-the-omada-sdn-controller.html",
+    "current_2026_guide_pdf": "https://static.tp-link.com/upload/manual/2026/202604/20260401/1900002482_Omada%20SDN%20Controller_V6.2_User%20Guide.pdf",
+    "visual_screenshot_verified": false
+  },
+  "reuse": {
+    "parent_contract": "OMADA_CONTROLLER_BACKUP_RESTORE_UPGRADE_SCHEMA.json",
+    "parent_task": "4.19",
+    "specialization": "controller backup/restore/site migration/controller migration only"
+  },
+  "applicability_key": [
+    "source_controller_platform", "source_controller_version_build",
+    "target_controller_platform", "target_controller_version_build",
+    "site_or_controller_scope", "managed_device_population"
+  ],
+  "state_planes": [
+    "manual_backup", "automatic_backup", "restore", "site_migration", "controller_migration", "device_reconciliation"
+  ],
+  "migration": {
+    "site_and_controller_migration_are_distinct": true,
+    "source_and_target_version_compatibility_must_be_prevalidated": true,
+    "target_inform_url_or_controller_address_must_be_exact": true,
+    "temporary_connectivity_loss_must_be_expected": true,
+    "forget_source_devices_only_after_target_connected_verification": true
+  },
+  "restore": {
+    "backup_integrity_and_provenance_required": true,
+    "compatibility_must_be_revalidated_before_restore": true,
+    "success_requires_controller_health_and_device_reconciliation": true
+  },
+  "safety": {
+    "change_window_required": true,
+    "source_backup_required": true,
+    "rollback_or_recovery_path_required": true,
+    "unknown_compatibility": "NOT_SUPPORTED_UNVERIFIED",
+    "write_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "backup artifact retained with provenance",
+    "source and target version/build recorded",
+    "target controller reachable",
+    "migrated configuration present",
+    "all intended devices connected on target",
+    "representative client/network service health",
+    "source cleanup only after target verification"
+  ]
+}
