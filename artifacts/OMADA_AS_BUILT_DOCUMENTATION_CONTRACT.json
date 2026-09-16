@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_as_built_documentation_contract",
+  "task": "14.4",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "reuses": [
+    "14.1 Project Summary",
+    "14.3 Configuration Report"
+  ],
+  "input_contract": [
+    "durable project summary",
+    "verified configuration report",
+    "topology",
+    "inventory",
+    "management paths",
+    "evidence references",
+    "known deviations"
+  ],
+  "required_bindings": [
+    "same current main SHA across upstream artifacts",
+    "configuration report SHA-256",
+    "deterministic topology digest",
+    "deterministic inventory digest",
+    "deterministic as-built digest"
+  ],
+  "prohibitions": [
+    "secret material",
+    "transport",
+    "apply executor",
+    "rollback executor",
+    "production writer",
+    "write authorization"
+  ],
+  "claim": "verified_as_built_documentation_only"
+}

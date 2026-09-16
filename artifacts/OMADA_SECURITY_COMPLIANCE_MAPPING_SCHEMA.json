@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_security_compliance_mapping_contract",
+  "task": "10.10",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authorities": {
+    "nist_csf_2_0": "https://www.nist.gov/publications/nist-cybersecurity-framework-csf-20",
+    "cis_controls_v8_1": "https://www.cisecurity.org/controls",
+    "cis_network_infrastructure_management": "https://www.cisecurity.org/controls/network-infrastructure-management",
+    "pci_dss_requirement_1_context": "https://www.pcisecuritystandards.org/faqs/1076/",
+    "iso_iec_27001_2022": "https://www.iso.org/standard/27001"
+  },
+  "mapping_semantics": {
+    "mapping_is_not_certification": true,
+    "framework_outcome_and_technical_control_are_separate": true,
+    "vendor_capability_and_organization_policy_are_separate": true,
+    "evidence_must_bind_exact_configuration_and_scope": true,
+    "licensed_or_nonpublic_control_text_must_not_be_invented": true
+  },
+  "supported_public_mappings": [
+    {
+      "framework": "NIST CSF 2.0",
+      "scope": "risk outcomes and informative-reference style mapping",
+      "claim": "supporting_evidence_only"
+    },
+    {
+      "framework": "CIS Controls v8.1",
+      "scope": "Control 7 vulnerability management; Control 12 network infrastructure; Control 13 monitoring/defense",
+      "claim": "supporting_evidence_only"
+    },
+    {
+      "framework": "PCI DSS",
+      "scope": "Requirement 1 network security controls where cardholder-data environment applicability is explicitly in scope",
+      "claim": "applicability_required"
+    },
+    {
+      "framework": "ISO/IEC 27001:2022",
+      "scope": "ISMS requirement context only from public ISO source",
+      "claim": "licensed_control_text_required_for_exact_clause_mapping"
+    }
+  ],
+  "project_evidence_domains": [
+    "asset_inventory",
+    "secure_configuration",
+    "segmentation",
+    "acl_firewall",
+    "management_plane",
+    "rbac",
+    "vpn",
+    "logging_monitoring",
+    "firmware_vulnerability",
+    "backup_recovery",
+    "change_validation"
+  ],
+  "fail_closed": {
+    "unknown_framework_version": "MAPPING_UNVERIFIED",
+    "unknown_scope_or_applicability": "MAPPING_UNVERIFIED",
+    "missing_evidence": "MAPPING_UNVERIFIED",
+    "mapping_as_compliance_claim": "REJECTED"
+  }
+}
