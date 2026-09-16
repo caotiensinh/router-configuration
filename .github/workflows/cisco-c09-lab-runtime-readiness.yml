@@ -1,0 +1,142 @@
+name: Cisco C09 Lab Runtime Readiness
+
+on:
+  push:
+    paths:
+      - ".github/workflows/cisco-c09-lab-runtime-readiness.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: self-hosted
+    steps:
+      - name: Guard approved self-hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_NAME}" = "aiserver-router-configuration"
+          test "${RUNNER_OS}" = "Linux"
+          test "${RUNNER_ARCH}" = "X64"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Collect sanitized C09 runtime readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          def command_present(name: str) -> bool:
+              return shutil.which(name) is not None
+
+          kvm = Path("/dev/kvm")
+          libvirt_sockets = (
+              Path("/run/libvirt/libvirt-sock"),
+              Path("/var/run/libvirt/libvirt-sock"),
+          )
+          image_roots = (
+              Path("/var/lib/libvirt/images"),
+              Path("/opt/cisco-images"),
+              Path("/srv/cisco-images"),
+          )
+
+          local_c8000v_image_count = 0
+          for root in image_roots:
+              if not root.is_dir():
+                  continue
+              try:
+                  for item in root.iterdir():
+                      lowered = item.name.lower()
+                      if item.is_file() and ("c8000v" in lowered or "c8kv" in lowered):
+                          local_c8000v_image_count += 1
+              except PermissionError:
+                  continue
+
+          image_env_present = bool(os.environ.get("CISCO_C8000V_IMAGE_PATH", "").strip())
+          result = {
+              "schema_version": "cisco-c09-lab-runtime-readiness/1",
+              "source_sha": os.environ.get("GITHUB_SHA", ""),
+              "runner_name_expected": "aiserver-router-configuration",
+              "runner_name_matches": os.environ.get("RUNNER_NAME") == "aiserver-router-configuration",
+              "runner_os_linux": os.environ.get("RUNNER_OS") == "Linux",
+              "runner_arch_x64": os.environ.get("RUNNER_ARCH") == "X64",
+              "qemu_system_x86_64_present": command_present("qemu-system-x86_64"),
+              "qemu_img_present": command_present("qemu-img"),
+              "virsh_present": command_present("virsh"),
+              "virt_install_present": command_present("virt-install"),
+              "kvm_device_present": kvm.exists(),
+              "kvm_device_rw": kvm.exists() and os.access(kvm, os.R_OK | os.W_OK),
+              "libvirt_socket_present": any(path.exists() for path in libvirt_sockets),
+              "c8000v_image_env_present": image_env_present,
+              "local_c8000v_image_candidate_count": local_c8000v_image_count,
+              "image_path_recorded": False,
+              "image_content_recorded": False,
+              "license_material_recorded": False,
+              "network_probe_attempted": False,
+              "device_connection_attempted": False,
+              "production_write_authorized": False,
+              "authoritative_install_source_id": "CISCO-C8000V-INSTALL",
+          }
+          result["ready_for_c09_vm_provisioning"] = all(
+              (
+                  result["runner_name_matches"],
+                  result["runner_os_linux"],
+                  result["runner_arch_x64"],
+                  result["qemu_system_x86_64_present"],
+                  result["qemu_img_present"],
+                  result["kvm_device_rw"],
+                  result["libvirt_socket_present"] or result["virt_install_present"],
+                  result["c8000v_image_env_present"] or result["local_c8000v_image_candidate_count"] > 0,
+              )
+          )
+          with open("evidence/cisco/c09-lab-runtime-readiness.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          print(json.dumps(result, sort_keys=True))
+          PY
+
+      - name: Upload sanitized readiness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-c09-lab-runtime-readiness-${{ github.sha }}
+          path: evidence/cisco/c09-lab-runtime-readiness.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce C09 lab runtime readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("evidence/cisco/c09-lab-runtime-readiness.json").read_text(encoding="utf-8"))
+          if result["ready_for_c09_vm_provisioning"] is not True:
+              missing = [
+                  key for key in (
+                      "qemu_system_x86_64_present",
+                      "qemu_img_present",
+                      "kvm_device_rw",
+                      "libvirt_socket_present",
+                      "virt_install_present",
+                      "c8000v_image_env_present",
+                  )
+                  if result.get(key) is not True
+              ]
+              if result.get("local_c8000v_image_candidate_count", 0) > 0:
+                  missing = [key for key in missing if key != "c8000v_image_env_present"]
+              if result.get("libvirt_socket_present") or result.get("virt_install_present"):
+                  missing = [key for key in missing if key not in {"libvirt_socket_present", "virt_install_present"}]
+              raise SystemExit("C09 lab runtime not ready; missing capabilities: " + ", ".join(missing))
+          PY
