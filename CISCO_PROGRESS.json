@@ -11,7 +11,7 @@
     "weight_change_rule": "Weights are fixed; changing them requires an explicit measurement-policy change and may not silently dilute completed work."
   },
   "budgets": {
-    "engineering": {"total": 79, "earned": 74, "percent": 93.7},
+    "engineering": {"total": 79, "earned": 79, "percent": 100.0},
     "acceptance": {"total": 21, "earned": 0, "percent": 0.0}
   },
   "reconciliation": {
@@ -20,7 +20,7 @@
     "reconciled_points": 74,
     "delta_points": 62,
     "delta_kind": "measurement_reclassification",
-    "new_work_points": 0,
+    "new_work_points": 5,
     "baseline_commit": "2f3f286e5092eacda55447915684f80e1c77b7ea"
   },
   "stages": [
@@ -39,18 +39,18 @@
       {"id":"sanitized_evidence_boundary","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["commit:c7fe66911543ae1fadf7d8a168667fbc01998f69"]},
       {"id":"live_acceptance","weight":3,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"identified live IOS XE NETCONF evidence required"}
     ]},
-    {"id":"C04","title":"RESTCONF read-only discovery","weight":8,"earned":5,"status":"in_progress","gates":[
+    {"id":"C04","title":"RESTCONF read-only discovery","weight":8,"earned":6,"status":"in_progress","gates":[
       {"id":"contract_catalog","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/restconf_readonly.py","path:src/router_configuration/vendors/cisco/data/restconf_readonly_catalog.json","path:docs/cisco/RESTCONF_READONLY_CONTRACT.md"]},
       {"id":"discovery_impl","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/restconf_readonly.py"]},
       {"id":"tests_ci","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:tests/test_cisco_restconf_readonly.py","run:34990233893"]},
-      {"id":"evidence_pipeline","weight":1,"kind":"eng","status":"pending","earned":0},
+      {"id":"evidence_pipeline","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/restconf_evidence_promotion.py","path:tests/test_cisco_restconf_evidence_promotion.py","commit:c0c1961195d2ea2f44f0b640513d32b9b521c05e"]},
       {"id":"live_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"verified live HTTPS RESTCONF evidence required"}
     ]},
-    {"id":"C05","title":"Router normalized state","weight":10,"earned":7,"status":"in_progress","gates":[
+    {"id":"C05","title":"Router normalized state","weight":10,"earned":8,"status":"in_progress","gates":[
       {"id":"schema_mapping","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/data/router_state_catalog.json","path:src/router_configuration/vendors/cisco/router_state.py"]},
       {"id":"normalizer_impl","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["path:src/router_configuration/vendors/cisco/router_state.py"]},
       {"id":"tests_ci","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:tests/test_cisco_router_state.py","path:.github/workflows/cisco-router-state.yml","run:34990233893"]},
-      {"id":"evidence_pipeline","weight":1,"kind":"eng","status":"pending","earned":0},
+      {"id":"evidence_pipeline","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/router_state_integrity.py","path:tests/test_cisco_router_state_integrity.py","commit:4adf5dac2bdca40f12da459a3c237a27c185c91c"]},
       {"id":"live_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"live router normalized-state evidence required"}
     ]},
     {"id":"C06","title":"Switch normalized state","weight":10,"earned":8,"status":"in_progress","gates":[
@@ -60,14 +60,14 @@
       {"id":"evidence_review_pipeline","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/switch_state_evidence_ingest.py","path:src/router_configuration/vendors/cisco/c06_acceptance_review.py","path:tests/test_cisco_c06_acceptance_review.py","run:34990233893"]},
       {"id":"live_acceptance","weight":2,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"accepted live switch normalized-state evidence required"}
     ]},
-    {"id":"C07","title":"Deterministic desired-state/renderers","weight":15,"earned":12,"status":"in_progress","gates":[
+    {"id":"C07","title":"Deterministic desired-state/renderers","weight":15,"earned":15,"status":"done","gates":[
       {"id":"source_catalog","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["path:src/router_configuration/vendors/cisco/data/desired_state_catalog.json","path:src/router_configuration/vendors/cisco/desired_state.py"]},
       {"id":"description_renderer","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/desired_state.py"]},
       {"id":"mtu_renderer","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/desired_state.py"]},
       {"id":"shutdown_renderer","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/desired_state.py"]},
       {"id":"renderer_tests_ci","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/desired_state.py","run:34990233893"]},
       {"id":"completeness_audit","weight":1,"kind":"eng","status":"pass","earned":1,"evidence":["path:src/router_configuration/vendors/cisco/c07_completeness_audit.py","run:34990233893"]},
-      {"id":"remaining_renderer_coverage","weight":3,"kind":"eng","status":"pending","earned":0}
+      {"id":"remaining_renderer_coverage","weight":3,"kind":"eng","status":"pass","earned":3,"evidence":["path:src/router_configuration/vendors/cisco/c07_ipv4_renderer.py","path:src/router_configuration/vendors/cisco/c07_access_vlan_renderer.py","path:src/router_configuration/vendors/cisco/c07_shutdown_remove_renderer.py","path:tests/test_cisco_c07_extended_integration.py","commit:d74427bbbffb6ba6c6a4e5351ad871f35f53855c","commit:1df11634893d434f5e58a5e5d3eed3429c5b0416","commit:aaab25a3258748620fe2b8256fe461901e0ec204"]}
     ]},
     {"id":"C08","title":"Validation and change approval binding","weight":10,"earned":8,"status":"in_progress","gates":[
       {"id":"validator_core","weight":2,"kind":"eng","status":"pass","earned":2,"evidence":["path:src/router_configuration/vendors/cisco/validation_approval.py"]},
@@ -105,9 +105,9 @@
       {"id":"final_handover_acceptance","weight":1,"kind":"accept","status":"blocked","earned":0,"blocked_reason":"evidence-backed handover package acceptance required"}
     ]}
   ],
-  "completed_points": 74,
-  "remaining_points": 26,
-  "overall_percent": 74,
+  "completed_points": 79,
+  "remaining_points": 21,
+  "overall_percent": 79,
   "production_write_authorized": false,
   "physical_device_verified": false
 }
