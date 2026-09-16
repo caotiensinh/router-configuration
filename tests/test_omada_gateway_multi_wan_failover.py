@@ -4,7 +4,7 @@ from pathlib import Path
 
 class GatewayMultiWanFailoverTests(unittest.TestCase):
     def test_multiwan_contract_is_health_bound_and_fail_closed(self):
-        data=json.loads((Path(__file__).parent/"OMADA_GATEWAY_MULTI_WAN_FAILOVER_SCHEMA.json").read_text())
+        data=json.loads((Path(__file__).parents[1]/"artifacts"/"OMADA_GATEWAY_MULTI_WAN_FAILOVER_SCHEMA.json").read_text())
         self.assertEqual(data["task"],"5.06")
         self.assertIn("online_detection", data["state_planes"])
         self.assertTrue(data["online_detection"]["required_for_automatic_link_health_decision"])
