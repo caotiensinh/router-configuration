@@ -12,8 +12,16 @@ permissions:
   actions: write
 
 jobs:
-  dispatch:
+  validate:
     runs-on: ubuntu-latest
+    outputs:
+      request_id: ${{ steps.validate.outputs.request_id }}
+      stage: ${{ steps.validate.outputs.stage }}
+      target_ref: ${{ steps.validate.outputs.target_ref }}
+      expected_source_sha: ${{ steps.validate.outputs.expected_source_sha }}
+      workflow_file: ${{ steps.validate.outputs.workflow_file }}
+      request_sha256: ${{ steps.validate.outputs.request_sha256 }}
+      observed_source_sha: ${{ steps.verify_ref.outputs.observed_source_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,16 +75,79 @@ jobs:
                   handle.write(f"{key}={request[key]}\n")
           PY
 
-      - name: Verify target ref and dispatch exact read-only workflow
+      - name: Verify target ref remains at exact requested source SHA
+        id: verify_ref
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          REQUEST_ID: ${{ steps.validate.outputs.request_id }}
-          STAGE: ${{ steps.validate.outputs.stage }}
           TARGET_REF: ${{ steps.validate.outputs.target_ref }}
           EXPECTED_SOURCE_SHA: ${{ steps.validate.outputs.expected_source_sha }}
-          WORKFLOW_FILE: ${{ steps.validate.outputs.workflow_file }}
-          REQUEST_SHA256: ${{ steps.validate.outputs.request_sha256 }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib import parse, request
+
+          token = os.environ["GITHUB_TOKEN"]
+          repo = os.environ["REPOSITORY"]
+          target_ref = os.environ["TARGET_REF"]
+          expected_sha = os.environ["EXPECTED_SOURCE_SHA"]
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2026-03-10",
+          }
+          encoded_ref = parse.quote("heads/" + target_ref, safe="")
+          ref_req = request.Request(
+              f"https://api.github.com/repos/{repo}/git/ref/{encoded_ref}",
+              headers=headers,
+              method="GET",
+          )
+          with request.urlopen(ref_req, timeout=20) as response:
+              ref_payload = json.loads(response.read().decode("utf-8"))
+          actual_sha = ref_payload["object"]["sha"]
+          if actual_sha != expected_sha:
+              raise RuntimeError(
+                  f"target ref moved: expected {expected_sha}, observed {actual_sha}"
+              )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"observed_source_sha={actual_sha}\n")
+          PY
+
+  c03-live:
+    needs: validate
+    if: needs.validate.outputs.stage == 'c03'
+    uses: ./.github/workflows/cisco-netconf-live-readonly.yml
+    with:
+      expected_source_sha: ${{ needs.validate.outputs.expected_source_sha }}
+      dispatch_request_id: ${{ needs.validate.outputs.request_id }}
+      dispatch_request_sha256: ${{ needs.validate.outputs.request_sha256 }}
+      live_execution_requested: true
+    secrets:
+      CISCO_NETCONF_HOST: ${{ secrets.CISCO_NETCONF_HOST }}
+      CISCO_NETCONF_PORT: ${{ secrets.CISCO_NETCONF_PORT }}
+      CISCO_NETCONF_USERNAME: ${{ secrets.CISCO_NETCONF_USERNAME }}
+      CISCO_NETCONF_PASSWORD: ${{ secrets.CISCO_NETCONF_PASSWORD }}
+      CISCO_NETCONF_HOSTKEY_B64: ${{ secrets.CISCO_NETCONF_HOSTKEY_B64 }}
+
+  c04-dispatch:
+    needs: validate
+    if: needs.validate.outputs.stage == 'c04'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch exact C04 read-only workflow and bind returned run identity
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REQUEST_ID: ${{ needs.validate.outputs.request_id }}
+          STAGE: ${{ needs.validate.outputs.stage }}
+          TARGET_REF: ${{ needs.validate.outputs.target_ref }}
+          EXPECTED_SOURCE_SHA: ${{ needs.validate.outputs.expected_source_sha }}
+          OBSERVED_SOURCE_SHA: ${{ needs.validate.outputs.observed_source_sha }}
+          WORKFLOW_FILE: ${{ needs.validate.outputs.workflow_file }}
+          REQUEST_SHA256: ${{ needs.validate.outputs.request_sha256 }}
         run: |
           set -euo pipefail
           mkdir -p evidence/cisco
@@ -84,16 +155,22 @@ jobs:
           import json
           import os
           from pathlib import Path
-          from urllib import error, parse, request
+          from urllib import error, request
 
           token = os.environ["GITHUB_TOKEN"]
           repo = os.environ["REPOSITORY"]
           target_ref = os.environ["TARGET_REF"]
           expected_sha = os.environ["EXPECTED_SOURCE_SHA"]
+          observed_sha = os.environ["OBSERVED_SOURCE_SHA"]
           workflow_file = os.environ["WORKFLOW_FILE"]
           request_id = os.environ["REQUEST_ID"]
           request_sha = os.environ["REQUEST_SHA256"]
           stage = os.environ["STAGE"]
+          if stage != "c04" or workflow_file != "cisco-restconf-live-readonly.yml":
+              raise RuntimeError("C04 REST dispatcher received a non-C04 request")
+          if observed_sha != expected_sha:
+              raise RuntimeError("C04 source continuity changed after validation")
+
           api = "https://api.github.com"
           headers = {
               "Authorization": f"Bearer {token}",
@@ -108,27 +185,13 @@ jobs:
               "stage": stage,
               "target_ref": target_ref,
               "expected_source_sha": expected_sha,
+              "observed_source_sha": observed_sha,
               "workflow_file": workflow_file,
               "dispatch_status": "failed",
               "production_write_authorized": False,
           }
           receipt_path = Path("evidence/cisco/acceptance-dispatch-receipt.json")
           try:
-              encoded_ref = parse.quote("heads/" + target_ref, safe="")
-              ref_req = request.Request(
-                  f"{api}/repos/{repo}/git/ref/{encoded_ref}",
-                  headers=headers,
-                  method="GET",
-              )
-              with request.urlopen(ref_req, timeout=20) as response:
-                  ref_payload = json.loads(response.read().decode("utf-8"))
-              actual_sha = ref_payload["object"]["sha"]
-              receipt["observed_source_sha"] = actual_sha
-              if actual_sha != expected_sha:
-                  raise RuntimeError(
-                      f"target ref moved: expected {expected_sha}, observed {actual_sha}"
-                  )
-
               body = json.dumps(
                   {
                       "ref": target_ref,
@@ -179,7 +242,7 @@ jobs:
           receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           PY
 
-      - name: Preserve dispatch receipt
+      - name: Preserve C04 dispatch receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
