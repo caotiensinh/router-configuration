@@ -11,6 +11,35 @@ on:
       - "src/router_configuration/vendors/cisco/live_netconf_probe.py"
       - "tests/test_cisco_live_netconf_probe.py"
       - ".github/workflows/cisco-netconf-live-readonly.yml"
+  workflow_call:
+    inputs:
+      expected_source_sha:
+        description: Exact 40-character Cisco source SHA to check out and verify
+        required: true
+        type: string
+      dispatch_request_id:
+        description: Acceptance request identifier bound to this live execution
+        required: true
+        type: string
+      dispatch_request_sha256:
+        description: Immutable acceptance request SHA-256
+        required: true
+        type: string
+      live_execution_requested:
+        description: Explicit caller opt-in for the self-hosted live read-only job
+        required: true
+        type: boolean
+    secrets:
+      CISCO_NETCONF_HOST:
+        required: false
+      CISCO_NETCONF_PORT:
+        required: false
+      CISCO_NETCONF_USERNAME:
+        required: false
+      CISCO_NETCONF_PASSWORD:
+        required: false
+      CISCO_NETCONF_HOSTKEY_B64:
+        required: false
   workflow_dispatch:
     inputs:
       expected_source_sha:
@@ -27,6 +56,11 @@ on:
         required: false
         default: ""
         type: string
+      live_execution_requested:
+        description: Explicitly run the self-hosted live read-only job
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -48,10 +82,10 @@ jobs:
         run: python -m unittest tests.test_cisco_live_netconf_probe -v
 
   live-readonly:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || inputs.live_execution_requested == true
     runs-on: self-hosted
     env:
-      SOURCE_SHA: ${{ github.sha }}
+      SOURCE_SHA: ${{ inputs.expected_source_sha }}
       EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
       DISPATCH_REQUEST_ID: ${{ inputs.dispatch_request_id }}
       DISPATCH_REQUEST_SHA256: ${{ inputs.dispatch_request_sha256 }}
@@ -62,18 +96,21 @@ jobs:
       CISCO_NETCONF_HOSTKEY_B64: ${{ secrets.CISCO_NETCONF_HOSTKEY_B64 }}
       CISCO_NETCONF_TIMEOUT: "20"
     steps:
-      - name: Verify approved self-hosted runner boundary
+      - name: Verify approved self-hosted execution surface before checkout
         shell: bash
         run: |
           set -euo pipefail
-          [ "${RUNNER_ENVIRONMENT:-}" = "self-hosted" ]
-          [ "${RUNNER_OS:-}" = "Linux" ]
-          [ "${RUNNER_ARCH:-}" = "X64" ]
-          [ "${RUNNER_NAME:-}" = "aiserver-router-configuration" ]
+          test "${RUNNER_ENVIRONMENT:-}" = "self-hosted"
+          test "${RUNNER_NAME:-}" = "aiserver-router-configuration"
+          test "${RUNNER_OS:-}" = "Linux"
+          test "${RUNNER_ARCH:-}" = "X64"
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_source_sha }}
+          fetch-depth: 1
 
-      - name: Verify exact dispatched source SHA before network access
+      - name: Verify exact checked-out source SHA before network access
         shell: bash
         run: |
           set -euo pipefail
@@ -81,8 +118,13 @@ jobs:
             echo "expected_source_sha is not an exact lowercase Git SHA" >&2
             exit 1
           fi
+          observed_source_sha="$(git rev-parse HEAD)"
+          if [ "$observed_source_sha" != "$EXPECTED_SOURCE_SHA" ]; then
+            echo "C03 checked-out source moved: expected=$EXPECTED_SOURCE_SHA observed=$observed_source_sha" >&2
+            exit 1
+          fi
           if [ "$SOURCE_SHA" != "$EXPECTED_SOURCE_SHA" ]; then
-            echo "C03 dispatch source moved: expected=$EXPECTED_SOURCE_SHA observed=$SOURCE_SHA" >&2
+            echo "C03 evidence source binding mismatch" >&2
             exit 1
           fi
 
@@ -117,7 +159,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cisco-c03-secret-preflight-${{ github.sha }}
+          name: cisco-c03-secret-preflight-${{ inputs.expected_source_sha }}
           path: evidence/cisco/c03-secret-preflight.json
           if-no-files-found: warn
           retention-days: 30
@@ -219,7 +261,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cisco-netconf-live-readonly-${{ github.sha }}
+          name: cisco-netconf-live-readonly-${{ inputs.expected_source_sha }}
           path: evidence/cisco/c03-live.json
           if-no-files-found: error
           retention-days: 30
