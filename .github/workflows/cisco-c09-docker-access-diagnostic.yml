@@ -1,0 +1,113 @@
+name: Cisco C09 Docker Access Diagnostic
+
+on:
+  push:
+    paths:
+      - ".github/workflows/cisco-c09-docker-access-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Guard approved self-hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_NAME}" = "aiserver-router-configuration"
+          test "${RUNNER_OS}" = "Linux"
+          test "${RUNNER_ARCH}" = "X64"
+
+      - name: Collect non-mutating Docker access facts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import grp
+          import json
+          import os
+          import pathlib
+          import pwd
+          import shutil
+          import stat
+          import subprocess
+
+          def run(args):
+              try:
+                  cp = subprocess.run(
+                      args,
+                      text=True,
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.PIPE,
+                      timeout=10,
+                      check=False,
+                  )
+                  return cp.returncode, cp.stdout.strip(), cp.stderr.strip()
+              except Exception as exc:
+                  return 127, "", type(exc).__name__
+
+          docker = shutil.which("docker")
+          socket = pathlib.Path("/var/run/docker.sock")
+          socket_owner = None
+          socket_group = None
+          socket_mode = None
+          socket_readable = False
+          socket_writable = False
+          if socket.exists():
+              st = socket.stat()
+              socket_owner = pwd.getpwuid(st.st_uid).pw_name
+              socket_group = grp.getgrgid(st.st_gid).gr_name
+              socket_mode = stat.filemode(st.st_mode)
+              socket_readable = os.access(socket, os.R_OK)
+              socket_writable = os.access(socket, os.W_OK)
+
+          server_rc, server_version, server_err = run([
+              "docker", "version", "--format", "{{.Server.Version}}"
+          ]) if docker else (127, "", "docker_missing")
+          info_rc, security_options, info_err = run([
+              "docker", "info", "--format", "{{json .SecurityOptions}}"
+          ]) if docker else (127, "", "docker_missing")
+          context_rc, context_name, context_err = run([
+              "docker", "context", "show"
+          ]) if docker else (127, "", "docker_missing")
+
+          def error_class(text):
+              lowered = (text or "").lower()
+              if "permission denied" in lowered:
+                  return "permission_denied"
+              if "cannot connect" in lowered or "is the docker daemon running" in lowered:
+                  return "daemon_unreachable"
+              if text:
+                  return "other"
+              return None
+
+          result = {
+              "schema_version": "cisco-c09-docker-access-diagnostic/1",
+              "runner_name_matches": os.environ.get("RUNNER_NAME") == "aiserver-router-configuration",
+              "docker_cli_present": docker is not None,
+              "docker_socket_present": socket.exists(),
+              "docker_socket_owner": socket_owner,
+              "docker_socket_group": socket_group,
+              "docker_socket_mode": socket_mode,
+              "docker_socket_readable": socket_readable,
+              "docker_socket_writable": socket_writable,
+              "docker_server_reachable": server_rc == 0 and bool(server_version),
+              "docker_server_version_present": bool(server_version),
+              "docker_server_error_class": error_class(server_err),
+              "docker_info_accessible": info_rc == 0,
+              "docker_security_options_present": bool(security_options),
+              "docker_info_error_class": error_class(info_err),
+              "docker_context_accessible": context_rc == 0,
+              "docker_context_name": context_name if context_rc == 0 else None,
+              "docker_context_error_class": error_class(context_err),
+              "kvm_device_present": pathlib.Path("/dev/kvm").exists(),
+              "mutation_attempted": False,
+              "image_pull_attempted": False,
+              "container_run_attempted": False,
+              "production_write_authorized": False,
+          }
+          print(json.dumps(result, sort_keys=True))
+          PY
