@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_firewall_acl_stateful_policy_contract",
+  "task": "5.08",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_user_guide": "https://support.omadanetworks.com/en/document/111217/",
+    "visual_screenshot_verified": false
+  },
+  "applicability_key": [
+    "gateway_model",
+    "gateway_hw_revision",
+    "region",
+    "gateway_firmware",
+    "controller_platform",
+    "controller_version_build",
+    "management_mode"
+  ],
+  "state_planes": [
+    "gateway_acl",
+    "switch_acl",
+    "eap_acl",
+    "gateway_firewall_options",
+    "stateful_connection_matching",
+    "effective_rule_order"
+  ],
+  "vendor_facts": {
+    "acl_processing_is_sequential_first_match": true,
+    "implicit_permit_all_applies_when_no_acl_rule_matches": true,
+    "gateway_acl_can_control_lan_to_lan_and_lan_to_wan": true,
+    "switch_acl_and_eap_acl_are_distinct_planes": true,
+    "gateway_acl_supports_state_matching": true,
+    "firewall_options_are_distinct_from_acl_rules": true
+  },
+  "security_policy": {
+    "default_deny_or_explicit_terminal_policy_required_for_restricted_zones": true,
+    "rule_order_must_be_explicit_and_verified": true,
+    "management_plane_rules_require_separate_scope_and_negative_control": true,
+    "broad_any_any_permit_requires_documented_exception": true,
+    "stateful_return_traffic_must_not_be_modeled_as_unbounded_bidirectional_permit": true,
+    "acl_plane_must_match_actual_forwarding_path": true
+  },
+  "safety": {
+    "prechange_readback_required": true,
+    "management_survival_check_required": true,
+    "unknown_capability": "NOT_SUPPORTED_UNVERIFIED",
+    "write_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "exact applicability readback",
+    "ordered effective ACL readback",
+    "positive allowed-flow verification",
+    "negative denied-flow verification",
+    "stateful return-flow verification where applicable",
+    "management path remains healthy",
+    "unrelated forwarding remains healthy"
+  ]
+}
