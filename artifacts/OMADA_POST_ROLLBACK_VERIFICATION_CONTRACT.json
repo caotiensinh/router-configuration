@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "post_rollback_verification_contract",
+  "task": "13.9",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "reused_architecture": [
+    "13.6 generic independent read-back verification",
+    "transaction lifecycle rollback_observed -> rolled_back evidence contract",
+    "13.8 rollback plan bound pre-state digest"
+  ],
+  "contract": [
+    "Verification starts only from lifecycle phase rollback_observed.",
+    "Evidence must bind the exact transaction and bound pre-state digest.",
+    "A fresh independently acquired managed-state read-back is compared against the pre-state projection using the generic 13.6 verifier.",
+    "Management and connectivity recovery are mandatory independent conditions.",
+    "Only zero drift can set managed_objects_reconciled=true and produce evidence eligible for rolled_back transition.",
+    "The verifier exposes no transport, apply, rollback or production-writer capability."
+  ],
+  "safety": {
+    "fresh_read_required": true,
+    "independent_acquisition_required": true,
+    "apply_observation_reuse_forbidden": true,
+    "rollback_execution_not_available": true,
+    "write_authorized": false
+  }
+}
