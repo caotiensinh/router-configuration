@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_wlan_security_baseline",
+  "task": "10.6",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "ssid_security_faq": "https://www.tp-link.com/uk/support/faq/4306/",
+    "controller_v6_2_guide": "https://static.tp-link.com/upload/manual/2026/202604/20260401/1900002482_Omada%20SDN%20Controller_V6.2_User%20Guide.pdf",
+    "6ghz_security_faq_jp": "https://www.tp-link.com/jp/support/faq/4162/",
+    "v6_2_pdf_visual_verification": "OPEN_FAILED_TOO_LARGE; screenshot not available"
+  },
+  "capability_planes": [
+    "security_method",
+    "wpa_mode",
+    "pmf",
+    "radius_profile",
+    "ppsk_profile",
+    "band",
+    "guest_isolation",
+    "client_compatibility"
+  ],
+  "documented_methods": [
+    "none",
+    "owe",
+    "wpa_personal",
+    "wpa_enterprise",
+    "ppsk_without_radius",
+    "ppsk_with_radius"
+  ],
+  "band_constraints": {
+    "6ghz_requires_modern_security": true,
+    "6ghz_ppsk_unsupported": true,
+    "6ghz_legacy_wpa_modes_unsupported": true,
+    "wpa3_on_6ghz_requires_pmf_mandatory": true
+  },
+  "security_policy": {
+    "open_none_for_sensitive_networks_forbidden": true,
+    "prefer_strongest_proven_compatible_method_without_auto_guessing": true,
+    "enterprise_auth_requires_valid_radius_design": true,
+    "ppsk_keys_and_radius_shared_secrets_must_not_enter_evidence": true,
+    "security_change_requires_client_compatibility_and_reassociation_plan": true
+  },
+  "safety": {
+    "vendor_capability_and_project_policy_separate": true,
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "credential_material_in_artifacts_forbidden": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "effective SSID security mode read-back",
+    "band/security compatibility proven",
+    "PMF state read-back where applicable",
+    "RADIUS/PPSK profile binding read-back without secret values",
+    "representative authorized client succeeds",
+    "representative unauthorized/invalid credential path is denied",
+    "management and unaffected WLANs remain healthy"
+  ]
+}
