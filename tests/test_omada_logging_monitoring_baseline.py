@@ -4,7 +4,7 @@ from pathlib import Path
 
 class LoggingMonitoringBaselineTests(unittest.TestCase):
     def test_baseline_reuses_observability_and_requires_receipt_evidence(self):
-        data=json.loads((Path(__file__).parent/"OMADA_LOGGING_MONITORING_BASELINE_SCHEMA.json").read_text())
+        data=json.loads((Path(__file__).parents[1]/"artifacts"/"OMADA_LOGGING_MONITORING_BASELINE_SCHEMA.json").read_text())
         self.assertEqual(data["task"],"10.8")
         self.assertEqual(data["reuse"]["controller_observability_task"],"7.11")
         self.assertEqual(data["reuse"]["device_observability_task"],"4.18")
