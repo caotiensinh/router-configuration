@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_management_plane_hardening_contract",
+  "task": "10.2",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_settings_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-5-configure-the-omada-sdn-controller.html",
+    "management_vlan_guide": "https://www.tp-link.com/fi/support/faq/4095/",
+    "controller_cloud_access_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-2-get-started-with-omada-sdn-controller.html"
+  },
+  "vendor_facts": {
+    "https_certificate_documented_for": ["software_controller", "hardware_controller"],
+    "access_config_documented_for": ["software_controller", "hardware_controller"],
+    "controller_management_and_portal_ports_should_be_separate": true,
+    "management_vlan_requires_topology_correctness": true,
+    "cloud_access_is_optional_for_on_prem_controller_setup": true
+  },
+  "security_policy_layer": [
+    "Use a dedicated management VLAN or equivalent isolated management segment when exact topology/device support is verified.",
+    "Prefer encrypted management protocols such as HTTPS/SSH/SNMPv3 when the exact product supports them.",
+    "Do not enable insecure or unnecessary management services merely for convenience.",
+    "Do not expose controller/device management directly to untrusted networks without an explicit, reviewed access-control design.",
+    "Keep portal/client access paths distinct from controller administration paths.",
+    "Do not persist passwords, tokens, private keys or certificate private-key material in logs or reports."
+  ],
+  "applicability_key": [
+    "controller_type",
+    "controller_version_build",
+    "device_model",
+    "hardware_revision",
+    "firmware",
+    "region",
+    "management_mode",
+    "topology"
+  ],
+  "pre_change_guards": [
+    "snapshot current management path",
+    "record management VLAN/IP/port/certificate state",
+    "verify alternate recovery path where available",
+    "capture compatible backup before risky management-plane changes",
+    "compute exact impact on controller-device reachability"
+  ],
+  "authorization": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "management_path_change_is_critical": true,
+    "write_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "fresh management endpoint read-back",
+    "controller login reachable through intended path",
+    "managed devices connected/adopted",
+    "client/data-plane isolation behaves as intended",
+    "unnecessary management exposure absent according to approved policy",
+    "secret material absent from evidence"
+  ],
+  "rollback": {
+    "restore_previous_management_vlan_ip_ports_and_access_policy": true,
+    "verify_management_recovery": true,
+    "never_assume_oob_access_exists": true
+  }
+}
