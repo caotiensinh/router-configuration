@@ -41,9 +41,39 @@ def default_risk_classifier(
     path: str, kind: OperationKind, before: Any, after: Any
 ) -> RiskLevel:
     lowered = path.lower()
-    critical_tokens = ("management", "default_route", "default-route", "admin_access")
-    network_tokens = ("wan", "route", "routing", "firewall", "vpn", "nat")
-    bounded_tokens = ("vlan", "qos", "dns", "dhcp")
+    critical_tokens = (
+        "management",
+        "default_route",
+        "default-route",
+        "admin_access",
+        "admin-access",
+        "controller_access",
+        "controller-access",
+    )
+    network_tokens = (
+        "wan",
+        "route",
+        "routing",
+        "firewall",
+        "acl",
+        "vpn",
+        "nat",
+        "802.1x",
+        "radius",
+        "authentication",
+        "security_policy",
+        "security-policy",
+    )
+    bounded_tokens = (
+        "vlan",
+        "qos",
+        "dns",
+        "dhcp",
+        "poe",
+        "snmp",
+        "logging",
+        "monitoring",
+    )
 
     if any(token in lowered for token in critical_tokens):
         return RiskLevel.CRITICAL_CHANGE

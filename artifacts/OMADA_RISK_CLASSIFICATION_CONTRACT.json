@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "risk_classification_contract",
+  "task": "13.4",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "levels": ["READ_ONLY", "PLAN_ONLY", "BOUNDED_CHANGE", "NETWORK_CHANGE", "CRITICAL_CHANGE"],
+  "classification": {"CRITICAL_CHANGE": ["management path", "default route", "admin access", "controller access"], "NETWORK_CHANGE": ["WAN", "routing", "firewall/ACL", "VPN", "NAT", "authentication/security policy", "DELETE fallback"], "BOUNDED_CHANGE": ["VLAN", "QoS", "DNS", "DHCP", "PoE", "SNMP/logging/monitoring configuration", "other CREATE/UPDATE fallback"]},
+  "precedence": "CRITICAL_CHANGE > NETWORK_CHANGE > BOUNDED_CHANGE; DELETE fallback is NETWORK_CHANGE unless a higher rule matches.",
+  "safety": ["Risk classification is deterministic and cannot downgrade a critical path because another lower-risk token is also present.", "Unknown CREATE/UPDATE is never READ_ONLY/PLAN_ONLY; it defaults to BOUNDED_CHANGE.", "Unknown DELETE is at least NETWORK_CHANGE."]
+}
