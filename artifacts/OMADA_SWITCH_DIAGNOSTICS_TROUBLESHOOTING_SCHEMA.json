@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_switch_diagnostics_troubleshooting_contract",
+  "task": "4.20",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "standalone_diagnostics_guide": "https://www.tp-link.com/us/configuration-guides/diagnosing_the_device_network/",
+    "controller_connectivity_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-3-manage-omada-managed-devices-and-sites.html",
+    "support_export_guide_jp": "https://www.tp-link.com/jp/support/faq/3700/",
+    "source_scope_note": "Diagnostic tool availability is model/firmware/management-mode specific. Standalone cable/ping/tracert support must not be promoted into a universal Controller capability."
+  },
+  "applicability_key": [
+    "device_model",
+    "hardware_revision",
+    "region",
+    "firmware",
+    "management_mode",
+    "controller_platform",
+    "controller_version_build",
+    "diagnostic_tool"
+  ],
+  "evidence_first_sequence": [
+    "define exact symptom, affected endpoints, direction and timestamp",
+    "capture controller/device reachability and current management state",
+    "capture interface link/state/counters before mutation",
+    "run cable diagnostics only when exact device/mode support is verified",
+    "run ping/traceroute from the relevant device plane when supported",
+    "inspect VLAN/PVID/LAG/STP/MAC/routing state relevant to the failed path",
+    "export controller configuration/runtime logs/event list when needed and supported",
+    "correlate evidence into a root-cause hypothesis",
+    "change configuration only after the failing layer is identified",
+    "perform fresh read-back and representative traffic verification after any change"
+  ],
+  "diagnostic_planes": {
+    "physical_link": {
+      "tools": ["link state", "interface counters", "cable diagnostics when verified-supported"],
+      "mutation_required": false
+    },
+    "network_path": {
+      "tools": ["ping when verified-supported", "traceroute when verified-supported"],
+      "mutation_required": false
+    },
+    "controller_path": {
+      "tools": ["device-to-controller ping", "controller adoption/connection state", "provisioning/application result"],
+      "mutation_required": false
+    },
+    "support_evidence": {
+      "tools": ["configuration data export", "runtime log export", "event/log list export"],
+      "secret_redaction_required": true
+    }
+  },
+  "outcomes": [
+    "PHYSICAL_LINK_FAULT",
+    "L2_STATE_FAULT",
+    "L3_PATH_FAULT",
+    "CONTROLLER_REACHABILITY_FAULT",
+    "ADOPTION_OR_PROVISIONING_FAULT",
+    "CONFIGURATION_STATE_MISMATCH",
+    "DIAGNOSTIC_TOOL_NOT_SUPPORTED",
+    "ROOT_CAUSE_UNRESOLVED"
+  ],
+  "safety": {
+    "factory_reset_is_not_a_first_line_diagnostic": true,
+    "firmware_upgrade_is_not_a_first_line_diagnostic": true,
+    "global_acl_or_security_disable_is_forbidden_as_a_generic_fix": true,
+    "unknown_tool_support": "NOT_SUPPORTED_UNVERIFIED",
+    "read_only_evidence_precedes_mutation": true,
+    "support_exports_must_be_sanitized": true
+  },
+  "pass_requires": [
+    "root cause evidence retained",
+    "exact affected layer identified or explicitly unresolved",
+    "fresh configuration/state read-back after any remediation",
+    "management reachability healthy",
+    "representative affected traffic/path healthy",
+    "no unsupported diagnostic capability claim"
+  ]
+}
