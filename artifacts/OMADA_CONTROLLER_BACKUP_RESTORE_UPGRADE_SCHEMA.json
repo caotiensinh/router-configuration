@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_controller_backup_restore_upgrade_contract",
+  "task": "4.19",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "backup_restore_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-5-configure-the-omada-sdn-controller.html",
+    "device_upgrade_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-6-configure-and-monitor-omada-managed-devices.html",
+    "visual_screenshot_verified": false,
+    "visual_note": "Current HTML guidance was used. A PDF-based visual path was not required for the core contract; historical PDF guidance is not treated as a current universal default."
+  },
+  "applicability_key": [
+    "controller_platform",
+    "controller_version_build",
+    "device_model",
+    "device_hw_revision",
+    "region",
+    "device_firmware",
+    "management_mode"
+  ],
+  "state_planes": [
+    "manual_controller_backup",
+    "automatic_controller_backup",
+    "restore",
+    "site_migration",
+    "controller_migration",
+    "device_firmware_upgrade"
+  ],
+  "backup": {
+    "retained_data_modes": ["settings_only", "time_range_when_supported"],
+    "must_capture_before_risky_change": true,
+    "cloud_user_configuration_backup_is_not_assumed": true,
+    "auto_backup_is_platform_scoped": true
+  },
+  "restore": {
+    "backup_file_required": true,
+    "compatibility_must_be_revalidated_before_restore": true,
+    "cross_version_restore_is_not_assumed": true,
+    "success_requires_controller_health_and_managed_device_reconciliation": true
+  },
+  "migration": {
+    "target_controller_compatibility_required": true,
+    "management_inform_target_must_be_exact": true,
+    "temporary_connectivity_loss_must_be_expected_and_maintained": true,
+    "completion_requires_devices_connected_on_target": true
+  },
+  "device_upgrade": {
+    "official_firmware_only": true,
+    "exact_model_firmware_match_required": true,
+    "reboot_readoption_expected_where_documented": true,
+    "do_not_assume_downgrade": true,
+    "backup_before_upgrade": true
+  },
+  "authorization": {
+    "unknown_applicability": "NOT_SUPPORTED_UNVERIFIED",
+    "write_acceptance": "EXECUTED_UNVERIFIED",
+    "pass_requires": [
+      "exact controller/device version readback",
+      "controller reachable",
+      "managed devices connected/adopted",
+      "intended configuration present",
+      "representative network service health",
+      "backup/restore evidence retained"
+    ]
+  },
+  "rollback": {
+    "restore_only_from_prevalidated_compatible_backup": true,
+    "do_not_claim_downgrade_without_model_version_specific_authority": true,
+    "verify_management_and_device_recovery": true
+  }
+}
