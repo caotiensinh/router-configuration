@@ -28,6 +28,22 @@ _EXECUTION_SURFACES = {
     "c11": ".github/workflows/cisco-physical-evidence-ingest.yml",
     "c12": "c12_handover_manifest",
 }
+_EXECUTION_CHAINS = {
+    stage: (surface,) for stage, surface in _EXECUTION_SURFACES.items()
+}
+_EXECUTION_CHAINS.update(
+    {
+        "c05": (
+            "c05_live_state_ingest",
+            "c05_acceptance_decision",
+        ),
+        "c12": (
+            "c12_handover_manifest",
+            "c12_production_deployment_evidence",
+            "c12_final_handover_decision",
+        ),
+    }
+)
 
 
 class CiscoAcceptanceCampaignError(ValueError):
@@ -89,6 +105,7 @@ def build_acceptance_campaign_manifest(
         normalized[stage] = {
             "status": status,
             "execution_surface": _EXECUTION_SURFACES[stage],
+            "execution_chain": list(_EXECUTION_CHAINS[stage]),
             "run_ref": run_ref,
             "artifact_sha256": artifact_sha,
             "decision_sha256": decision_sha,
