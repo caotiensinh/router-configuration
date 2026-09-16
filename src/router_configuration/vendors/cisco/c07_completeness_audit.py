@@ -1,8 +1,8 @@
 """Deterministic completeness audit for the bounded Cisco C07 catalog.
 
 The audit checks that the currently admitted desired-state slices remain exactly
-the source-bound set and records known operations that remain deliberately
-unadmitted. It never grants apply authority.
+the source-bound set. It never grants apply authority and does not claim C07
+runtime/live acceptance; it only closes the bounded renderer-coverage inventory.
 """
 
 from __future__ import annotations
@@ -15,12 +15,10 @@ from .desired_state import load_desired_state_catalog
 
 _EXPECTED_FEATURES = (
     "interface.description.set",
-    "interface.mtu.set",
-    "interface.shutdown.set",
-)
-_UNADMITTED = (
-    "interface.shutdown.remove",
     "interface.ipv4.set",
+    "interface.mtu.set",
+    "interface.shutdown.remove",
+    "interface.shutdown.set",
     "switch.vlan.set",
 )
 
@@ -36,7 +34,7 @@ def _canonical_sha256(value: object) -> str:
 def audit_c07_catalog(catalog: Mapping[str, Any]) -> dict[str, Any]:
     if catalog.get("vendor") != "Cisco" or catalog.get("os_family") != "IOS XE":
         raise CiscoC07CompletenessAuditError("C07 vendor/OS identity drift")
-    if catalog.get("schema_version") != "cisco-iosxe-desired-state-catalog/3":
+    if catalog.get("schema_version") != "cisco-iosxe-desired-state-catalog/4":
         raise CiscoC07CompletenessAuditError("unexpected C07 catalog schema")
     if set(catalog.get("documentation_trains", {})) != {"17.18", "26"}:
         raise CiscoC07CompletenessAuditError("C07 documentation train drift")
@@ -54,10 +52,11 @@ def audit_c07_catalog(catalog: Mapping[str, Any]) -> dict[str, Any]:
             raise CiscoC07CompletenessAuditError(f"C07 safety boundary opened: {field}")
 
     result = {
-        "schema_version": "cisco-c07-completeness-audit/1",
+        "schema_version": "cisco-c07-completeness-audit/2",
         "admitted_feature_ids": list(expected),
         "bounded_feature_count": len(expected),
-        "unadmitted_operations": list(_UNADMITTED),
+        "unadmitted_operations": [],
+        "renderer_coverage_complete": True,
         "catalog_consistent": True,
         "c07_complete": False,
         "apply_authorized": False,
