@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_multi_wan_failover_contract",
+  "task": "5.06",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_network_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "visual_screenshot_verified": false
+  },
+  "applicability_key": [
+    "gateway_model", "gateway_hw_revision", "region", "gateway_firmware",
+    "controller_platform", "controller_version_build", "management_mode"
+  ],
+  "state_planes": [
+    "wan_interfaces", "online_detection", "load_balancing", "link_backup", "failover_observation"
+  ],
+  "online_detection": {
+    "required_for_automatic_link_health_decision": true,
+    "health_target_and_method_must_be_explicit": true,
+    "link_up_does_not_prove_internet_healthy": true
+  },
+  "load_balancing": {
+    "enabled_state_is_distinct_from_link_backup": true,
+    "weight_or_ratio_must_be_read_back_when_supported": true,
+    "policy_routing_is_separate_task_5_05": true
+  },
+  "link_backup": {
+    "primary_and_backup_wan_roles_must_be_explicit": true,
+    "activation_condition_must_be_bound_to_verified_health_state": true,
+    "new_session_failover_must_not_be_claimed_as_existing_session_continuity": true
+  },
+  "safety": {
+    "management_path_impact_must_be_calculated": true,
+    "vpn_and_inbound_service_impact_must_be_checked": true,
+    "unknown_capability": "NOT_SUPPORTED_UNVERIFIED",
+    "write_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "exact applicability readback",
+    "all WAN link and health state readback",
+    "expected primary traffic path",
+    "controlled failover to intended backup path",
+    "controlled recovery to intended steady state",
+    "management path remains reachable",
+    "negative control confirms unhealthy WAN is not selected"
+  ]
+}

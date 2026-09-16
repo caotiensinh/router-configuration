@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_logging_monitoring_security_baseline",
+  "task": "10.8",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_monitoring_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-8-monitor-the-network.html",
+    "controller_settings_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "visual_screenshot_verified": false
+  },
+  "reuse": {
+    "controller_observability_task": "7.11",
+    "device_observability_task": "4.18",
+    "principle": "security policy specializes verified observability planes; it does not duplicate collectors"
+  },
+  "state_planes": [
+    "alerts", "events", "audit_or_operation_logs", "notification_policy",
+    "remote_logging", "retention", "time_synchronization", "access_control"
+  ],
+  "baseline_policy": {
+    "security_relevant_admin_and_system_activity_must_be_retained": true,
+    "alert_and_event_semantics_must_remain_distinct": true,
+    "remote_log_delivery_must_be_independently_verified_when_enabled": true,
+    "notification_delivery_must_be_independently_verified_when_enabled": true,
+    "clock_and_timezone_context_must_be_recorded": true,
+    "least_privilege_log_access_required": true,
+    "secrets_and_sensitive_payloads_must_not_be_persisted": true
+  },
+  "fail_closed": {
+    "unknown_retention_behavior": "NOT_SUPPORTED_UNVERIFIED",
+    "unknown_remote_transport_security": "NOT_SUPPORTED_UNVERIFIED",
+    "delivery_configured_without_receipt_evidence": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "security-relevant local log generation observed",
+    "alert/event classification read back",
+    "notification receipt verified when enabled",
+    "remote sink receipt verified when enabled",
+    "timestamps correlate with controller/site time context",
+    "viewer/admin access behavior matches intended least privilege",
+    "sanitized evidence retained"
+  ]
+}
