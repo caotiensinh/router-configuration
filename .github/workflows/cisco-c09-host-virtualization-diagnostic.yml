@@ -1,0 +1,131 @@
+name: Cisco C09 Host Virtualization Diagnostic
+
+on:
+  push:
+    paths:
+      - ".github/workflows/cisco-c09-host-virtualization-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: self-hosted
+    steps:
+      - name: Guard approved self-hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_NAME}" = "aiserver-router-configuration"
+          test "${RUNNER_OS}" = "Linux"
+          test "${RUNNER_ARCH}" = "X64"
+
+      - name: Collect sanitized virtualization facts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import grp
+          import json
+          import os
+          import pwd
+          import shutil
+          import stat
+          import subprocess
+          from pathlib import Path
+
+          def run(args):
+              try:
+                  cp = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5, check=False)
+                  return cp.returncode, cp.stdout.strip()
+              except Exception:
+                  return 127, ""
+
+          def command(name):
+              return shutil.which(name) is not None
+
+          uid = os.getuid()
+          gid = os.getgid()
+          username = pwd.getpwuid(uid).pw_name
+          group_ids = os.getgroups()
+          group_names = []
+          for item in group_ids:
+              try:
+                  group_names.append(grp.getgrgid(item).gr_name)
+              except KeyError:
+                  group_names.append(str(item))
+
+          kvm = Path("/dev/kvm")
+          kvm_owner = None
+          kvm_group = None
+          kvm_mode = None
+          if kvm.exists():
+              st = kvm.stat()
+              try:
+                  kvm_owner = pwd.getpwuid(st.st_uid).pw_name
+              except KeyError:
+                  kvm_owner = str(st.st_uid)
+              try:
+                  kvm_group = grp.getgrgid(st.st_gid).gr_name
+              except KeyError:
+                  kvm_group = str(st.st_gid)
+              kvm_mode = stat.filemode(st.st_mode)
+
+          cpu_text = Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore") if Path("/proc/cpuinfo").exists() else ""
+          vmx_count = cpu_text.count(" vmx ") + cpu_text.count(" vmx\n")
+          svm_count = cpu_text.count(" svm ") + cpu_text.count(" svm\n")
+
+          _, kernel_modules = run(["bash", "-lc", "grep -E '^kvm(_intel|_amd)? ' /proc/modules | awk '{print $1}' | sort -u"])
+          package_manager = next((name for name in ("apt-get", "dnf", "yum", "zypper") if command(name)), None)
+          sudo_rc, _ = run(["sudo", "-n", "true"]) if command("sudo") else (127, "")
+
+          package_states = {}
+          if command("dpkg-query"):
+              for pkg in ("qemu-system-x86", "qemu-utils", "libvirt-daemon-system", "libvirt-clients", "virtinst"):
+                  rc, output = run(["dpkg-query", "-W", "-f=${Status}", pkg])
+                  package_states[pkg] = rc == 0 and output == "install ok installed"
+
+          service_states = {}
+          if command("systemctl"):
+              for service in ("libvirtd", "virtqemud"):
+                  active_rc, _ = run(["systemctl", "is-active", "--quiet", service])
+                  enabled_rc, _ = run(["systemctl", "is-enabled", "--quiet", service])
+                  service_states[service] = {
+                      "active": active_rc == 0,
+                      "enabled": enabled_rc == 0,
+                  }
+
+          result = {
+              "schema_version": "cisco-c09-host-virtualization-diagnostic/1",
+              "runner_name_matches": os.environ.get("RUNNER_NAME") == "aiserver-router-configuration",
+              "runner_user": username,
+              "runner_group_names": sorted(set(group_names)),
+              "runner_in_kvm_group": "kvm" in group_names,
+              "runner_in_libvirt_group": "libvirt" in group_names,
+              "kvm_device_present": kvm.exists(),
+              "kvm_readable": kvm.exists() and os.access(kvm, os.R_OK),
+              "kvm_writable": kvm.exists() and os.access(kvm, os.W_OK),
+              "kvm_owner": kvm_owner,
+              "kvm_group": kvm_group,
+              "kvm_mode": kvm_mode,
+              "cpu_vmx_flag_present": vmx_count > 0,
+              "cpu_svm_flag_present": svm_count > 0,
+              "kvm_kernel_modules": kernel_modules.splitlines() if kernel_modules else [],
+              "package_manager": package_manager,
+              "passwordless_sudo": sudo_rc == 0,
+              "qemu_system_x86_64_present": command("qemu-system-x86_64"),
+              "qemu_img_present": command("qemu-img"),
+              "virsh_present": command("virsh"),
+              "virt_install_present": command("virt-install"),
+              "docker_present": command("docker"),
+              "podman_present": command("podman"),
+              "dpkg_package_states": package_states,
+              "libvirt_service_states": service_states,
+              "mutation_attempted": False,
+              "package_install_attempted": False,
+              "permission_change_attempted": False,
+              "network_probe_attempted": False,
+              "production_write_authorized": False,
+          }
+          print(json.dumps(result, sort_keys=True))
+          PY
