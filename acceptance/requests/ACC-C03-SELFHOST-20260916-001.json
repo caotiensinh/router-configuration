@@ -1,0 +1,12 @@
+{
+  "schema_version": "cisco-acceptance-dispatch-request/1",
+  "request_id": "ACC-C03-SELFHOST-20260916-001",
+  "stage": "c03",
+  "target_ref": "feat/cisco-iosxe-router-switch-domain-20260915",
+  "expected_source_sha": "87147843879857856753d40986c9c5b496bac43a",
+  "requested_by_ref": "automation:chatgpt",
+  "requested_by_attestation_sha256": "75e63597c7ebb4a63359cf324b04fc990070444f8f204e5b5c30ed81cf1e15b0",
+  "read_only_required": true,
+  "production_write_authorized": false,
+  "request_sha256": "c4ecada921945cea2b5d72ac0d52232c587791df0223ab4b66a165fbac605b77"
+}
