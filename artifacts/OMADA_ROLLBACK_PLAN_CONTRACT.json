@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "rollback_plan_contract",
+  "task": "13.8",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "reused_architecture": [
+    "13.5 OrderedExecutionPlan",
+    "13.7 StopOnFailureDecision",
+    "TransactionLifecycle rollback_required/rollback_observed/rolled_back phases",
+    "transaction-bound pre-state backup evidence"
+  ],
+  "contract": [
+    "Rollback is admitted only after HALT + rollback_required and lifecycle phase rollback_required.",
+    "Confirmed mutation scope must be the exact ordered prefix and is inverted in strict reverse order.",
+    "Uncertain mutation scope never guesses per-operation inverses; it falls back to restoring the bound pre-state backup.",
+    "Rollback plan binds source plan, ordering digest, transaction id, pre-state digest and backup reference.",
+    "Plan contains value digests instead of secret-bearing raw values and exposes no transport/apply/rollback/writer capability.",
+    "13.9 fresh post-rollback verification remains mandatory before rolled_back completion."
+  ],
+  "safety": {
+    "unknown_mutation_scope_strategy": "RESTORE_BOUND_PRE_STATE_BACKUP",
+    "automatic_rollback": false,
+    "transport_present": false,
+    "write_authorized": false,
+    "post_rollback_verification_required": true
+  },
+  "pass_requires": [
+    "HALT/rollback_required binding",
+    "rollback_required lifecycle binding",
+    "reverse-order inverse plan for confirmed prefix",
+    "backup-restore fallback for uncertain scope",
+    "tamper-evident deterministic digest",
+    "no runtime capability"
+  ]
+}

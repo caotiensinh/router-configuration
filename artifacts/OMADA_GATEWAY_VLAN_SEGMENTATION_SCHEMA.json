@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_vlan_segmentation_contract",
+  "task": "5.02",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "scope_note": "Features vary by region, controller version and device model."
+  },
+  "state_planes": [
+    "lan_network",
+    "purpose_interface_or_vlan",
+    "vlan_id",
+    "l3_interface",
+    "port_profile",
+    "switch_port_binding",
+    "ssid_vlan_mapping",
+    "acl_binding",
+    "management_vlan"
+  ],
+  "segmentation": {
+    "interface_purpose": "L3 VLAN interface / inter-VLAN routing",
+    "vlan_purpose": "L2 VLAN only",
+    "port_profile_required_to_activate_wired_membership": true,
+    "switch_acl_requires_port_or_vlan_binding": true,
+    "acl_first_match_ordered": true,
+    "implicit_no_match_behavior": "permit",
+    "wireless_vlan_tagging_is_separate_plane": true
+  },
+  "safety": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "management_vlan_preservation_required": true,
+    "default_vlan_1_not_deleted": true,
+    "broad_acl_deny_requires_management_path_analysis": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "LAN/VLAN object read-back",
+    "port-profile and port binding read-back",
+    "expected L2 isolation or L3 routing behavior",
+    "ACL binding/order read-back when used",
+    "management/controller path healthy",
+    "positive and negative representative traffic tests"
+  ]
+}

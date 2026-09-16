@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_switch_management_contract",
+  "task": "7.08",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_device_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-6-configure-and-monitor-omada-managed-devices.html"
+  },
+  "controller_facts": {
+    "single_and_batch_configuration_supported": true,
+    "batch_unaltered_settings_keep_current_values": true,
+    "configuration_changes_apply_only_to_selected_switches": true,
+    "features_vary_by_model_and_status": true
+  },
+  "management_planes": [
+    "ports",
+    "lag",
+    "general",
+    "vlan_interface",
+    "management_vlan",
+    "static_route",
+    "services",
+    "device_management",
+    "monitor_panel",
+    "clients",
+    "statistics"
+  ],
+  "dangerous_operations": {
+    "wrong_management_vlan_can_break_controller_management": true,
+    "force_provision_temporarily_disconnects_and_readopts": true,
+    "firmware_upgrade_reboots_and_readopts": true,
+    "forget_wipes_controller_related_configuration_and_history": true,
+    "move_site_changes_ownership_scope": true
+  },
+  "safety": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "batch_scope_must_be_explicit": true,
+    "management_path_analysis_required": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "selected switch identities read-back",
+    "Connected status",
+    "intended port/LAG/config state read-back",
+    "management VLAN/reachability healthy",
+    "representative client/uplink traffic healthy",
+    "no unintended batch drift"
+  ]
+}
