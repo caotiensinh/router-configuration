@@ -16,6 +16,16 @@ permissions:
 validate_dispatch_request
 expected_source_sha
 dispatch_request_sha256
+Verify target ref remains at exact requested source SHA
+c03-live:
+  if: needs.validate.outputs.stage == 'c03'
+  uses: ./.github/workflows/cisco-netconf-live-readonly.yml
+  with:
+    live_execution_requested: true
+  secrets:
+    CISCO_NETCONF_PASSWORD: ${{ secrets.CISCO_NETCONF_PASSWORD }}
+c04-dispatch:
+  if: needs.validate.outputs.stage == 'c04'
 '''
 C03_FIXTURE = '''
 workflow_call:
@@ -58,23 +68,37 @@ class CiscoAcceptanceDispatchBoundaryAuditTests(unittest.TestCase):
             c04_text=C04_FIXTURE,
         )
         self.assertTrue(result["target_source_pins_verified"])
+        self.assertTrue(result["c03_owner_preserving_reusable_call_verified"])
         self.assertTrue(result["c03_reusable_owner_gate_path_verified"])
         self.assertTrue(result["c04_get_only_boundary_verified"])
         self.assertFalse(result["production_write_authorized"])
 
-    def test_write_surface_fails_closed(self):
-        with self.assertRaisesRegex(CiscoAcceptanceDispatchBoundaryError, "crossed read-only boundary"):
-            audit_dispatch_boundary(
-                dispatcher_text=DISPATCHER_FIXTURE + "\ncontents: write\n",
-                c03_text=C03_FIXTURE,
-                c04_text=C04_FIXTURE,
-            )
+    def test_write_or_broad_secret_surface_fails_closed(self):
+        for forbidden in ("contents: write", "secrets: inherit"):
+            with self.subTest(forbidden=forbidden):
+                with self.assertRaisesRegex(CiscoAcceptanceDispatchBoundaryError, "crossed read-only boundary"):
+                    audit_dispatch_boundary(
+                        dispatcher_text=DISPATCHER_FIXTURE + f"\n{forbidden}\n",
+                        c03_text=C03_FIXTURE,
+                        c04_text=C04_FIXTURE,
+                    )
 
     def test_c03_without_reusable_owner_gate_markers_fails_closed(self):
         with self.assertRaisesRegex(CiscoAcceptanceDispatchBoundaryError, "c03 reusable owner-gated"):
             audit_dispatch_boundary(
                 dispatcher_text=DISPATCHER_FIXTURE,
                 c03_text=C03_FIXTURE.replace("workflow_call:", "workflow_run:"),
+                c04_text=C04_FIXTURE,
+            )
+
+    def test_dispatcher_without_owner_preserving_c03_call_fails_closed(self):
+        with self.assertRaisesRegex(CiscoAcceptanceDispatchBoundaryError, "dispatcher"):
+            audit_dispatch_boundary(
+                dispatcher_text=DISPATCHER_FIXTURE.replace(
+                    "uses: ./.github/workflows/cisco-netconf-live-readonly.yml",
+                    "uses: actions/checkout@v4",
+                ),
+                c03_text=C03_FIXTURE,
                 c04_text=C04_FIXTURE,
             )
 
