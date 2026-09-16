@@ -13,12 +13,20 @@ class CiscoC07CompletenessAuditTests(unittest.TestCase):
     def test_current_catalog_is_consistent_and_non_promoting(self):
         result = audit_current_c07_catalog()
         self.assertTrue(result["catalog_consistent"])
-        self.assertEqual(result["bounded_feature_count"], 3)
+        self.assertTrue(result["renderer_coverage_complete"])
+        self.assertEqual(result["bounded_feature_count"], 6)
         self.assertEqual(
             result["admitted_feature_ids"],
-            ["interface.description.set", "interface.mtu.set", "interface.shutdown.set"],
+            [
+                "interface.description.set",
+                "interface.ipv4.set",
+                "interface.mtu.set",
+                "interface.shutdown.remove",
+                "interface.shutdown.set",
+                "switch.vlan.set",
+            ],
         )
-        self.assertIn("interface.shutdown.remove", result["unadmitted_operations"])
+        self.assertEqual(result["unadmitted_operations"], [])
         self.assertFalse(result["c07_complete"])
         self.assertFalse(result["apply_authorized"])
         self.assertFalse(result["production_write_authorized"])
