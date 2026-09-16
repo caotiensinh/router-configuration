@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "readback_verification_contract",
+  "task": "13.6",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "reused_proven_pattern": "CHR transaction post-apply verification uses an independent fresh session and does not reuse apply observation as verification state.",
+  "contract": [
+    "Vendor adapters acquire and normalize a fresh managed-state projection.",
+    "Apply observation cannot be reused as verification state.",
+    "The existing StateEngine computes deterministic desired-vs-readback drift.",
+    "Exact managed-state match is PASS; any missing, extra or changed managed value is MISMATCH.",
+    "Verification output carries desired/readback digests and deterministic drift evidence.",
+    "The verifier exposes no transport, apply capability, production writer or write authorization."
+  ],
+  "safety": {
+    "fresh_read_required": true,
+    "independent_acquisition_required": true,
+    "apply_observation_reuse_forbidden": true,
+    "secret_or_runtime_capability_fields_in_evidence_forbidden": true,
+    "transport_present": false,
+    "apply_available": false,
+    "write_authorized": false
+  },
+  "pass_requires": [
+    "normalized desired managed state",
+    "normalized independently acquired read-back state",
+    "zero deterministic StateEngine drift",
+    "evidence reference retained"
+  ]
+}
