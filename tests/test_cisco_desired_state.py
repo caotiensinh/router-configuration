@@ -46,13 +46,26 @@ class CiscoDesiredStateTests(unittest.TestCase):
         self.assertEqual(set(catalog["documentation_trains"]), {"17.18", "26"})
         self.assertEqual(
             {feature["id"] for feature in catalog["features"]},
-            {"interface.description.set", "interface.mtu.set", "interface.shutdown.set"},
+            {
+                "interface.description.set",
+                "interface.mtu.set",
+                "interface.shutdown.set",
+                "interface.ipv4.set",
+                "switch.vlan.set",
+                "interface.shutdown.remove",
+            },
         )
         mtu_feature = next(feature for feature in catalog["features"] if feature["id"] == "interface.mtu.set")
         self.assertEqual(mtu_feature["yang_constraints"]["mtu_range"], [64, 18000])
         shutdown = next(feature for feature in catalog["features"] if feature["id"] == "interface.shutdown.set")
         self.assertEqual(shutdown["yang_constraints"]["yang_type"], "empty")
         self.assertFalse(shutdown["yang_constraints"]["delete_semantics_admitted"])
+        ipv4 = next(feature for feature in catalog["features"] if feature["id"] == "interface.ipv4.set")
+        self.assertEqual(ipv4["roles"], ["router"])
+        vlan = next(feature for feature in catalog["features"] if feature["id"] == "switch.vlan.set")
+        self.assertEqual(vlan["yang_constraints"]["vlan_range"], [1, 4094])
+        shutdown_remove = next(feature for feature in catalog["features"] if feature["id"] == "interface.shutdown.remove")
+        self.assertEqual(shutdown_remove["yang_constraints"]["netconf_operation"], "remove")
         self.assertFalse(catalog["runtime_ai_rendering"])
         self.assertFalse(catalog["write_authorized"])
         self.assertFalse(catalog["production_write_authorized"])
