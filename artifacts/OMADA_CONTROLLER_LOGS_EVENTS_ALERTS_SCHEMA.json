@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_controller_logs_events_alerts_contract",
+  "task": "7.11",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_v6_2_guide": "https://static.tp-link.com/upload/manual/2026/202604/20260401/1900002482_Omada%20SDN%20Controller_V6.2_User%20Guide.pdf",
+    "support_export_guide_jp": "https://www.tp-link.com/jp/support/faq/3700/",
+    "v6_2_pdf_visual_verification": "OPEN_FAILED_TOO_LARGE; screenshot not available",
+    "support_export_version_note": "TP-Link documents masked support export from Controller 5.6.3 and later; log-list acquisition path has version/access-mode caveats."
+  },
+  "state_planes": [
+    "alerts",
+    "events",
+    "audit_logs",
+    "alert_event_notifications",
+    "audit_log_notifications",
+    "remote_logging",
+    "support_export"
+  ],
+  "controller_facts": {
+    "alerts_events_and_audit_logs_are_distinct": true,
+    "alert_event_notifications_are_configurable": true,
+    "audit_log_notifications_are_separate": true,
+    "remote_logging_is_separate_from_controller_local_logs": true,
+    "support_export_configuration_runtime_logs_and_log_list_are_distinct_artifacts": true
+  },
+  "safety": {
+    "unknown_feature_or_delivery_support": "NOT_SUPPORTED_UNVERIFIED",
+    "secrets_credentials_and_private_keys_in_evidence_forbidden": true,
+    "notification_delivery_is_not_equivalent_to_local_log_persistence": true,
+    "remote_sink_success_is_not_inferred_from_configuration_acceptance": true,
+    "support_exports_require_masking_or_sanitization": true
+  },
+  "pass_requires": [
+    "representative generated condition appears in intended alert/event plane",
+    "representative administrator action appears in audit plane where applicable",
+    "configured notification channel delivery is verified independently",
+    "configured remote logging sink receives representative entries",
+    "retained/exported evidence is sanitized and source/version scoped"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_policy_routing_contract",
+  "task": "5.05",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_network_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "scope_note": "Policy Routing is a gateway/site transmission feature and is distinct from Static Route and generic Multi-WAN/load-balancing state."
+  },
+  "state_planes": [
+    "rule_identity",
+    "enabled_state",
+    "protocols",
+    "source_selector",
+    "destination_selector",
+    "preferred_wan",
+    "wan_down_fallback",
+    "effective_forwarding_behavior"
+  ],
+  "selector_types": [
+    "network",
+    "ip_group",
+    "ip_port_group"
+  ],
+  "controller_facts": {
+    "policy_routing_selects_wan_from_source_destination_protocol": true,
+    "network_ip_group_ip_port_group_are_distinct_selector_types": true,
+    "fallback_to_other_wan_is_explicit_per_rule": true,
+    "policy_routing_and_static_route_are_distinct_objects": true
+  },
+  "safety": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "management_or_controller_flow_impact_requires_explicit_analysis": true,
+    "overlap_with_static_route_multiwan_or_other_policy_requires_analysis": true,
+    "precedence_must_not_be_invented_without_exact_controller_evidence": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "exact policy object read-back",
+    "effective selected WAN matches representative intended flow",
+    "non-matching control flow is not unintentionally captured",
+    "configured WAN-down fallback is behaviorally verified when safely testable",
+    "controller and management path remain healthy"
+  ]
+}

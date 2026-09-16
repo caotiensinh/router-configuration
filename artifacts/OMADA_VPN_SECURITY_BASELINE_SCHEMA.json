@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_vpn_security_baseline",
+  "task": "10.7",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_v6_2_guide": "https://static.tp-link.com/upload/manual/2026/202604/20260401/1900002482_Omada%20SDN%20Controller_V6.2_User%20Guide.pdf",
+    "controller_v6_2_pdf_visual_verification": "OPEN_FAILED_TOO_LARGE; screenshot not available"
+  },
+  "capability_planes": [
+    "vpn_server",
+    "vpn_client",
+    "site_to_site",
+    "vpn_user",
+    "tunnel_status",
+    "routing_and_allowed_networks",
+    "credential_and_key_material"
+  ],
+  "documented_protocol_families": [
+    "wireguard",
+    "openvpn",
+    "ipsec",
+    "ssl_vpn",
+    "l2tp",
+    "pptp"
+  ],
+  "controller_facts": {
+    "server_client_and_site_to_site_are_distinct_workflows": true,
+    "wireguard_and_ipsec_have_site_to_site_workflows": true,
+    "vpn_status_is_an_operational_readback_plane": true,
+    "protocol_availability_depends_on_gateway_model_firmware_region_and_controller_version": true
+  },
+  "security_policy": {
+    "vendor_capability_and_project_policy_separate": true,
+    "prefer_modern_proven_compatible_protocols": true,
+    "pptp_not_authorized_for_sensitive_new_deployments": true,
+    "private_keys_psks_passwords_and_tokens_must_not_enter_evidence": true,
+    "allowed_networks_and_routes_require_least_privilege": true
+  },
+  "safety": {
+    "unknown_protocol_or_role_support": "NOT_SUPPORTED_UNVERIFIED",
+    "successful_tunnel_creation_is_not_pass": true,
+    "management_path_and_existing_tunnels_must_be_preserved": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "exact tunnel/profile/user binding read-back without secrets",
+    "tunnel or security-association operational state when applicable",
+    "expected routes/allowed networks present",
+    "representative authorized flow succeeds",
+    "representative unauthorized/non-allowed flow is denied or not routed",
+    "management path and unaffected tunnels remain healthy"
+  ]
+}
