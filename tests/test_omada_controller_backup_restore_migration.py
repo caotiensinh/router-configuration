@@ -4,7 +4,7 @@ from pathlib import Path
 
 class ControllerBackupRestoreMigrationTests(unittest.TestCase):
     def test_migration_specializes_parent_and_requires_target_reconciliation(self):
-        data=json.loads((Path(__file__).parent/"OMADA_CONTROLLER_BACKUP_RESTORE_MIGRATION_SCHEMA.json").read_text())
+        data=json.loads((Path(__file__).parents[1]/"artifacts"/"OMADA_CONTROLLER_BACKUP_RESTORE_MIGRATION_SCHEMA.json").read_text())
         self.assertEqual(data["task"],"7.12")
         self.assertEqual(data["reuse"]["parent_task"],"4.19")
         self.assertTrue(data["migration"]["site_and_controller_migration_are_distinct"])
