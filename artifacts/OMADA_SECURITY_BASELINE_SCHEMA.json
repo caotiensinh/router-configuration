@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_security_guidance_baseline",
+  "task": "10.1",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "security_advisory_index": "https://www.tp-link.com/us/press/security-advisory/?type=smb",
+    "japan_security_advisory_index": "https://www.tp-link.com/jp/press/security-advisory/",
+    "controller_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-5-configure-the-omada-sdn-controller.html"
+  },
+  "baseline_principles": [
+    "Match advisories against exact product/controller/app identity and affected version range.",
+    "Treat unknown applicability as unresolved, not safe.",
+    "Track vendor fixed version/workaround and lifecycle support evidence.",
+    "Run firmware/controller compatibility gate before remediation upgrade.",
+    "Capture a pre-change backup before risky remediation.",
+    "Use HTTPS certificates and minimize management exposure where supported and applicable.",
+    "Verify exact remediated version and service health after change.",
+    "Continue advisory monitoring after remediation."
+  ],
+  "advisory_state": [
+    "APPLICABLE_UNREMEDIATED",
+    "NOT_APPLICABLE_VERIFIED",
+    "REMEDIATED_VERIFIED",
+    "UNKNOWN_APPLICABILITY"
+  ],
+  "current_index_examples": [
+    {"id": 5287, "subject": "Unauthenticated Account Information Disclosure in multiple Omada Controllers", "cve": ["CVE-2026-81531"]},
+    {"id": 5256, "subject": "Multiple Vulnerabilities in Omada Gateways", "cve": ["CVE-2026-9033", "CVE-2026-19586", "CVE-2026-19683"]},
+    {"id": 5216, "subject": "Multiple Vulnerabilities in TP-Link Omada Devices", "cve": ["CVE-2025-9291", "CVE-2025-15544", "CVE-2025-15627", "CVE-2025-15628", "CVE-2025-15629", "CVE-2025-15630", "CVE-2025-15631"]},
+    {"id": 4917, "subject": "Multiple Vulnerabilities in Omada Controllers", "cve": ["CVE-2025-9520", "CVE-2025-9521", "CVE-2025-9522"]}
+  ],
+  "management_plane": {
+    "https_certificate_supported_on_documented_controller_types": true,
+    "management_and_portal_ports_should_not_be_conflated": true,
+    "never_expose_credentials_or_private_keys_in_logs": true
+  },
+  "authorization": {
+    "unknown_advisory_match": "UNKNOWN_APPLICABILITY",
+    "latest_string_is_not_remediation_proof": true,
+    "write_acceptance": "EXECUTED_UNVERIFIED",
+    "pass_requires": [
+      "exact product/version readback",
+      "vendor fixed-version or workaround condition satisfied",
+      "management path healthy",
+      "representative network/client service health",
+      "advisory evidence retained"
+    ]
+  }
+}
