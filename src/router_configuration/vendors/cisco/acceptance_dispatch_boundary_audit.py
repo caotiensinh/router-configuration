@@ -31,6 +31,12 @@ def audit_dispatch_boundary(*, dispatcher_text: str, c03_text: str, c04_text: st
         "validate_dispatch_request",
         "expected_source_sha",
         "dispatch_request_sha256",
+        "Verify target ref remains at exact requested source SHA",
+        "uses: ./.github/workflows/cisco-netconf-live-readonly.yml",
+        "if: needs.validate.outputs.stage == 'c03'",
+        "if: needs.validate.outputs.stage == 'c04'",
+        "live_execution_requested: true",
+        "CISCO_NETCONF_PASSWORD: ${{ secrets.CISCO_NETCONF_PASSWORD }}",
     )
     _require_tokens(dispatcher_text, required_dispatcher, "dispatcher")
 
@@ -39,6 +45,7 @@ def audit_dispatch_boundary(*, dispatcher_text: str, c03_text: str, c04_text: st
         "cisco-recovery-observation.yml",
         "cisco-physical-evidence-ingest.yml",
         "c12_handover_manifest",
+        "secrets: inherit",
         "edit_config(",
         "configure terminal",
         "write memory",
@@ -82,7 +89,8 @@ def audit_dispatch_boundary(*, dispatcher_text: str, c03_text: str, c04_text: st
     result = {
         "schema_version": "cisco-acceptance-dispatch-boundary-audit/1",
         "dispatcher_request_branch_scoped": True,
-        "dispatcher_actions_write_only_for_dispatch": True,
+        "dispatcher_actions_write_only_for_c04_dispatch": True,
+        "c03_owner_preserving_reusable_call_verified": True,
         "target_source_pins_verified": True,
         "c03_reusable_owner_gate_path_verified": True,
         "c03_read_only_boundary_verified": True,
