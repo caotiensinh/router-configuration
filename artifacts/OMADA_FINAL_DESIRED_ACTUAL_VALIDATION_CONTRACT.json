@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "final_desired_actual_validation_contract",
+  "task": "13.10",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "reused_architecture": [
+    "13.6 independent read-back verification",
+    "transaction lifecycle verified/rolled_back outcome semantics",
+    "StateEngine deterministic drift"
+  ],
+  "contract": [
+    "Desired-state success is eligible only when lifecycle phase is verified.",
+    "rolled_back is recovery and must never be reported as desired-state deployment success.",
+    "A final fresh independently acquired read-back is compared with desired managed state using the generic 13.6 verifier.",
+    "Management, connectivity, intended behavior and negative controls must all be explicitly true.",
+    "Zero drift plus all operational checks is required for PASS.",
+    "The validator exposes no transport, apply, rollback or production-writer capability."
+  ],
+  "safety": {
+    "fresh_read_required": true,
+    "independent_acquisition_required": true,
+    "apply_observation_reuse_forbidden": true,
+    "rolled_back_not_success": true,
+    "write_authorized": false
+  }
+}
