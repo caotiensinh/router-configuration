@@ -16,10 +16,29 @@ class CiscoAcceptanceDispatcherWorkflowTests(unittest.TestCase):
         self.assertIn("validate_dispatch_request", text)
         self.assertIn("expected_source_sha", text)
         self.assertIn("dispatch_request_sha256", text)
+        self.assertIn("Verify target ref remains at exact requested source SHA", text)
         self.assertIn("production_write_authorized", text)
 
-    def test_dispatcher_requires_returned_run_details_for_correlation(self):
+    def test_c03_uses_owner_preserving_reusable_call_with_least_privilege_secrets(self):
         text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("c03-live:", text)
+        self.assertIn("if: needs.validate.outputs.stage == 'c03'", text)
+        self.assertIn("uses: ./.github/workflows/cisco-netconf-live-readonly.yml", text)
+        self.assertIn("live_execution_requested: true", text)
+        for name in (
+            "CISCO_NETCONF_HOST",
+            "CISCO_NETCONF_PORT",
+            "CISCO_NETCONF_USERNAME",
+            "CISCO_NETCONF_PASSWORD",
+            "CISCO_NETCONF_HOSTKEY_B64",
+        ):
+            self.assertIn(f"{name}: ${{{{ secrets.{name} }}}}", text)
+        self.assertNotIn("secrets: inherit", text)
+
+    def test_c04_retains_returned_run_details_for_correlation(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("c04-dispatch:", text)
+        self.assertIn("if: needs.validate.outputs.stage == 'c04'", text)
         self.assertIn('"return_run_details": True', text)
         self.assertIn("if status != 200", text)
         self.assertIn('dispatch_payload.get("workflow_run_id")', text)
@@ -38,7 +57,6 @@ class CiscoAcceptanceDispatcherWorkflowTests(unittest.TestCase):
             "commit confirmed",
             "write memory",
             "configure terminal",
-            "CISCO_NETCONF_PASSWORD",
             "CISCO_RESTCONF_PASSWORD",
         )
         self.assertEqual([token for token in forbidden if token in text], [])
