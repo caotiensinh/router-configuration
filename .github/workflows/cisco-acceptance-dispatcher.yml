@@ -95,6 +95,7 @@ jobs:
           request_sha = os.environ["REQUEST_SHA256"]
           stage = os.environ["STAGE"]
           api = "https://api.github.com"
+          accepted_dispatch_statuses = frozenset({200, 204})
           headers = {
               "Authorization": f"Bearer {token}",
               "Accept": "application/vnd.github+json",
@@ -147,7 +148,12 @@ jobs:
               )
               with request.urlopen(dispatch_req, timeout=20) as response:
                   status = response.status
-              if status != 204:
+              # GitHub's documented endpoint commonly returns 204, while the
+              # live Actions runtime used by this repository has also returned
+              # 200 and created the requested workflow run. Both are treated as
+              # transport-level dispatch acceptance; later evidence still must
+              # prove that the live workflow itself ran and satisfied its gate.
+              if status not in accepted_dispatch_statuses:
                   raise RuntimeError(f"unexpected workflow dispatch status: {status}")
               receipt["dispatch_status"] = "dispatched"
               receipt["http_status"] = status
