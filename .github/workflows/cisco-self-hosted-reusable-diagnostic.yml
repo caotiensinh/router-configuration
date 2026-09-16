@@ -1,0 +1,24 @@
+name: Cisco Self-Hosted Reusable Diagnostic
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  reusable-self-hosted:
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Record reusable-call identity only
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'RUNNER_NAME=%s\n' "${RUNNER_NAME:-unknown}"
+          printf 'GITHUB_ACTOR=%s\n' "${GITHUB_ACTOR:-unknown}"
+          printf 'GITHUB_ACTOR_ID=%s\n' "${GITHUB_ACTOR_ID:-unknown}"
+          printf 'GITHUB_EVENT_NAME=%s\n' "${GITHUB_EVENT_NAME:-unknown}"
+          printf 'GITHUB_REPOSITORY=%s\n' "${GITHUB_REPOSITORY:-unknown}"
+          printf 'GITHUB_WORKFLOW=%s\n' "${GITHUB_WORKFLOW:-unknown}"
+          echo 'No secrets or device endpoints are accessed.'
