@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "ordered_execution_contract",
+  "task": "13.5",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "contract": [
+    "Input is an immutable ChangePlan from the existing state engine.",
+    "Explicit dependency edges are mandatory when semantic prerequisites exist.",
+    "Unknown dependencies, self-dependencies and cycles fail closed.",
+    "Among ready operations only, deterministic tie-breaking uses risk, CREATE/UPDATE/DELETE, path and stable operation id.",
+    "No mutation transport, write authorization or apply capability is introduced.",
+    "The ordering digest binds the ordered steps to the source ChangePlan id."
+  ],
+  "safety": {
+    "transport_present": false,
+    "apply_available": false,
+    "write_authorized": false,
+    "delete_tie_break_last": true,
+    "dependency_precedence_over_risk": true
+  }
+}
