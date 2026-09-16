@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_network_segmentation_security_baseline",
+  "task": "10.4",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_network_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "device_management_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-6-configure-and-monitor-omada-managed-devices.html"
+  },
+  "vendor_facts": {
+    "lan_vlan_segmentation_supported": true,
+    "interface_and_vlan_purposes_are_distinct": true,
+    "gateway_switch_eap_acl_planes_are_distinct": true,
+    "switch_acl_requires_binding": true,
+    "management_vlan_separates_management_from_data_where_supported": true
+  },
+  "security_policy": [
+    "separate management, infrastructure, server, user, guest/IoT and other trust zones according to actual requirements",
+    "default-deny between trust zones only when explicit required flows and management dependencies are enumerated",
+    "preserve DHCP/DNS/NTP/controller/RADIUS and other required infrastructure paths explicitly",
+    "use least-privilege ACL rules with deterministic order and bounded source/destination scope",
+    "verify both allowed and denied representative flows after change"
+  ],
+  "safety": {
+    "vendor_capability_and_project_policy_separate": true,
+    "unknown_capability": "NOT_SUPPORTED_UNVERIFIED",
+    "management_and_controller_flows_must_be_allowlisted_before_deny": true,
+    "broad_deny_without_flow_inventory_forbidden": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "zone-to-VLAN/network mapping read-back",
+    "ACL type/order/binding read-back",
+    "required infrastructure flows pass",
+    "intended cross-zone denied flows fail",
+    "management/controller reachability healthy",
+    "no accidental isolation of recovery path"
+  ]
+}
