@@ -143,16 +143,20 @@ def validate_progress_ledger(data: Mapping[str, Any], *, repo_root: str | Path |
     rec = data.get("reconciliation")
     if not isinstance(rec, Mapping):
         raise CiscoProgressLedgerError("reconciliation must be an object")
-    if rec.get("reconciled_points") != completed_points:
-        raise CiscoProgressLedgerError("reconciliation total mismatch")
     previous = rec.get("previous_points")
     delta = rec.get("delta_points")
-    if not isinstance(previous, int) or not isinstance(delta, int) or previous + delta != completed_points:
+    reconciled = rec.get("reconciled_points")
+    new_work = rec.get("new_work_points")
+    if not isinstance(previous, int) or not isinstance(delta, int) or not isinstance(reconciled, int):
+        raise CiscoProgressLedgerError("reconciliation fields must be integers")
+    if previous + delta != reconciled:
         raise CiscoProgressLedgerError("reconciliation delta mismatch")
     if rec.get("delta_kind") != "measurement_reclassification":
         raise CiscoProgressLedgerError("reconciliation delta kind mismatch")
-    if rec.get("new_work_points") != 0:
-        raise CiscoProgressLedgerError("measurement reconciliation cannot claim new work")
+    if not isinstance(new_work, int) or new_work < 0:
+        raise CiscoProgressLedgerError("new_work_points must be a non-negative integer")
+    if reconciled + new_work != completed_points:
+        raise CiscoProgressLedgerError("reconciled baseline plus new work must equal completed points")
 
     if data.get("physical_device_verified") is True:
         c11 = next((s for s in stages if s.get("id") == "C11"), None)
