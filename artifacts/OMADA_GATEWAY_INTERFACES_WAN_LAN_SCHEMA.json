@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_interfaces_wan_lan_contract",
+  "task": "5.01",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_user_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "scope_note": "Feature availability varies by region, controller version, gateway model and firmware."
+  },
+  "state_planes": [
+    "wan_mode",
+    "wan_ipv4_connection",
+    "wan_ipv6_connection",
+    "wan_vlan_qos",
+    "multi_wan_policy",
+    "lan_network",
+    "lan_interface",
+    "lan_vlan",
+    "port_profile_binding"
+  ],
+  "wan": {
+    "ipv4_connection_types": [
+      "dynamic_ip",
+      "static_ip",
+      "pppoe",
+      "l2tp",
+      "pptp"
+    ],
+    "ipv6_connection_types": [
+      "dynamic_ip_slaac_dhcpv6",
+      "static_ip",
+      "pppoe",
+      "6to4_tunnel",
+      "pass_through_bridge"
+    ],
+    "multi_wan_requires_multiple_wan_ports": true,
+    "online_detection_affects_load_balancing_and_link_backup": true,
+    "wan_settings_override_can_break_internet_after_adoption": true,
+    "wan_port_count_mismatch_can_reboot_after_adoption": true
+  },
+  "lan": {
+    "network_purposes": [
+      "interface",
+      "vlan"
+    ],
+    "interface_purpose_creates_l3_interface": true,
+    "vlan_purpose_is_l2_only": true,
+    "default_network_vlan_id": 1,
+    "default_network_not_deletable": true,
+    "port_profile_binding_activates_lan_membership": true
+  },
+  "applicability_key": [
+    "gateway_model",
+    "hardware_revision",
+    "region",
+    "firmware",
+    "controller_type",
+    "controller_version_build",
+    "management_mode"
+  ],
+  "safety": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "wan_or_management_lan_change_is_network_change": true,
+    "credentials_must_not_be_persisted": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "exact WAN mode and connection read-back",
+    "expected public/upstream reachability when applicable",
+    "exact LAN network/interface/VLAN read-back",
+    "management path healthy",
+    "representative LAN-to-required-destination traffic healthy",
+    "no unintended WAN/LAN or VLAN drift"
+  ]
+}
