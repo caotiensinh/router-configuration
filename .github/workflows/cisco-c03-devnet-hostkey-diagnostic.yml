@@ -1,0 +1,62 @@
+name: Cisco C03 DevNet Host Key Diagnostic
+
+on:
+  push:
+    branches:
+      - diag/c03-devnet-hostkey-20260916
+
+permissions:
+  contents: read
+
+jobs:
+  hostkey-diagnostic:
+    if: github.repository == 'caotiensinh/router-configuration'
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Guard approved self-hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_NAME}" = "aiserver-router-configuration"
+          test "${RUNNER_OS}" = "Linux"
+          test "${RUNNER_ARCH}" = "X64"
+
+      - name: Collect public SSH host keys only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          : > evidence/cisco/c03-devnet-hostkeys.txt
+
+          scan() {
+            local host="$1"
+            local port="$2"
+            echo "=== ${host}:${port} ===" | tee -a evidence/cisco/c03-devnet-hostkeys.txt
+            if keys="$(ssh-keyscan -T 10 -p "${port}" "${host}" 2>/dev/null)" && [ -n "${keys}" ]; then
+              printf '%s\n' "${keys}" >> evidence/cisco/c03-devnet-hostkeys.txt
+              printf '%s\n' "${keys}" | ssh-keygen -lf - -E sha256 | tee -a evidence/cisco/c03-devnet-hostkeys.txt
+              echo "status=observed" | tee -a evidence/cisco/c03-devnet-hostkeys.txt
+            else
+              echo "status=unreachable_or_no_host_key" | tee -a evidence/cisco/c03-devnet-hostkeys.txt
+            fi
+            echo | tee -a evidence/cisco/c03-devnet-hostkeys.txt
+          }
+
+          scan ios-xe-mgmt.cisco.com 10000
+          scan sandbox-iosxe-latest-1.cisco.com 830
+
+      - name: Assert diagnostic remains non-authenticating
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s evidence/cisco/c03-devnet-hostkeys.txt
+          ! grep -Eiq 'password|username|netconf session|private key' evidence/cisco/c03-devnet-hostkeys.txt
+
+      - name: Upload public host-key evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-c03-devnet-hostkey-diagnostic-${{ github.sha }}
+          path: evidence/cisco/c03-devnet-hostkeys.txt
+          if-no-files-found: error
+          retention-days: 7
