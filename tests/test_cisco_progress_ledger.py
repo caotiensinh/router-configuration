@@ -21,8 +21,34 @@ class CiscoProgressLedgerTests(unittest.TestCase):
         result = load_and_validate(PATH, repo_root=ROOT)
         self.assertEqual(result["completed"], 79)
         self.assertEqual(result["remaining"], 21)
+        self.assertEqual(
+            result["weighted_work_completion"],
+            {"earned": 79, "total": 100, "percent": 79.0},
+        )
         self.assertEqual(result["engineering"], {"earned": 79, "total": 79, "percent": 100.0})
-        self.assertEqual(result["acceptance"], {"earned": 0, "total": 21, "percent": 0.0})
+        self.assertEqual(
+            result["acceptance"],
+            {"earned": 0, "total": 21, "percent": 0.0, "open_gates": 12},
+        )
+        self.assertEqual(
+            result["delivery_readiness"],
+            {
+                "status": "blocked",
+                "ready": False,
+                "blocking_acceptance_points": 21,
+                "open_acceptance_gates": 12,
+                "physical_device_verified": False,
+                "production_write_authorized": False,
+            },
+        )
+
+    def test_work_completion_does_not_imply_delivery_readiness(self):
+        result = load_and_validate(PATH, repo_root=ROOT)
+        self.assertEqual(result["weighted_work_completion"]["percent"], 79.0)
+        self.assertEqual(result["engineering"]["percent"], 100.0)
+        self.assertEqual(result["acceptance"]["percent"], 0.0)
+        self.assertFalse(result["delivery_readiness"]["ready"])
+        self.assertEqual(result["delivery_readiness"]["status"], "blocked")
 
     def test_reclassification_and_new_work_are_separate(self):
         item = ledger()

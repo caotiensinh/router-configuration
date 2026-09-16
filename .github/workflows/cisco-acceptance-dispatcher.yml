@@ -102,7 +102,7 @@ jobs:
               "Content-Type": "application/json",
           }
           receipt = {
-              "schema_version": "cisco-acceptance-dispatch-receipt/1",
+              "schema_version": "cisco-acceptance-dispatch-receipt/2",
               "request_id": request_id,
               "request_sha256": request_sha,
               "stage": stage,
@@ -137,6 +137,7 @@ jobs:
                           "dispatch_request_id": request_id,
                           "dispatch_request_sha256": request_sha,
                       },
+                      "return_run_details": True,
                   }
               ).encode("utf-8")
               dispatch_req = request.Request(
@@ -147,10 +148,24 @@ jobs:
               )
               with request.urlopen(dispatch_req, timeout=20) as response:
                   status = response.status
-              if status != 204:
+                  response_body = response.read().decode("utf-8")
+              if status != 200:
                   raise RuntimeError(f"unexpected workflow dispatch status: {status}")
+              dispatch_payload = json.loads(response_body)
+              workflow_run_id = dispatch_payload.get("workflow_run_id")
+              run_url = str(dispatch_payload.get("run_url", "")).strip()
+              html_url = str(dispatch_payload.get("html_url", "")).strip()
+              if not isinstance(workflow_run_id, int) or workflow_run_id <= 0:
+                  raise RuntimeError("workflow dispatch response missing positive workflow_run_id")
+              expected_run_suffix = f"/actions/runs/{workflow_run_id}"
+              if not run_url.endswith(expected_run_suffix) or not html_url.endswith(expected_run_suffix):
+                  raise RuntimeError("workflow dispatch response run URLs do not match workflow_run_id")
+
               receipt["dispatch_status"] = "dispatched"
               receipt["http_status"] = status
+              receipt["workflow_run_id"] = workflow_run_id
+              receipt["run_url"] = run_url
+              receipt["html_url"] = html_url
           except error.HTTPError as exc:
               receipt["http_status"] = exc.code
               receipt["error_code"] = "GITHUB_API_HTTP_ERROR"

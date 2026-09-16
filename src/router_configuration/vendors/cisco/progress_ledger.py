@@ -60,6 +60,7 @@ def validate_progress_ledger(data: Mapping[str, Any], *, repo_root: str | Path |
     gate_ids: set[str] = set()
     totals = {"eng": 0, "accept": 0}
     earned = {"eng": 0, "accept": 0}
+    open_acceptance_gates = 0
     total_points = 0
     completed_points = 0
 
@@ -104,6 +105,8 @@ def validate_progress_ledger(data: Mapping[str, Any], *, repo_root: str | Path |
                 raise CiscoProgressLedgerError(f"{gid}: PASS requires evidence")
             if kind == "accept" and status == "pass" and not (kinds & _ACCEPT_PREFIX):
                 raise CiscoProgressLedgerError(f"{gid}: acceptance PASS requires live/human/physical/production evidence")
+            if kind == "accept" and status != "pass":
+                open_acceptance_gates += 1
             sw += gw
             se += points
             totals[kind] += gw
@@ -158,20 +161,51 @@ def validate_progress_ledger(data: Mapping[str, Any], *, repo_root: str | Path |
     if reconciled + new_work != completed_points:
         raise CiscoProgressLedgerError("reconciled baseline plus new work must equal completed points")
 
+    c11 = next((s for s in stages if s.get("id") == "C11"), None)
+    c12 = next((s for s in stages if s.get("id") == "C12"), None)
     if data.get("physical_device_verified") is True:
-        c11 = next((s for s in stages if s.get("id") == "C11"), None)
         if not c11 or c11.get("status") != "done":
             raise CiscoProgressLedgerError("physical_device_verified requires C11 done")
     if data.get("production_write_authorized") is True:
-        c12 = next((s for s in stages if s.get("id") == "C12"), None)
         if not c12 or c12.get("status") != "done":
             raise CiscoProgressLedgerError("production_write_authorized requires C12 done")
+
+    acceptance_complete = earned["accept"] == totals["accept"]
+    delivery_ready = (
+        completed_points == 100
+        and acceptance_complete
+        and bool(data.get("physical_device_verified"))
+        and bool(data.get("production_write_authorized"))
+        and bool(c12 and c12.get("status") == "done")
+    )
 
     return {
         "completed": completed_points,
         "remaining": 100 - completed_points,
-        "engineering": {"earned": earned["eng"], "total": totals["eng"], "percent": _pct(earned["eng"], totals["eng"])},
-        "acceptance": {"earned": earned["accept"], "total": totals["accept"], "percent": _pct(earned["accept"], totals["accept"])},
+        "weighted_work_completion": {
+            "earned": completed_points,
+            "total": 100,
+            "percent": float(completed_points),
+        },
+        "engineering": {
+            "earned": earned["eng"],
+            "total": totals["eng"],
+            "percent": _pct(earned["eng"], totals["eng"]),
+        },
+        "acceptance": {
+            "earned": earned["accept"],
+            "total": totals["accept"],
+            "percent": _pct(earned["accept"], totals["accept"]),
+            "open_gates": open_acceptance_gates,
+        },
+        "delivery_readiness": {
+            "status": "ready" if delivery_ready else "blocked",
+            "ready": delivery_ready,
+            "blocking_acceptance_points": totals["accept"] - earned["accept"],
+            "open_acceptance_gates": open_acceptance_gates,
+            "physical_device_verified": bool(data.get("physical_device_verified")),
+            "production_write_authorized": bool(data.get("production_write_authorized")),
+        },
     }
 
 
