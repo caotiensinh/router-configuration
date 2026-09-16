@@ -1,0 +1,37 @@
+schema_version: 1.0.0
+schema_id: omada.routing_diagnostics_draft
+status: RESEARCH_DRAFT
+observed_at: '2026-09-15'
+authority: TP-Link / Omada official documentation only
+diagnostic_planes:
+  - l3_interface_state
+  - connected_routes
+  - static_routes
+  - next_hop_reachability
+  - return_path
+  - arp_neighbor_dependency
+  - acl_firewall_dependency
+  - nat_pbr_dependency
+  - packet_observation
+minimum_check_order:
+  - verify_link_and_ip_mask
+  - verify_expected_connected_or_static_route
+  - verify_next_hop_from_correct_source
+  - verify_return_route
+  - inspect_overlap_more_specific_and_preference
+  - inspect_acl_firewall_nat_pbr_after_route_plane
+  - corroborate_with_ping_traceroute_network_check_packet_capture
+rca_states:
+  route_missing: BLOCKED
+  next_hop_unreachable: BLOCKED
+  return_path_missing: BLOCKED
+  policy_override_possible: NEEDS_CROSS_FEATURE_EVIDENCE
+  route_present_no_traffic_test: EXECUTED_UNVERIFIED
+verification:
+  require_representative_traffic_path: true
+  management_reachability_must_remain_healthy: true
+sources:
+  - https://support.omadanetworks.com/jp/document/13183/
+  - https://support.omadanetworks.com/jp/document/13194/
+  - https://support.omadanetworks.com/en/document/113838/
+  - https://support.omadanetworks.com/us/document/13188/
