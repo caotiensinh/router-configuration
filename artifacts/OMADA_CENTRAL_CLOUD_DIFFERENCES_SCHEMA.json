@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_central_cloud_differences_contract",
+  "task": "7.14",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_comparison": "https://support.omadanetworks.com/ec/document/13150/",
+    "cloud_product": "https://support.omadanetworks.com/en/product/omada-cloud-based-controller/",
+    "japan_central": "https://support.omadanetworks.com/jp/product/omada-central/",
+    "japan_essentials": "https://support.omadanetworks.com/jp/product/omada-central-essentials/"
+  },
+  "deployment_models": [
+    "on_premises_hybrid_cloud",
+    "omada_cloud_standard",
+    "omada_cloud_essentials",
+    "integrated_gateway_hybrid_cloud"
+  ],
+  "differences": {
+    "controller_service_location_is_explicit": true,
+    "cloud_access_is_not_same_as_cloud_based_controller": true,
+    "cloud_based_management_depends_on_internet_connectivity": true,
+    "on_prem_customer_controls_controller_host_backup_and_local_availability": true,
+    "cloud_standard_uses_device_license_fee": true,
+    "cloud_essentials_is_free_and_simplified": true,
+    "cloud_essentials_does_not_support_msp_mode": true
+  },
+  "normalization": [
+    "service_location",
+    "ownership_boundary",
+    "internet_dependency",
+    "local_management_availability",
+    "backup_responsibility",
+    "patching_responsibility",
+    "licensing_model",
+    "msp_mode",
+    "feature_surface",
+    "device_compatibility",
+    "region"
+  ],
+  "safety": {
+    "unknown_feature_parity": "NOT_SUPPORTED_UNVERIFIED",
+    "migration_without_target_reconciliation": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "exact product/tier and region",
+    "current official feature matrix",
+    "device compatibility",
+    "identity/RBAC scope",
+    "management reachability",
+    "backup/recovery responsibility",
+    "post-migration device reconciliation"
+  ]
+}
