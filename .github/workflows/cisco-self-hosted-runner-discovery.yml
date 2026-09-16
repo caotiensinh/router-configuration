@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/cisco-self-hosted-runner-discovery.yml"
+      - ".github/workflows/cisco-self-hosted-reusable-diagnostic.yml"
 
 permissions:
   contents: read
@@ -55,3 +56,6 @@ jobs:
             echo 'PASSWORDLESS_SUDO=false'
           fi
           echo 'No hook body, secret value, or device endpoint was emitted.'
+
+  reusable-call:
+    uses: ./.github/workflows/cisco-self-hosted-reusable-diagnostic.yml
