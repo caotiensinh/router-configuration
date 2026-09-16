@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_device_firmware_compatibility_contract",
+  "task": "7.05",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "example_release_note": "https://static.tp-link.com/upload/firmware/2026/202603/20260327/Release%20Note%20EAP772%28JP%29_V1_1.1.2%20Build%2020251030.pdf",
+    "example_scope": "EAP772(JP) V1 only",
+    "visual_screenshot_verified": false,
+    "visual_note": "PDF search text is authoritative for the cited model-specific example; visual verification is not claimed."
+  },
+  "compatibility_tuple": [
+    "device_model",
+    "hardware_revision",
+    "region",
+    "current_firmware",
+    "target_firmware",
+    "controller_platform",
+    "controller_version_build",
+    "management_mode"
+  ],
+  "required_evidence": [
+    "official firmware source",
+    "target release note",
+    "minimum source firmware or upgrade hop when specified",
+    "controller requirement or recommendation when specified",
+    "upgrade reversibility/downgrade restriction when specified",
+    "feature-specific firmware prerequisite when specified"
+  ],
+  "example_constraints": {
+    "model": "EAP772",
+    "region": "JP",
+    "hardware_revision": "V1",
+    "target_release": "1.1.2 Build 20251030",
+    "minimum_fw_for_update": "1.0.14 Build 20240801 Rel.78844",
+    "upgrade_irreversible": true,
+    "downgrade_requires_vendor_support": true,
+    "recommended_controller": "5.14 or above",
+    "scope_is_example_only": true
+  },
+  "decision_states": [
+    "SUPPORTED_VERIFIED",
+    "NOT_SUPPORTED_VERIFIED",
+    "NOT_SUPPORTED_UNVERIFIED"
+  ],
+  "authorization": {
+    "unknown_tuple": "NOT_SUPPORTED_UNVERIFIED",
+    "latest_string_is_not_compatibility_evidence": true,
+    "cross_region_firmware_is_not_authorized": true,
+    "write_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "post_upgrade_pass_requires": [
+    "exact target firmware readback",
+    "controller adoption/connection healthy",
+    "management path healthy",
+    "required features operational",
+    "representative client/network service checks"
+  ]
+}
