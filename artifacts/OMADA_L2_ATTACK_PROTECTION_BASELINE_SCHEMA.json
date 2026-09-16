@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_l2_attack_protection_baseline",
+  "task": "10.5",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_network_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "official_impb_guide": "https://www.tp-link.com/us/configuration-guides/configuring_ipv4_impb/?configurationId=18224",
+    "scope_note": "Standalone switch evidence is model-scoped and never proves Controller parity."
+  },
+  "capability_planes": [
+    "ip_mac_binding",
+    "dhcp_snooping",
+    "arp_inspection",
+    "ip_source_guard",
+    "port_security",
+    "storm_control",
+    "port_isolation",
+    "dos_defend"
+  ],
+  "dependency_rules": {
+    "arp_inspection_depends_on_valid_binding_state_where_applicable": true,
+    "ip_source_guard_depends_on_binding_state_where_applicable": true,
+    "dhcp_snooping_trust_topology_must_be_explicit": true,
+    "static_ip_hosts_require_explicit_binding_strategy": true,
+    "uplink_or_dhcp_server_ports_must_not_be_blindly_treated_as_untrusted": true
+  },
+  "security_policy": [
+    "enable only protections proven supported for the exact device and management plane",
+    "protect DHCP/ARP/IP source integrity without breaking legitimate infrastructure or static hosts",
+    "bound rate/storm controls to measured traffic and service requirements",
+    "preserve management and uplink paths",
+    "verify legitimate traffic and representative spoof/invalid traffic behavior where safely testable"
+  ],
+  "safety": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "vendor_capability_and_project_policy_separate": true,
+    "blind_trust_or_untrust_assignment_forbidden": true,
+    "broad_protection_enable_without_binding_topology_inventory_forbidden": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "feature enable/scope/trust state read-back",
+    "binding table state consistent with intended hosts",
+    "legitimate DHCP/ARP/IP traffic succeeds",
+    "representative invalid/spoof traffic is rejected where safely testable",
+    "management/uplink/controller reachability healthy",
+    "no unsupported feature claim"
+  ]
+}
