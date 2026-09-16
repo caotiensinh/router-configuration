@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_nat_port_forwarding_contract",
+  "task": "5.07",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_user_guide": "https://support.omadanetworks.com/en/document/111217/",
+    "restricted_public_source_guide": "https://support.omadanetworks.com/us/document/126427/",
+    "visual_screenshot_verified": false
+  },
+  "applicability_key": [
+    "gateway_model", "gateway_hw_revision", "region", "gateway_firmware",
+    "controller_platform", "controller_version_build", "management_mode"
+  ],
+  "state_planes": [
+    "port_forwarding", "one_to_one_nat", "alg", "nat_disable_state", "inbound_exposure_verification"
+  ],
+  "vendor_facts": {
+    "port_forwarding_allows_internet_to_reach_selected_lan_hosts_or_services": true,
+    "port_forwarding_rule_has_source_scope_interface_ports_destination_and_protocol": true,
+    "source_scope_can_be_limited_to_specific_public_ips": true,
+    "one_to_one_nat_is_distinct_from_port_forwarding": true,
+    "alg_is_distinct_from_static_port_forwarding": true
+  },
+  "security_policy": {
+    "default_source_scope_must_not_be_any_when_a_bounded_source_is_known": true,
+    "exposed_service_and_port_must_be_explicit": true,
+    "management_plane_exposure_requires_separate_security_review": true,
+    "wan_interface_and_public_address_binding_must_be_explicit": true,
+    "overlapping_or_conflicting_external_ports_fail_closed": true,
+    "dmz_or_broad_exposure_is_not_a_generic_port_forwarding_default": true
+  },
+  "safety": {
+    "prechange_readback_required": true,
+    "management_and_vpn_port_conflict_check_required": true,
+    "unknown_capability": "NOT_SUPPORTED_UNVERIFIED",
+    "write_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "exact applicability readback",
+    "exact source scope and WAN binding",
+    "exact external-to-internal port and destination mapping",
+    "fresh rule readback after change",
+    "positive inbound flow from allowed source",
+    "negative inbound flow from disallowed source when source restriction applies",
+    "management path and unrelated inbound services remain healthy"
+  ]
+}
