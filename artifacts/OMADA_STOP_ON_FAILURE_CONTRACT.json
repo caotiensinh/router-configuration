@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "stop_on_failure_contract",
+  "task": "13.7",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "contract": [
+    "Completed operations must form an exact prefix of the ordered execution plan.",
+    "Only the next ordered operation may be observed.",
+    "A failed apply observation or failed immediate verification halts forward progress.",
+    "Failure routes to rollback_required but does not perform rollback.",
+    "No later operation may be authorized after a halt decision.",
+    "The checkpoint contains no transport, credential, command, apply, rollback or production-writer capability."
+  ],
+  "pass_requires": [
+    "deterministic prefix validation",
+    "out-of-order and duplicate completion fail closed",
+    "success advances only one ordered step",
+    "failure produces HALT and rollback_required",
+    "runtime-capability fields rejected"
+  ]
+}

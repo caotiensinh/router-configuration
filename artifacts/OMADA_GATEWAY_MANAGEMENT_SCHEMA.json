@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_management_contract",
+  "task": "7.07",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_device_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-6-configure-and-monitor-omada-managed-devices.html"
+  },
+  "controller_facts": {
+    "one_router_per_site_documented": true,
+    "gateway_properties_config_synced_with_current_site_by_default": true,
+    "config_and_monitoring_tabs_are_distinct": true,
+    "available_functions_vary_by_model_and_device_status": true
+  },
+  "managed_sections": [
+    "general",
+    "services_snmp",
+    "iptv_when_supported",
+    "advanced_hardware_offload",
+    "lldp",
+    "echo_server",
+    "monitoring_statistics"
+  ],
+  "ownership": {
+    "controller_managed_state_must_not_be_confused_with_standalone_state": true,
+    "site_settings_and_device_overrides_must_be_distinguished": true,
+    "batch_or_device_write_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "applicability_key": [
+    "gateway_model",
+    "hardware_revision",
+    "region",
+    "firmware",
+    "controller_type",
+    "controller_version_build",
+    "site",
+    "device_status"
+  ],
+  "safety": {
+    "unknown_feature_support": "NOT_SUPPORTED_UNVERIFIED",
+    "management_path_impact_check_required": true,
+    "force_provision_or_site_move_not_generic_remediation": true
+  },
+  "pass_requires": [
+    "gateway remains Connected",
+    "site identity unchanged unless explicitly intended",
+    "device configuration read-back matches intended managed state",
+    "management reachability healthy",
+    "representative routed/client traffic healthy"
+  ]
+}

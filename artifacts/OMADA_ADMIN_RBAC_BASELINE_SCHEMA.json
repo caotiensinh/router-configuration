@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_admin_rbac_baseline_contract",
+  "task": "10.3",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "administrator_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-9-manage-administrator-accounts-of-omada-sdn-controller.html"
+  },
+  "documented_roles": {
+    "master_administrator": {
+      "count": "one",
+      "all_features": true,
+      "deletable": false
+    },
+    "administrator": {
+      "can_manage_selected_sites": true,
+      "can_adopt_devices_if_granted": true,
+      "can_manage_devices_if_granted": true,
+      "restricted_controller_modules_exist": true
+    },
+    "viewer": {
+      "read_only_network_state": true,
+      "can_change_network_settings": false
+    }
+  },
+  "privilege_dimensions": [
+    "local_vs_cloud_user",
+    "role",
+    "site_privileges",
+    "adopt_devices",
+    "device_manage",
+    "alert_email"
+  ],
+  "security_policy": [
+    "least privilege by site and device permission",
+    "separate read-only viewer accounts from change-capable administrators",
+    "do not share master administrator credentials",
+    "disable or remove stale non-master accounts when ownership is confirmed",
+    "treat local and cloud identities as distinct principal types",
+    "never persist administrator passwords or invitation tokens in evidence"
+  ],
+  "applicability_key": [
+    "controller_type",
+    "controller_version_build",
+    "local_or_cloud_identity",
+    "role",
+    "site_scope",
+    "device_permissions"
+  ],
+  "safety": {
+    "unknown_permission_semantics": "NOT_SUPPORTED_UNVERIFIED",
+    "master_account_not_auto_rotated_or_deleted": true,
+    "privilege_change_is_security_sensitive": true,
+    "write_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "principal identity read-back without secrets",
+    "role read-back",
+    "site privilege read-back",
+    "device adopt/manage permission read-back where applicable",
+    "negative permission check for viewer or restricted principal where safely testable",
+    "master/admin access remains healthy"
+  ]
+}
