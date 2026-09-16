@@ -31,6 +31,27 @@ class CiscoAcceptanceCampaignTests(unittest.TestCase):
         self.assertFalse(first["production_write_authorized"])
         self.assertEqual(len(first["campaign_sha256"]), 64)
         self.assertIn("workflow", first["gates"]["c03"]["execution_surface"])
+        for stage in STAGES:
+            self.assertGreaterEqual(len(first["gates"][stage]["execution_chain"]), 1)
+            self.assertEqual(
+                first["gates"][stage]["execution_surface"],
+                first["gates"][stage]["execution_chain"][0],
+            )
+
+    def test_c05_and_c12_execution_chains_include_new_acceptance_binders(self):
+        result = build_acceptance_campaign_manifest(source_sha="1" * 40, gates=gates())
+        self.assertEqual(
+            result["gates"]["c05"]["execution_chain"],
+            ["c05_live_state_ingest", "c05_acceptance_decision"],
+        )
+        self.assertEqual(
+            result["gates"]["c12"]["execution_chain"],
+            [
+                "c12_handover_manifest",
+                "c12_production_deployment_evidence",
+                "c12_final_handover_decision",
+            ],
+        )
 
     def test_accepted_status_requires_real_run_artifact_and_decision_refs(self):
         items = gates()
