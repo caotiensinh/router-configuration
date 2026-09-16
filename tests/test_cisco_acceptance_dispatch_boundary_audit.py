@@ -18,6 +18,26 @@ expected_source_sha
 dispatch_request_sha256
 '''
 C03_FIXTURE = '''
+workflow_call:
+  inputs:
+    expected_source_sha:
+      required: true
+    live_execution_requested:
+      required: true
+workflow_dispatch:
+  inputs:
+    expected_source_sha:
+      required: true
+EXPECTED_SOURCE_SHA
+before network access
+if: github.event_name == 'workflow_dispatch' || inputs.live_execution_requested == true
+runs-on: self-hosted
+aiserver-router-configuration
+git rev-parse HEAD
+ref: ${{ inputs.expected_source_sha }}
+production_write_authorized
+'''
+C04_FIXTURE = '''
 workflow_dispatch:
   inputs:
     expected_source_sha:
@@ -26,8 +46,8 @@ EXPECTED_SOURCE_SHA
 before network access
 if: github.event_name == 'workflow_dispatch'
 production_write_authorized
+request_method_scope"] == ["GET"]
 '''
-C04_FIXTURE = C03_FIXTURE + '\nrequest_method_scope"] == ["GET"]\n'
 
 
 class CiscoAcceptanceDispatchBoundaryAuditTests(unittest.TestCase):
@@ -38,6 +58,7 @@ class CiscoAcceptanceDispatchBoundaryAuditTests(unittest.TestCase):
             c04_text=C04_FIXTURE,
         )
         self.assertTrue(result["target_source_pins_verified"])
+        self.assertTrue(result["c03_reusable_owner_gate_path_verified"])
         self.assertTrue(result["c04_get_only_boundary_verified"])
         self.assertFalse(result["production_write_authorized"])
 
@@ -46,6 +67,14 @@ class CiscoAcceptanceDispatchBoundaryAuditTests(unittest.TestCase):
             audit_dispatch_boundary(
                 dispatcher_text=DISPATCHER_FIXTURE + "\ncontents: write\n",
                 c03_text=C03_FIXTURE,
+                c04_text=C04_FIXTURE,
+            )
+
+    def test_c03_without_reusable_owner_gate_markers_fails_closed(self):
+        with self.assertRaisesRegex(CiscoAcceptanceDispatchBoundaryError, "c03 reusable owner-gated"):
+            audit_dispatch_boundary(
+                dispatcher_text=DISPATCHER_FIXTURE,
+                c03_text=C03_FIXTURE.replace("workflow_call:", "workflow_run:"),
                 c04_text=C04_FIXTURE,
             )
 
