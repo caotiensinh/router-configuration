@@ -140,6 +140,45 @@ jobs:
       - name: Install package
         run: python -m pip install -e .
 
+      - name: Record sanitized C04 secret preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from router_configuration.vendors.cisco.c04_secret_preflight import build_c04_secret_preflight
+
+          result = build_c04_secret_preflight(os.environ, source_sha=os.environ["SOURCE_SHA"])
+          Path("evidence/cisco/c04-secret-preflight.json").write_text(
+              json.dumps(result, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Preserve C04 secret preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-c04-secret-preflight-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c04-secret-preflight.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce C04 secret preflight before network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          evidence = json.loads(Path("evidence/cisco/c04-secret-preflight.json").read_text(encoding="utf-8"))
+          if evidence.get("ready_for_live_acceptance_probe") is not True:
+              raise SystemExit("C04 live preflight blocked; missing=" + ",".join(evidence.get("missing_required_secret_names", [])))
+          PY
+
       - name: Execute bounded live RESTCONF GET probe
         id: probe
         shell: bash
