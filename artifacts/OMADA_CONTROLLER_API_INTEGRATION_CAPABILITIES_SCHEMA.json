@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_controller_api_integration_capabilities_contract",
+  "task": "7.13",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_user_guide_v6": "https://support.omadanetworks.com/en/document/111217/",
+    "open_api_site_creation_guide": "https://support.omadanetworks.com/en/document/109315/",
+    "external_portal_api_v6_2_10_plus": "https://support.omadanetworks.com/us/document/132060/",
+    "visual_screenshot_verified": false
+  },
+  "applicability_key": [
+    "controller_platform", "controller_version_build", "deployment_type", "integration_surface", "site_scope"
+  ],
+  "integration_planes": [
+    "open_api", "oauth_authorization_code", "oauth_client_credentials", "webhook", "external_portal_api", "online_api_document"
+  ],
+  "vendor_facts": {
+    "open_api_exposes_rest_for_most_controller_services": true,
+    "open_api_returns_json": true,
+    "oauth_authorization_code_and_client_modes_are_documented": true,
+    "client_mode_can_bind_role_and_site_privilege": true,
+    "access_tokens_are_time_limited": true,
+    "webhooks_push_controller_messages_such_as_alerts": true,
+    "webhooks_have_shared_secret_and_dispatch_logs": true,
+    "external_portal_api_is_version_banded": true
+  },
+  "integration_policy": {
+    "exact_online_api_document_for_running_controller_is_authoritative_for_endpoint_method_and_parameters": true,
+    "least_privilege_role_and_site_scope_required": true,
+    "client_secret_access_token_refresh_token_and_webhook_secret_must_not_be_persisted": true,
+    "write_capability_must_be_explicitly_separated_from_read_only_integration": true,
+    "webhook_receiver_authentication_and_replay_controls_are_required_by_project_policy": true,
+    "api_success_response_does_not_replace_fresh_state_verification_for_configuration_changes": true
+  },
+  "safety": {
+    "unknown_endpoint_or_version_support": "NOT_SUPPORTED_UNVERIFIED",
+    "write_acceptance": "EXECUTED_UNVERIFIED",
+    "production_credentials_in_evidence": false
+  },
+  "pass_requires": [
+    "exact controller platform/version/build recorded",
+    "integration app mode and privilege scope recorded",
+    "exact API documentation version bound",
+    "secrets absent from persisted evidence",
+    "read-only and write-capable calls classified separately",
+    "webhook delivery verified from receiver evidence when used",
+    "configuration writes independently read back when used"
+  ]
+}
