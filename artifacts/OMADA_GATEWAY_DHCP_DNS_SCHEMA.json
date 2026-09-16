@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_dhcp_dns_contract",
+  "task": "5.03",
+  "status": "IMPLEMENTED_CANDIDATE",
+  "authority": {
+    "controller_network_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-4-configure-the-network-with-omada-sdn-controller.html",
+    "managed_device_guide": "https://www.tp-link.com/us/user-guides/omada-sdn-software-controller/chapter-6-configure-and-monitor-omada-managed-devices.html",
+    "scope_note": "Feature availability varies by region, controller version and device model."
+  },
+  "state_planes": [
+    "lan_interface",
+    "dhcp_server",
+    "dhcp_range",
+    "dhcp_relay",
+    "dns_assignment",
+    "default_gateway_assignment",
+    "lease_time",
+    "dhcp_options",
+    "legal_dhcp_servers",
+    "client_lease_state"
+  ],
+  "dhcp": {
+    "server_and_relay_are_distinct_modes": true,
+    "existing_external_server_requires_controller_server_disabled": true,
+    "range_must_match_intended_subnet": true,
+    "option_138_can_advertise_controller_address": true,
+    "switch_vlan_dhcp_relay_is_separate_from_gateway_dhcp_server": true
+  },
+  "dns": {
+    "auto_and_manual_assignment_are_distinct": true,
+    "auto_may_assign_gateway_address_as_dns": true,
+    "dns_reachability_must_be_verified_independently_from_dhcp_lease_success": true
+  },
+  "safety": {
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED",
+    "overlapping_or_conflicting_dhcp_servers_forbidden_without_explicit_design": true,
+    "management_and_controller_addressing_preservation_required": true,
+    "apply_acceptance": "EXECUTED_UNVERIFIED"
+  },
+  "pass_requires": [
+    "DHCP mode/range/options read-back",
+    "representative client lease obtained from intended server or relay path",
+    "default gateway assignment correct",
+    "DNS assignment correct",
+    "DNS resolution succeeds independently",
+    "controller/device management reachability healthy",
+    "no unintended competing DHCP response observed where safely testable"
+  ]
+}
