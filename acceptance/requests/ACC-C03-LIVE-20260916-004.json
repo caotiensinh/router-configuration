@@ -1,0 +1,12 @@
+{
+  "schema_version": "cisco-acceptance-dispatch-request/1",
+  "request_id": "ACC-C03-LIVE-20260916-004",
+  "stage": "c03",
+  "target_ref": "feat/cisco-iosxe-router-switch-domain-20260915",
+  "expected_source_sha": "87147843879857856753d40986c9c5b496bac43a",
+  "requested_by_ref": "automation:chatgpt",
+  "requested_by_attestation_sha256": "3f9adee2a871772fac2887b33414aa437f08d1ab58a768836f48b5226976c156",
+  "read_only_required": true,
+  "production_write_authorized": false,
+  "request_sha256": "12f8c3c137730f630eb31d72efc3fd6d7b375e81ff8082760fde13f5de499809"
+}
