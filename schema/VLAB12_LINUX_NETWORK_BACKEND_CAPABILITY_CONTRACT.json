@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "vlab12_linux_network_backend_capability_contract",
+  "task": "VLAB.12",
+  "micro_task": "VLAB.12.A",
+  "status": "CONTRACT_CANDIDATE",
+  "purpose": "Select Linux namespace/veth/bridge/VLAN validation only when runtime capabilities actually exist, otherwise use deterministic user-space fallback without overstating fidelity.",
+  "capability_probe_fields": [
+    "platform_linux",
+    "cap_net_admin",
+    "ip_tool_available",
+    "network_namespace_supported",
+    "veth_supported",
+    "bridge_supported",
+    "vlan_supported"
+  ],
+  "backend_selection": {
+    "kernel_namespace_backend": "all required capability_probe_fields are true",
+    "deterministic_user_space_backend": "one or more required capabilities are unavailable"
+  },
+  "invariants": {
+    "capabilities_are_runtime_observed_not_assumed": true,
+    "missing_capability_has_explicit_reason": true,
+    "fallback_is_deterministic": true,
+    "fallback_does_not_claim_kernel_namespace_validation": true,
+    "virtual_result_cannot_claim_hardware_verified": true,
+    "kernel_namespace_result_cannot_claim_hardware_verified": true,
+    "no_privilege_escalation_attempt": true,
+    "no_host_network_mutation_without_explicit_lab_scope": true,
+    "production_write_authority": false
+  },
+  "evidence_ceiling": {
+    "kernel_namespace_backend": "VIRTUAL_VERIFIED",
+    "deterministic_user_space_backend": "VIRTUAL_VERIFIED"
+  }
+}
