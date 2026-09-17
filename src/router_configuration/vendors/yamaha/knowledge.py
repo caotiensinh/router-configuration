@@ -25,6 +25,19 @@ _FORBIDDEN_SOURCE_FIELDS = frozenset({
     "private-key",
     "token",
 })
+_EXPECTED_READONLY_COMMANDS = frozenset(
+    {
+        "show environment",
+        "show arp",
+        "show ip route",
+        "show ip route detail",
+        "show status lan1",
+        "show status lan2",
+        "show status lan3",
+        "show status lan4",
+    }
+)
+_BLOCKED_SENSITIVE_READS = frozenset({"show config", "show log", "show techinfo"})
 
 
 @dataclass(frozen=True)
@@ -49,6 +62,9 @@ class YamahaOfflineKnowledge:
         self._platform_matrix = json.loads(
             package.joinpath("platform_matrix.json").read_text(encoding="utf-8")
         )
+        self._readonly_catalog = json.loads(
+            package.joinpath("readonly_catalog.json").read_text(encoding="utf-8")
+        )
         self._validate()
 
     @property
@@ -60,10 +76,15 @@ class YamahaOfflineKnowledge:
         return json.loads(json.dumps(self._platform_matrix))
 
     @property
+    def readonly_catalog(self) -> dict:
+        return json.loads(json.dumps(self._readonly_catalog))
+
+    @property
     def digest_sha256(self) -> str:
         payload = {
             "source_manifest": self._source_manifest,
             "platform_matrix": self._platform_matrix,
+            "readonly_catalog": self._readonly_catalog,
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -152,3 +173,64 @@ class YamahaOfflineKnowledge:
         ):
             if boundaries.get(key) is not False:
                 raise YamahaKnowledgeError(f"Yamaha safety boundary must remain false: {key}")
+
+        self._validate_readonly_catalog(seen)
+
+    def _validate_readonly_catalog(self, source_ids: set[str]) -> None:
+        catalog = self._readonly_catalog
+        if catalog.get("schema_version") != "yamaha-rtx3510-readonly-catalog/1":
+            raise YamahaKnowledgeError("unsupported Yamaha read-only catalog schema")
+        if catalog.get("vendor") != "Yamaha" or catalog.get("model") != "RTX3510":
+            raise YamahaKnowledgeError("Yamaha read-only catalog identity mismatch")
+        if catalog.get("firmware") != "23.01.03":
+            raise YamahaKnowledgeError("Yamaha read-only catalog firmware mismatch")
+        if catalog.get("write_authorized") is not False:
+            raise YamahaKnowledgeError("Yamaha read-only catalog must not authorize writes")
+        if catalog.get("physical_device_verified") is not False:
+            raise YamahaKnowledgeError("Yamaha read-only catalog cannot claim physical hardware")
+
+        queries = catalog.get("queries")
+        if not isinstance(queries, list) or not queries:
+            raise YamahaKnowledgeError("Yamaha read-only catalog must contain queries")
+        observed_commands: set[str] = set()
+        query_ids: set[str] = set()
+        for query in queries:
+            if not isinstance(query, dict):
+                raise YamahaKnowledgeError("Yamaha read-only queries must be objects")
+            query_id = query.get("id")
+            command = query.get("command")
+            if not isinstance(query_id, str) or not query_id or query_id in query_ids:
+                raise YamahaKnowledgeError("Yamaha read-only query IDs must be unique")
+            query_ids.add(query_id)
+            if not isinstance(command, str) or not command.startswith("show "):
+                raise YamahaKnowledgeError(f"Yamaha query is not a show command: {query_id}")
+            if any(token in command for token in ("\n", "\r", "|", ";")):
+                raise YamahaKnowledgeError(f"unsafe Yamaha read-only command syntax: {query_id}")
+            if command in observed_commands:
+                raise YamahaKnowledgeError(f"duplicate Yamaha read-only command: {command}")
+            observed_commands.add(command)
+            if command in _BLOCKED_SENSITIVE_READS:
+                raise YamahaKnowledgeError(f"sensitive Yamaha read is not baseline-safe: {command}")
+            refs = query.get("source_ids")
+            if not isinstance(refs, list) or not refs or any(ref not in source_ids for ref in refs):
+                raise YamahaKnowledgeError(f"Yamaha query references unknown source: {query_id}")
+            if query.get("secret_safe_scope") is not True:
+                raise YamahaKnowledgeError(f"Yamaha query must be secret-safe: {query_id}")
+            if not isinstance(query.get("response_kind"), str) or not query["response_kind"]:
+                raise YamahaKnowledgeError(f"Yamaha query response kind is missing: {query_id}")
+
+        if observed_commands != _EXPECTED_READONLY_COMMANDS:
+            raise YamahaKnowledgeError("Yamaha read-only catalog command set changed unexpectedly")
+        if set(catalog.get("blocked_sensitive_read_examples", [])) != _BLOCKED_SENSITIVE_READS:
+            raise YamahaKnowledgeError("Yamaha sensitive-read blocklist changed unexpectedly")
+
+        boundaries = catalog.get("admission_boundaries", {})
+        for key in (
+            "unlisted_commands_allowed",
+            "pipelines_allowed",
+            "synthetic_fixture_can_claim_physical_device",
+            "production_write_authorized",
+            "physical_device_verified",
+        ):
+            if boundaries.get(key) is not False:
+                raise YamahaKnowledgeError(f"Yamaha read-only boundary must remain false: {key}")
