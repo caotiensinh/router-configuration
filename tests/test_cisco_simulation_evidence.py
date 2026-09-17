@@ -139,6 +139,15 @@ class CiscoSimulationEvidenceTests(unittest.TestCase):
         ):
             validate_simulation_evidence(evidence)
 
+    def test_invalid_scenario_digest_is_rejected(self) -> None:
+        evidence = fixture()
+        evidence["scenario_digest"] = "not-a-sha256"
+        with self.assertRaisesRegex(
+            CiscoSimulationEvidenceError,
+            "scenario_digest must be a 64-character",
+        ):
+            validate_simulation_evidence(evidence)
+
     def test_router_configuration_sha_must_match_legacy_source_binding(self) -> None:
         evidence = fixture()
         evidence["router_configuration_sha"] = "7" * 40
