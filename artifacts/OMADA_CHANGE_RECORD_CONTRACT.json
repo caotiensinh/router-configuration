@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_change_record_contract",
+  "task": "14.5",
+  "micro_task": "14.5.A",
+  "status": "CONTRACT_CANDIDATE",
+  "purpose": "Define a deterministic, non-executable change record that binds planned change, approval, execution evidence, verification, and rollback outcome without containing secrets or writer capability.",
+  "required_fields": [
+    "change_id",
+    "changeset_sha256",
+    "planned_main_sha",
+    "change_window",
+    "approval_evidence_ref",
+    "pre_change_evidence_refs",
+    "post_change_evidence_refs",
+    "outcome"
+  ],
+  "outcome_enum": [
+    "VERIFIED",
+    "ROLLED_BACK_VERIFIED",
+    "FAILED_UNRECOVERED",
+    "CANCELLED_BEFORE_CHANGE"
+  ],
+  "optional_fields": [
+    "rollback_evidence_refs",
+    "operator_note",
+    "ticket_ref"
+  ],
+  "invariants": {
+    "changeset_hash_binding_required": true,
+    "approval_reference_required_before_executed_outcome": true,
+    "verified_outcome_requires_post_change_evidence": true,
+    "rolled_back_outcome_requires_rollback_evidence": true,
+    "runtime_secrets_forbidden": true,
+    "raw_credentials_forbidden": true,
+    "writer_or_transport_authority_forbidden": true,
+    "record_generation_is_non_executable": true,
+    "hardware_claim_requires_physical_evidence": true
+  },
+  "next_micro_tasks": [
+    "14.5.B deterministic builder",
+    "14.5.C recursive secret/runtime-field rejection",
+    "14.5.D outcome/evidence consistency tests",
+    "14.5.E CI discovery"
+  ]
+}
