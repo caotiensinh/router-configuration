@@ -1,8 +1,8 @@
 """Yamaha RTX3510 vendor domain.
 
 The Yamaha domain is isolated from other vendors and starts with exact
-model/firmware, authoritative-source, read-only admission, and conservative
-state-normalization primitives. It does not authorize configuration writes.
+model/firmware, authoritative-source, read-only admission, conservative state
+normalization, and bounded dry-run rendering. It does not authorize writes.
 """
 
 from .knowledge import YamahaKnowledgeError, YamahaOfflineKnowledge, YamahaSourceRecord
@@ -30,9 +30,17 @@ from .readonly import (
     validate_read_only_command,
     validate_readonly_evidence,
 )
+from .renderer import (
+    YAMAHA_RENDER_PLAN_SCHEMA,
+    YamahaRenderError,
+    YamahaStaticRouteIntent,
+    render_candidate_plan,
+    validate_candidate_plan,
+)
 
 __all__ = [
     "YAMAHA_NORMALIZED_STATE_SCHEMA",
+    "YAMAHA_RENDER_PLAN_SCHEMA",
     "YamahaEnvironmentIdentity",
     "YamahaIPv4Route",
     "YamahaKnowledgeError",
@@ -41,7 +49,9 @@ __all__ = [
     "YamahaPlatformDecision",
     "YamahaReadOnlyCommandDecision",
     "YamahaReadOnlyEvidenceError",
+    "YamahaRenderError",
     "YamahaSourceRecord",
+    "YamahaStaticRouteIntent",
     "assess_read_only_candidate",
     "build_normalized_state",
     "build_readonly_evidence",
@@ -50,6 +60,8 @@ __all__ = [
     "normalize_read_only_command",
     "parse_environment_identity",
     "parse_ipv4_routes",
+    "render_candidate_plan",
+    "validate_candidate_plan",
     "validate_normalized_state",
     "validate_read_only_command",
     "validate_readonly_evidence",
