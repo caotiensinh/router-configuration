@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_site_to_site_vpn",
+  "task": "5.09",
+  "status": "IMPLEMENTATION_CANDIDATE",
+  "authority": {
+    "controller_user_guide": "https://support.omadanetworks.com/en/document/111217/",
+    "auto_ipsec_guide": "https://support.omadanetworks.com/jp/document/13051/",
+    "manual_ipsec_guide": "https://support.omadanetworks.com/en/document/13297/"
+  },
+  "workflow_types": {
+    "auto_ipsec": {
+      "management_plane": "controller",
+      "same_controller_sites_required": true,
+      "remote_omada_managed_gateway_required": true
+    },
+    "manual_ipsec": {
+      "explicit_remote_peer_required": true,
+      "explicit_local_networks_required": true,
+      "explicit_remote_networks_required": true
+    }
+  },
+  "required_state_planes": [
+    "tunnel_profile",
+    "local_network_scope",
+    "remote_network_scope",
+    "peer_identity",
+    "routing",
+    "operational_tunnel_status"
+  ],
+  "applicability": {
+    "exact_gateway_model_required": true,
+    "hardware_version_scope_required_when_documented": true,
+    "firmware_scope_required": true,
+    "region_scope_required_when_documented": true,
+    "controller_version_scope_required": true,
+    "unknown_support": "NOT_SUPPORTED_UNVERIFIED"
+  },
+  "dependencies": {
+    "non_overlapping_local_remote_subnets_required": true,
+    "management_reachability_preserved": true,
+    "existing_unaffected_vpns_preserved": true,
+    "routing_dependencies_explicit": true
+  },
+  "secret_boundary": {
+    "psk_in_evidence": false,
+    "private_key_in_evidence": false,
+    "password_in_evidence": false,
+    "token_in_evidence": false,
+    "secret_values_are_references_only": true
+  },
+  "verification": {
+    "configuration_acceptance_alone_is_pass": false,
+    "fresh_readback_required": true,
+    "operational_tunnel_state_required": true,
+    "expected_authorized_flow_required": true,
+    "negative_non_allowed_flow_check_required": true,
+    "management_path_health_required": true
+  },
+  "hardware_boundary": {
+    "virtual_or_document_evidence_can_claim_hardware_verified": false
+  }
+}
