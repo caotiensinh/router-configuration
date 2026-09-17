@@ -1,0 +1,35 @@
+schema_version: 1.0.0
+schema_id: omada.ai_provider_gateway_draft
+status: DESIGN_DRAFT_DEPENDENCY_BLOCKED
+observed_at: '2026-09-15'
+providers: [openai, claude, local_model]
+normalized_operations:
+  - analyze_intent
+  - identify_missing_inputs
+  - propose_vendor_neutral_ir
+  - explain_plan
+trust_boundary:
+  ai_output_authorization: false
+  pipeline:
+    - parse_provider_candidate
+    - reject_unknown_fields
+    - resolve_verified_active_kb
+    - deterministic_vendor_compiler
+    - require_per_operation_provenance_and_applicability
+    - reject_unverified_command_or_mutation
+    - hash_approved_changeset
+security:
+  - Provider/API secrets never enter KB artifacts or normal logs.
+  - Provider-specific syntax cannot become compiler semantics.
+  - Local and hosted models have identical authorization limits.
+  - Model confidence is never vendor evidence.
+  - Provider disagreement remains a conflict, not majority-vote truth.
+dependencies:
+  durable_required:
+    - Phase 8.1-8.10
+    - Phase 12.1-12.4
+validation_cases:
+  fabricated_cli_command: REJECT
+  unsupported_ir_field: REJECT
+  mutation_without_vendor_provenance: REJECT
+  direct_model_output_to_transaction_engine: REJECT
