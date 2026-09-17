@@ -1,0 +1,26 @@
+{
+  "schema_version": "yamaha-rtx3510-readonly-catalog/1",
+  "vendor": "Yamaha",
+  "model": "RTX3510",
+  "firmware": "23.01.03",
+  "write_authorized": false,
+  "physical_device_verified": false,
+  "queries": [
+    {"id":"environment","command":"show environment","response_kind":"environment","source_ids":["YAMAHA-RTX-CMDREF","YAMAHA-RTX3510-USERGUIDE"],"secret_safe_scope":true},
+    {"id":"arp","command":"show arp","response_kind":"arp","source_ids":["YAMAHA-RTX-CMDREF","YAMAHA-RTX3510-USERGUIDE"],"secret_safe_scope":true},
+    {"id":"ipv4-route","command":"show ip route","response_kind":"ipv4_routes","source_ids":["YAMAHA-RTX-CMDREF","YAMAHA-RTX3510-USERGUIDE"],"secret_safe_scope":true},
+    {"id":"ipv4-route-detail","command":"show ip route detail","response_kind":"ipv4_routes_detail","source_ids":["YAMAHA-RTX-CMDREF","YAMAHA-RTX3510-USERGUIDE"],"secret_safe_scope":true},
+    {"id":"lan1-status","command":"show status lan1","response_kind":"lan_status","source_ids":["YAMAHA-RTX-CMDREF","YAMAHA-RTX3510-USERGUIDE","YAMAHA-RTX3510-SPEC"],"secret_safe_scope":true},
+    {"id":"lan2-status","command":"show status lan2","response_kind":"lan_status","source_ids":["YAMAHA-RTX-CMDREF","YAMAHA-RTX3510-USERGUIDE","YAMAHA-RTX3510-SPEC"],"secret_safe_scope":true},
+    {"id":"lan3-status","command":"show status lan3","response_kind":"lan_status","source_ids":["YAMAHA-RTX-CMDREF","YAMAHA-RTX3510-USERGUIDE","YAMAHA-RTX3510-SPEC"],"secret_safe_scope":true},
+    {"id":"lan4-status","command":"show status lan4","response_kind":"lan_status","source_ids":["YAMAHA-RTX-CMDREF","YAMAHA-RTX3510-USERGUIDE","YAMAHA-RTX3510-SPEC"],"secret_safe_scope":true}
+  ],
+  "blocked_sensitive_read_examples": ["show config", "show log", "show techinfo"],
+  "admission_boundaries": {
+    "unlisted_commands_allowed": false,
+    "pipelines_allowed": false,
+    "synthetic_fixture_can_claim_physical_device": false,
+    "production_write_authorized": false,
+    "physical_device_verified": false
+  }
+}
