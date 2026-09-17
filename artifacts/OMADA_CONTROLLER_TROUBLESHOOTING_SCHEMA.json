@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_controller_troubleshooting",
+  "task": "7.15",
+  "status": "IMPLEMENTATION_CANDIDATE",
+  "authority": {
+    "controller_adoption_troubleshooting": "https://support.omadanetworks.com/en/document/122955/",
+    "controller_network_tools": "https://support.omadanetworks.com/en/document/113838/",
+    "controller_user_guide": "https://support.omadanetworks.com/en/document/111217/",
+    "gateway_adoption_troubleshooting": "https://support.omadanetworks.com/us/document/13204/"
+  },
+  "fault_classes": [
+    "authentication_or_credential",
+    "controller_device_connectivity_or_required_ports",
+    "device_lifecycle_or_state",
+    "controller_device_compatibility",
+    "controller_ui_or_stale_state",
+    "site_topology_or_configuration_conflict",
+    "controller_resource_logging_or_event",
+    "downstream_client_or_network"
+  ],
+  "diagnostic_order": [
+    "capture_identity_and_current_state",
+    "collect_read_only_reachability_status_logs_events_alerts_and_network_tools",
+    "classify_failure_plane",
+    "check_compatibility_and_prerequisites",
+    "propose_only_bounded_source_scoped_remediation"
+  ],
+  "required_context": [
+    "controller_version",
+    "site",
+    "device_model",
+    "device_firmware",
+    "controller_visible_device_state"
+  ],
+  "safety": {
+    "read_only_evidence_precedes_mutation": true,
+    "factory_reset_is_not_first_line": true,
+    "firmware_upgrade_is_not_first_line": true,
+    "force_provision_is_not_first_line": true,
+    "forget_device_is_not_first_line": true,
+    "broad_firewall_disable_is_forbidden_as_generic_fix": true,
+    "root_cause_may_remain_unresolved": true,
+    "unknown_tool_support": "NOT_SUPPORTED_UNVERIFIED",
+    "credentials_or_secrets_in_evidence": false,
+    "write_transport_present": false
+  },
+  "outcomes": [
+    "ROOT_CAUSE_PROVEN",
+    "ROOT_CAUSE_NARROWED",
+    "ROOT_CAUSE_UNRESOLVED",
+    "REMEDIATION_CANDIDATE_REQUIRES_APPROVAL"
+  ]
+}
