@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_normalized_command_object_contract",
+  "task": "8.1",
+  "micro_task": "8.1.A",
+  "status": "CONTRACT_CANDIDATE",
+  "purpose": "Define a vendor-normalized, provenance-bound operation object without inventing executable TP-Link syntax.",
+  "required_fields": [
+    "operation_id",
+    "object_type",
+    "action",
+    "selector",
+    "desired_state",
+    "applicability",
+    "dependencies",
+    "conflicts",
+    "provenance",
+    "verification",
+    "rollback"
+  ],
+  "action_enum": ["CREATE", "UPDATE", "DELETE", "NOOP", "READ_ONLY_CHECK"],
+  "invariants": {
+    "raw_cli_forbidden": true,
+    "invented_api_path_forbidden": true,
+    "exact_model_scope_required_when_material": true,
+    "hardware_version_scope_required_when_documented": true,
+    "firmware_scope_required_when_material": true,
+    "region_scope_required_when_material": true,
+    "controller_version_and_mode_required_when_material": true,
+    "unknown_capability_fails_closed": true,
+    "dependencies_and_conflicts_are_explicit": true,
+    "verification_is_distinct_from_write_acceptance": true,
+    "rollback_metadata_is_required_for_mutation": true,
+    "provenance_is_per_operation": true,
+    "secret_values_forbidden": true,
+    "production_write_authority": false
+  },
+  "compiler_boundary": {
+    "normalized_object_is_executable": false,
+    "vendor_syntax_generation_reserved_for_task": "8.9",
+    "cli_database_reserved_for_task": "8.2",
+    "api_operation_database_reserved_for_task": "8.3"
+  }
+}
