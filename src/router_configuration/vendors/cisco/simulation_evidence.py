@@ -22,6 +22,17 @@ SIMULATION_LIMITATION_DISCLOSURE = (
     "not performed because physical hardware is unavailable in this environment."
 )
 
+# These are the only environment classes this simulation-only evidence path may claim.
+# Physical hardware and production deliberately have separate evidence paths.
+_ALLOWED_ENVIRONMENT_KINDS = frozenset(
+    {
+        "simulation",
+        "deterministic_simulation",
+        "qualified_simulation",
+        "realistic_open_emulation",
+    }
+)
+
 # These canonical acceptance gates require evidence that a simulator cannot create.
 _FORBIDDEN_ACCEPTANCE_GATES = frozenset(
     {
@@ -60,6 +71,13 @@ def _require_sha(value: object, *, length: int, label: str) -> str:
     return text
 
 
+def _require_text(value: object, *, label: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise CiscoSimulationEvidenceError(f"{label} must be non-empty")
+    return text
+
+
 def _clean_strings(values: Iterable[object], *, label: str) -> list[str]:
     cleaned: list[str] = []
     for value in values:
@@ -76,28 +94,66 @@ def build_simulation_evidence(
     *,
     source_sha: str,
     simulator_sha: str,
+    simulation_profile: str,
+    scenario_digest: str,
+    input_digest: str,
+    pre_state_digest: str,
+    post_state_digest: str,
+    environment_kind: str,
     tested_logic: Iterable[str],
     evidence_refs: Iterable[str],
     simulator_repository: str = "caotiensinh/Network_Sandbox_Runtime",
 ) -> dict[str, Any]:
     """Build evidence that explicitly identifies itself as simulation-only.
 
-    The returned record deliberately cannot claim canonical physical or
-    production acceptance. A separate real-device evidence path is required for
-    those gates.
+    Cross-repository evidence is reproducible only when the exact source revisions,
+    simulation profile, scenario/input digests and pre/post state digests are bound
+    into the signed record. The returned record deliberately cannot claim canonical
+    physical or production acceptance. A separate real-device evidence path is
+    required for those gates.
     """
+
+    source_sha_value = _require_sha(source_sha, length=40, label="source_sha")
+    simulator_sha_value = _require_sha(
+        simulator_sha, length=40, label="simulator.source_sha"
+    )
+    environment_kind_value = _require_text(
+        environment_kind, label="environment_kind"
+    )
+    if environment_kind_value not in _ALLOWED_ENVIRONMENT_KINDS:
+        raise CiscoSimulationEvidenceError(
+            "environment_kind must identify a simulation/emulation environment"
+        )
 
     record: dict[str, Any] = {
         "schema_version": SIMULATION_EVIDENCE_SCHEMA,
         "evidence_origin": SIMULATION_EVIDENCE_ORIGIN,
         "evidence_scope": SIMULATION_SCOPE,
-        "source_sha": _require_sha(source_sha, length=40, label="source_sha"),
+        "source_sha": source_sha_value,
         "simulator": {
             "repository": str(simulator_repository).strip(),
-            "source_sha": _require_sha(
-                simulator_sha, length=40, label="simulator.source_sha"
-            ),
+            "source_sha": simulator_sha_value,
         },
+        # Explicit cross-repository provenance. Keep the legacy source/simulator
+        # fields above for compatibility while validating that both views agree.
+        "router_configuration_sha": source_sha_value,
+        "network_sandbox_sha": simulator_sha_value,
+        "simulation_profile": _require_text(
+            simulation_profile, label="simulation_profile"
+        ),
+        "scenario_digest": _require_sha(
+            scenario_digest, length=64, label="scenario_digest"
+        ),
+        "input_digest": _require_sha(
+            input_digest, length=64, label="input_digest"
+        ),
+        "pre_state_digest": _require_sha(
+            pre_state_digest, length=64, label="pre_state_digest"
+        ),
+        "post_state_digest": _require_sha(
+            post_state_digest, length=64, label="post_state_digest"
+        ),
+        "environment_kind": environment_kind_value,
         "tested_logic": _clean_strings(tested_logic, label="tested_logic"),
         "evidence_refs": _clean_strings(evidence_refs, label="evidence_refs"),
         "physical_validation_performed": False,
@@ -126,15 +182,50 @@ def validate_simulation_evidence(payload: Mapping[str, Any]) -> None:
     if payload.get("evidence_scope") != SIMULATION_SCOPE:
         raise CiscoSimulationEvidenceError("simulation evidence scope must be explicit")
 
-    _require_sha(payload.get("source_sha"), length=40, label="source_sha")
+    source_sha = _require_sha(payload.get("source_sha"), length=40, label="source_sha")
     simulator = payload.get("simulator")
     if not isinstance(simulator, Mapping):
         raise CiscoSimulationEvidenceError("simulator metadata is required")
     if not str(simulator.get("repository") or "").strip():
         raise CiscoSimulationEvidenceError("simulator.repository must be non-empty")
-    _require_sha(
+    simulator_sha = _require_sha(
         simulator.get("source_sha"), length=40, label="simulator.source_sha"
     )
+
+    # Fail closed on incomplete or internally inconsistent provenance. These fields
+    # make cross-repository Network_Sandbox_Runtime evidence reproducible instead of
+    # merely asserting that a simulator ran.
+    if _require_sha(
+        payload.get("router_configuration_sha"),
+        length=40,
+        label="router_configuration_sha",
+    ) != source_sha:
+        raise CiscoSimulationEvidenceError(
+            "router_configuration_sha must match source_sha"
+        )
+    if _require_sha(
+        payload.get("network_sandbox_sha"),
+        length=40,
+        label="network_sandbox_sha",
+    ) != simulator_sha:
+        raise CiscoSimulationEvidenceError(
+            "network_sandbox_sha must match simulator.source_sha"
+        )
+    _require_text(payload.get("simulation_profile"), label="simulation_profile")
+    for field in (
+        "scenario_digest",
+        "input_digest",
+        "pre_state_digest",
+        "post_state_digest",
+    ):
+        _require_sha(payload.get(field), length=64, label=field)
+    environment_kind = _require_text(
+        payload.get("environment_kind"), label="environment_kind"
+    )
+    if environment_kind not in _ALLOWED_ENVIRONMENT_KINDS:
+        raise CiscoSimulationEvidenceError(
+            "environment_kind must identify a simulation/emulation environment"
+        )
 
     for field in (
         "physical_validation_performed",

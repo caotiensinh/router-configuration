@@ -208,6 +208,32 @@ Re-read live state before consequential GitHub mutations:
 
 Never trust an old SHA from a previous chat or checkpoint if the repository may have moved.
 
+## Lesson 13 — A workflow rerun may preserve stale event payload metadata
+
+During convergence, a governance workflow failed because its checker required exact declaration strings from the pull-request body. The live PR body was corrected, but re-running the failed job produced the same missing-declaration result.
+
+The important distinction is:
+
+```text
+LIVE PR STATE CHANGED
+        ↓
+OLD WORKFLOW RUN STILL EXISTS
+        ↓
+RERUN JOB / RERUN FAILED JOBS
+        ↓
+ORIGINAL EVENT PAYLOAD MAY BE REUSED
+        ↓
+EXTERNAL PR METADATA MAY STILL LOOK STALE TO THE WORKFLOW
+```
+
+Do not respond by repeatedly re-running the same workflow. First compare the live PR state with the event/run evidence and determine whether the workflow reads `github.event` data captured when the original event was created.
+
+If the failure depends on PR metadata that was changed after the original event, generate a **fresh legitimate event** through the normal repository workflow, such as a meaningful branch update that produces a new pull-request `synchronize` event. Do not create empty commits merely to churn CI, and do not weaken the governance checker.
+
+When a governance declaration is intentionally machine-checked as literal text, use the canonical declaration wording exactly instead of relying on semantically equivalent prose.
+
+**Rule:** a workflow rerun is a retry of execution, not proof that external event context was refreshed.
+
 ## Enforcement already present
 
 These lessons are not documentation-only guidance. The Cisco implementation already contains fail-closed controls that enforce important parts of them:
@@ -218,7 +244,8 @@ These lessons are not documentation-only guidance. The Cisco implementation alre
 - record digests detect post-generation tampering;
 - `CISCO_PROGRESS.json` separates engineering points from acceptance points;
 - Cisco workflows and acceptance code preserve explicit physical/production boundaries;
-- exact-head CI and governance workflows provide machine-verifiable integration evidence.
+- exact-head CI and governance workflows provide machine-verifiable integration evidence;
+- the governance checker requires canonical declaration text, so PR authors should copy its required wording exactly rather than paraphrasing it.
 
 Future changes should add enforcement when a lesson can be checked deterministically instead of relying only on prose.
 
@@ -241,6 +268,7 @@ After a failure or timeout:
 [ ] Read logs/status/HTTP evidence before retrying
 [ ] Add targeted instrumentation if evidence is insufficient
 [ ] Test multiple plausible root-cause hypotheses
+[ ] If PR metadata changed, verify whether the workflow run uses a stale original event payload
 [ ] Retry only after evidence or method changed
 ```
 
