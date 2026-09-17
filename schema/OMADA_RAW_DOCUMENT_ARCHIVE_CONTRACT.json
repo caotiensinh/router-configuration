@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_raw_document_archive_contract",
+  "task": "11.1",
+  "micro_task": "11.1.A",
+  "status": "CONTRACT_CANDIDATE",
+  "purpose": "Archive authoritative raw source material locally without normalization, mutation, or promotion claims.",
+  "required_entry_fields": [
+    "source_id",
+    "source_url",
+    "retrieved_at",
+    "media_type",
+    "archive_path",
+    "authority_scope"
+  ],
+  "archive_rules": {
+    "raw_bytes_are_immutable": true,
+    "normalized_derivatives_are_separate": true,
+    "archive_path_is_local_relative_path": true,
+    "source_url_is_preserved": true,
+    "retrieval_timestamp_is_required": true,
+    "authority_scope_is_required": true,
+    "archive_entry_does_not_claim_verified_normalization": true,
+    "archive_entry_does_not_claim_hash_verification": true
+  },
+  "state": {
+    "on_success": "RAW_ARCHIVED_UNVERIFIED",
+    "hashing_reserved_for_task": "11.2",
+    "normalization_reserved_for_task": "11.3"
+  },
+  "safety": {
+    "credentials_forbidden": true,
+    "tokens_forbidden": true,
+    "secret_material_forbidden": true,
+    "network_execution_authority": false,
+    "production_write_authority": false
+  },
+  "next_micro_tasks": [
+    "11.1.B archive path and duplicate-source validation",
+    "11.1.C raw-byte persistence helper",
+    "11.1.D tests and CI discovery"
+  ]
+}
