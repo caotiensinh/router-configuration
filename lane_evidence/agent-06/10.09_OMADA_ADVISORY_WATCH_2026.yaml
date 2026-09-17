@@ -1,0 +1,35 @@
+schema_version: 1.0.0
+record_type: omada_security_advisory_watch
+status: SOURCE_DISCOVERY_IN_PROGRESS
+observed_at: '2026-09-16'
+authority: TP-Link official security advisory index only
+source:
+  url: https://www.tp-link.com/us/press/security-advisory/?type=smb
+entries:
+  - advisory_id: '5256'
+    title: Multiple Vulnerabilities in Omada Gateways
+    cves:
+      - CVE-2026-9033
+      - CVE-2026-19586
+      - CVE-2026-19683
+    exact_models: UNKNOWN_PENDING_ADVISORY_DETAIL
+    exact_hardware_revisions: UNKNOWN_PENDING_ADVISORY_DETAIL
+    affected_versions: UNKNOWN_PENDING_ADVISORY_DETAIL
+    fixed_versions: UNKNOWN_PENDING_ADVISORY_DETAIL
+    disposition: BLOCK_UNTIL_EXACT_ADVISORY_SCOPE_FETCHED
+  - advisory_id: '5287'
+    title: Unauthenticated Account Information Disclosure in multiple Omada Controllers
+    cves:
+      - CVE-2026-81531
+    exact_controller_products_versions: UNKNOWN_PENDING_ADVISORY_DETAIL
+    disposition: BLOCK_UNTIL_EXACT_ADVISORY_SCOPE_FETCHED
+rules:
+  - Advisory-index presence proves the advisory exists, not which exact registered model/revision is affected.
+  - Never copy CVE applicability to sibling models or revisions without the advisory's exact product/version scope.
+  - Unknown affected/fixed ranges remain UNKNOWN, not vulnerable or safe.
+  - Remediation cannot be compiled until fixed version and exact firmware/controller compatibility are reconciled.
+  - EOS/EOL state remains an independent remediation constraint.
+next_steps:
+  - Fetch exact advisory detail pages when source backend exposes them.
+  - Bind advisory rows to exact product/revision/region/version only.
+  - Add tests for cross-model inheritance rejection and unknown-version fail-closed behavior.
