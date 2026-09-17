@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "omada_gateway_remote_access_vpn_schema",
+  "task": "5.10",
+  "status": "IMPLEMENTATION_CANDIDATE",
+  "purpose": "Normalize remote-access VPN capability, authentication, routing, verification and evidence boundaries without treating tunnel-up as proof of intended access.",
+  "vpn_planes": [
+    "server",
+    "client",
+    "remote_identity",
+    "authentication",
+    "addressing",
+    "route_scope",
+    "policy_firewall",
+    "session_state",
+    "verification"
+  ],
+  "required_applicability": [
+    "exact_model",
+    "firmware_version",
+    "region",
+    "controller_version",
+    "management_mode",
+    "protocol_family"
+  ],
+  "verification": {
+    "fresh_read_back_required": true,
+    "session_connected_is_sufficient": false,
+    "positive_remote_to_lan_flow_required": true,
+    "negative_unauthorized_flow_required": true,
+    "route_scope_verification_required": true,
+    "management_path_preservation_required": true
+  },
+  "security": {
+    "vendor_capability_is_project_policy": false,
+    "plaintext_password_forbidden": true,
+    "psk_forbidden_in_evidence": true,
+    "private_key_forbidden_in_evidence": true,
+    "certificate_private_material_forbidden": true,
+    "token_forbidden": true,
+    "exported_secret_config_forbidden": true
+  },
+  "fail_closed_states": [
+    "NOT_SUPPORTED_UNVERIFIED",
+    "EXACT_DEVICE_SUPPORT_UNKNOWN",
+    "VERSION_SCOPE_UNKNOWN",
+    "ROUTE_SCOPE_UNVERIFIED",
+    "AUTHENTICATION_UNVERIFIED",
+    "NEGATIVE_FLOW_UNVERIFIED"
+  ],
+  "invariants": {
+    "remote_access_is_distinct_from_site_to_site": true,
+    "protocol_support_is_not_inferred_across_models_or_releases": true,
+    "unknown_applicability_fails_closed": true,
+    "secret_material_never_enters_evidence": true,
+    "verification_is_distinct_from_configuration_acceptance": true,
+    "no_hardware_equivalence_claim": true,
+    "production_write_authority": false
+  }
+}
