@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "record_type": "device_backend_adapter_contract",
+  "task": "VLAB.11",
+  "micro_task": "VLAB.11.A",
+  "status": "CONTRACT_CANDIDATE",
+  "purpose": "Formalize a vendor-neutral backend boundary so virtual and future live transports share one control contract without allowing simulated evidence to become physical evidence.",
+  "backend_kinds": [
+    "VirtualBackend",
+    "SSHBackend",
+    "HTTPAPIBackend",
+    "ControllerBackend",
+    "PhysicalDeviceBackend"
+  ],
+  "required_operations": [
+    "discover",
+    "snapshot",
+    "plan",
+    "read_back",
+    "verify"
+  ],
+  "optional_mutating_operations": [
+    "apply",
+    "rollback"
+  ],
+  "invariants": {
+    "capabilities_are_explicit": true,
+    "backend_identity_is_explicit": true,
+    "vendor_and_model_scope_are_explicit": true,
+    "write_authority_is_separate_from_backend_presence": true,
+    "virtual_backend_cannot_claim_physical_fidelity": true,
+    "physical_backend_requires_hardware_present": true,
+    "secrets_are_references_not_evidence": true,
+    "read_back_is_distinct_from_apply_result": true,
+    "unknown_capability_fails_closed": true
+  },
+  "evidence_ceiling": {
+    "VirtualBackend": "VIRTUAL_VERIFIED",
+    "SSHBackend": "PROTOCOL_VERIFIED",
+    "HTTPAPIBackend": "PROTOCOL_VERIFIED",
+    "ControllerBackend": "PROTOCOL_VERIFIED",
+    "PhysicalDeviceBackend": "HARDWARE_VERIFIED"
+  },
+  "next_micro_tasks": [
+    "VLAB.11.B Python Protocol and capability model",
+    "VLAB.11.C VirtualBackend adapter",
+    "VLAB.11.D fail-closed fidelity tests",
+    "VLAB.11.E CI discovery"
+  ]
+}
