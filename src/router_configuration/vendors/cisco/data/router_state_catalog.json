@@ -1,0 +1,46 @@
+{
+  "schema_version": "cisco-iosxe-router-state-catalog/1",
+  "vendor": "Cisco",
+  "os_family": "IOS XE",
+  "role": "router",
+  "write_authorized": false,
+  "physical_device_verified": false,
+  "synthetic_fixture_can_complete_c05": false,
+  "live_state_evidence_required_for_c05": true,
+  "schema_provenance": {
+    "yangmodels_repository": "YangModels/yang",
+    "yangmodels_commit": "a4ea86b06aa63512e280f1665db6eaf8116bf059",
+    "cisco_reference": "Cisco IOS XE documentation points operators to supported YANG models; runtime device schema advertisement remains authoritative for admission."
+  },
+  "documentation_trains": {
+    "17.18": {
+      "interface_schema": "vendor/cisco/xe/17181/Cisco-IOS-XE-interfaces-oper.yang",
+      "routing_schema": "vendor/cisco/xe/17181/ietf-routing.yang",
+      "routing_xpath_source": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1718/b-1718-programmability-cg/m-1718-prog-ietf-ttelemetry.pdf"
+    },
+    "26": {
+      "interface_schema": "vendor/cisco/xe/2611/Cisco-IOS-XE-interfaces-oper.yang",
+      "routing_schema": "vendor/cisco/xe/2611/ietf-routing.yang",
+      "routing_xpath_source": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/26x/26x-programmability-cg/model-driven-telemetry.html"
+    }
+  },
+  "observations": [
+    {
+      "id": "router-interface-operational-state",
+      "module": "Cisco-IOS-XE-interfaces-oper",
+      "xpath": "/interfaces-ios-xe-oper:interfaces/interface",
+      "required_module_advertisement": true,
+      "required_fields": ["name", "admin-status", "oper-status"],
+      "normalized_optional_fields": ["vrf", "ipv4", "ipv4-subnet-mask", "ipv6-addrs"],
+      "source": "https://www.cisco.com/c/en/us/products/collateral/switches/catalyst-9300-series-switches/model-driven-telemetry-wp.html"
+    },
+    {
+      "id": "router-default-ipv4-rib",
+      "module": "ietf-routing",
+      "xpath": "/rt:routing-state/routing-instance[name=\"default\"]/ribs/rib[name=\"ipv4-default\"]/routes/route",
+      "required_module_advertisement": true,
+      "required_fields": ["destination-prefix", "source-protocol"],
+      "normalized_optional_fields": ["route-preference", "metric", "next-hop", "active", "last-updated", "update-source"]
+    }
+  ]
+}

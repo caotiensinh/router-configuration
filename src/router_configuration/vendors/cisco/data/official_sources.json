@@ -1,0 +1,72 @@
+{
+  "schema_version": "cisco-official-source-manifest/1",
+  "vendor": "Cisco",
+  "os_family": "IOS XE",
+  "runtime_internet_dependency": false,
+  "retrieved_on": "2026-09-15",
+  "sources": [
+    {
+      "id": "CISCO-IOSXE-26-PROG",
+      "title": "Programmability Configuration Guide, Cisco IOS XE 26.x.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/26x/26x-programmability-cg.html",
+      "authority": "official_cisco",
+      "scope": "IOS XE 26.x.x programmability; includes Catalyst 8000 edge platforms and Catalyst 9200/9300/9400/9500/9600 switches"
+    },
+    {
+      "id": "CISCO-IOSXE-26-NETCONF",
+      "title": "Programmability Configuration Guide, Cisco IOS XE 26.x.x - NETCONF Protocol",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/26x/26x-programmability-cg/netconf_protocol.html",
+      "authority": "official_cisco",
+      "scope": "NETCONF protocol, capability discovery, YANG monitoring, and model-driven behavior for IOS XE 26.x.x"
+    },
+    {
+      "id": "CISCO-IOSXE-26-RESTCONF",
+      "title": "Programmability Configuration Guide, Cisco IOS XE 26.x.x - RESTCONF Protocol",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/26x/26x-programmability-cg/restconf_protocol.html",
+      "authority": "official_cisco",
+      "scope": "RESTCONF protocol, HTTPS methods, root discovery, URI behavior, and read operations for IOS XE 26.x.x"
+    },
+    {
+      "id": "CISCO-IOSXE-17.18-PROG",
+      "title": "Programmability Configuration Guide, Cisco IOS XE 17.18.x",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1718/b-1718-programmability-cg.html",
+      "authority": "official_cisco",
+      "scope": "IOS XE 17.18.x programmability; includes Catalyst 8000 edge platforms and Catalyst 9200/9300/9400/9500/9600 switches"
+    },
+    {
+      "id": "CISCO-IOSXE-17.18-NETCONF",
+      "title": "Programmability Configuration Guide, Cisco IOS XE 17.18.x - NETCONF Protocol",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1718/b-1718-programmability-cg/m_1718_prog_yang_netconf.html",
+      "authority": "official_cisco",
+      "scope": "NETCONF protocol, capability discovery, schema inventory, and Cisco-IOS-XE-native examples for IOS XE 17.18.x"
+    },
+    {
+      "id": "CISCO-IOSXE-17.18-RESTCONF",
+      "title": "Programmability Configuration Guide, Cisco IOS XE 17.18.x - RESTCONF Protocol",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1718/b-1718-programmability-cg/restconf_protocol.html",
+      "authority": "official_cisco",
+      "scope": "RESTCONF protocol, HTTPS methods, root discovery, URI behavior, fields query semantics, and read operations for IOS XE 17.18.x"
+    },
+    {
+      "id": "CISCO-IOSXE-26-CONFIG-INDEX",
+      "title": "Cisco IOS XE 26 Configuration Guides",
+      "url": "https://www.cisco.com/c/en/us/support/ios-nx-os-software/ios-xe-26/products-installation-and-configuration-guides-list.html",
+      "authority": "official_cisco",
+      "scope": "release-specific configuration-guide index for IOS XE 26"
+    },
+    {
+      "id": "CISCO-C9300-CONFIG-INDEX",
+      "title": "Cisco Catalyst 9300 Series Switches - Configuration Guides",
+      "url": "https://www.cisco.com/c/en/us/support/switches/catalyst-9300-series-switches/products-installation-and-configuration-guides-list.html",
+      "authority": "official_cisco",
+      "scope": "platform-specific Catalyst 9300 IOS XE configuration guides"
+    },
+    {
+      "id": "CISCO-C8000V-INSTALL",
+      "title": "Cisco Catalyst 8000V Edge Software Installation And Configuration Guide - Installation Overview",
+      "url": "https://www.cisco.com/c/en/us/td/docs/routers/C8000V/Configuration/c8000v-installation-configuration-guide/installation-overview/overview-of-c8000v-installation.html",
+      "authority": "official_cisco",
+      "scope": "Catalyst 8000V as an IOS XE virtual router, vendor image acquisition from Cisco, virtual-machine provisioning, and supported installation environments including KVM"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+name: Cisco Recovery Observation Contract
+
+on:
+  push:
+    paths:
+      - "src/router_configuration/vendors/cisco/recovery_observation.py"
+      - "tests/test_cisco_recovery_observation.py"
+      - "docs/cisco/RECOVERY_OBSERVATION.md"
+      - ".github/workflows/cisco-recovery-observation.yml"
+  pull_request:
+    paths:
+      - "src/router_configuration/vendors/cisco/recovery_observation.py"
+      - "tests/test_cisco_recovery_observation.py"
+      - "docs/cisco/RECOVERY_OBSERVATION.md"
+      - ".github/workflows/cisco-recovery-observation.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run recovery-observation contract tests
+        run: python -m unittest tests.test_cisco_recovery_observation -v
+      - name: Reject runtime executor surfaces
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          text = Path("src/router_configuration/vendors/cisco/recovery_observation.py").read_text(encoding="utf-8")
+          forbidden = ("ncclient", "requests.", "socket.", "edit_config(", "commit(", "dispatch(", "connect(")
+          found = [token for token in forbidden if token in text]
+          if found:
+              raise SystemExit(f"runtime executor surface found: {found}")
+          PY
+      - name: Record non-promoting contract evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json, os
+          result = {
+              "schema_version": "cisco-c10-recovery-observation-contract-status/1",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "candidate_observation_validation_ready": True,
+              "repository_live_evidence_accepted": False,
+              "c10_complete": False,
+              "physical_device_verified": False,
+              "production_writer_available": False,
+              "production_write_authorized": False,
+          }
+          with open("evidence/cisco/c10-recovery-observation-contract.json", "w", encoding="utf-8") as handle:
+              json.dump(result, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cisco-recovery-observation-contract-${{ env.SOURCE_SHA }}
+          path: evidence/cisco/c10-recovery-observation-contract.json
+          if-no-files-found: error
+          retention-days: 30

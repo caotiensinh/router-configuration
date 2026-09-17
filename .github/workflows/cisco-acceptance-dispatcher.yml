@@ -1,0 +1,252 @@
+name: Cisco Acceptance Read-Only Dispatcher
+
+on:
+  push:
+    branches:
+      - "acceptance-dispatch/**"
+    paths:
+      - "acceptance/requests/*.json"
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      request_id: ${{ steps.validate.outputs.request_id }}
+      stage: ${{ steps.validate.outputs.stage }}
+      target_ref: ${{ steps.validate.outputs.target_ref }}
+      expected_source_sha: ${{ steps.validate.outputs.expected_source_sha }}
+      workflow_file: ${{ steps.validate.outputs.workflow_file }}
+      request_sha256: ${{ steps.validate.outputs.request_sha256 }}
+      observed_source_sha: ${{ steps.verify_ref.outputs.observed_source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Resolve exactly one changed request
+        id: request_file
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git diff --name-only "${{ github.event.before }}" "$GITHUB_SHA" -- 'acceptance/requests/*.json')
+          if [ "${#files[@]}" -ne 1 ]; then
+            printf 'Expected exactly one changed acceptance request, got %s\n' "${#files[@]}" >&2
+            printf '%s\n' "${files[@]:-}" >&2
+            exit 1
+          fi
+          printf 'request_path=%s\n' "${files[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate fail-closed dispatch request
+        id: validate
+        env:
+          REQUEST_PATH: ${{ steps.request_file.outputs.request_path }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from router_configuration.vendors.cisco.acceptance_dispatch_request import validate_dispatch_request
+
+          path = Path(os.environ["REQUEST_PATH"])
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          request = validate_dispatch_request(payload)
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a", encoding="utf-8") as handle:
+              for key in (
+                  "request_id",
+                  "stage",
+                  "target_ref",
+                  "expected_source_sha",
+                  "workflow_file",
+                  "request_sha256",
+              ):
+                  handle.write(f"{key}={request[key]}\n")
+          PY
+
+      - name: Verify target ref remains at exact requested source SHA
+        id: verify_ref
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TARGET_REF: ${{ steps.validate.outputs.target_ref }}
+          EXPECTED_SOURCE_SHA: ${{ steps.validate.outputs.expected_source_sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib import parse, request
+
+          token = os.environ["GITHUB_TOKEN"]
+          repo = os.environ["REPOSITORY"]
+          target_ref = os.environ["TARGET_REF"]
+          expected_sha = os.environ["EXPECTED_SOURCE_SHA"]
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2026-03-10",
+          }
+          encoded_ref = parse.quote("heads/" + target_ref, safe="")
+          ref_req = request.Request(
+              f"https://api.github.com/repos/{repo}/git/ref/{encoded_ref}",
+              headers=headers,
+              method="GET",
+          )
+          with request.urlopen(ref_req, timeout=20) as response:
+              ref_payload = json.loads(response.read().decode("utf-8"))
+          actual_sha = ref_payload["object"]["sha"]
+          if actual_sha != expected_sha:
+              raise RuntimeError(
+                  f"target ref moved: expected {expected_sha}, observed {actual_sha}"
+              )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"observed_source_sha={actual_sha}\n")
+          PY
+
+  c03-live:
+    needs: validate
+    if: needs.validate.outputs.stage == 'c03'
+    uses: ./.github/workflows/cisco-netconf-live-readonly.yml
+    with:
+      expected_source_sha: ${{ needs.validate.outputs.expected_source_sha }}
+      dispatch_request_id: ${{ needs.validate.outputs.request_id }}
+      dispatch_request_sha256: ${{ needs.validate.outputs.request_sha256 }}
+      live_execution_requested: true
+    secrets:
+      CISCO_NETCONF_HOST: ${{ secrets.CISCO_NETCONF_HOST }}
+      CISCO_NETCONF_PORT: ${{ secrets.CISCO_NETCONF_PORT }}
+      CISCO_NETCONF_USERNAME: ${{ secrets.CISCO_NETCONF_USERNAME }}
+      CISCO_NETCONF_PASSWORD: ${{ secrets.CISCO_NETCONF_PASSWORD }}
+      CISCO_NETCONF_HOSTKEY_B64: ${{ secrets.CISCO_NETCONF_HOSTKEY_B64 }}
+
+  c04-dispatch:
+    needs: validate
+    if: needs.validate.outputs.stage == 'c04'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch exact C04 read-only workflow and bind returned run identity
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REQUEST_ID: ${{ needs.validate.outputs.request_id }}
+          STAGE: ${{ needs.validate.outputs.stage }}
+          TARGET_REF: ${{ needs.validate.outputs.target_ref }}
+          EXPECTED_SOURCE_SHA: ${{ needs.validate.outputs.expected_source_sha }}
+          OBSERVED_SOURCE_SHA: ${{ needs.validate.outputs.observed_source_sha }}
+          WORKFLOW_FILE: ${{ needs.validate.outputs.workflow_file }}
+          REQUEST_SHA256: ${{ needs.validate.outputs.request_sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/cisco
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib import error, request
+
+          token = os.environ["GITHUB_TOKEN"]
+          repo = os.environ["REPOSITORY"]
+          target_ref = os.environ["TARGET_REF"]
+          expected_sha = os.environ["EXPECTED_SOURCE_SHA"]
+          observed_sha = os.environ["OBSERVED_SOURCE_SHA"]
+          workflow_file = os.environ["WORKFLOW_FILE"]
+          request_id = os.environ["REQUEST_ID"]
+          request_sha = os.environ["REQUEST_SHA256"]
+          stage = os.environ["STAGE"]
+          if stage != "c04" or workflow_file != "cisco-restconf-live-readonly.yml":
+              raise RuntimeError("C04 REST dispatcher received a non-C04 request")
+          if observed_sha != expected_sha:
+              raise RuntimeError("C04 source continuity changed after validation")
+
+          api = "https://api.github.com"
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2026-03-10",
+              "Content-Type": "application/json",
+          }
+          receipt = {
+              "schema_version": "cisco-acceptance-dispatch-receipt/2",
+              "request_id": request_id,
+              "request_sha256": request_sha,
+              "stage": stage,
+              "target_ref": target_ref,
+              "expected_source_sha": expected_sha,
+              "observed_source_sha": observed_sha,
+              "workflow_file": workflow_file,
+              "dispatch_status": "failed",
+              "production_write_authorized": False,
+          }
+          receipt_path = Path("evidence/cisco/acceptance-dispatch-receipt.json")
+          try:
+              body = json.dumps(
+                  {
+                      "ref": target_ref,
+                      "inputs": {
+                          "expected_source_sha": expected_sha,
+                          "dispatch_request_id": request_id,
+                          "dispatch_request_sha256": request_sha,
+                      },
+                      "return_run_details": True,
+                  }
+              ).encode("utf-8")
+              dispatch_req = request.Request(
+                  f"{api}/repos/{repo}/actions/workflows/{workflow_file}/dispatches",
+                  data=body,
+                  headers=headers,
+                  method="POST",
+              )
+              with request.urlopen(dispatch_req, timeout=20) as response:
+                  status = response.status
+                  response_body = response.read().decode("utf-8")
+              if status != 200:
+                  raise RuntimeError(f"unexpected workflow dispatch status: {status}")
+              dispatch_payload = json.loads(response_body)
+              workflow_run_id = dispatch_payload.get("workflow_run_id")
+              run_url = str(dispatch_payload.get("run_url", "")).strip()
+              html_url = str(dispatch_payload.get("html_url", "")).strip()
+              if not isinstance(workflow_run_id, int) or workflow_run_id <= 0:
+                  raise RuntimeError("workflow dispatch response missing positive workflow_run_id")
+              expected_run_suffix = f"/actions/runs/{workflow_run_id}"
+              if not run_url.endswith(expected_run_suffix) or not html_url.endswith(expected_run_suffix):
+                  raise RuntimeError("workflow dispatch response run URLs do not match workflow_run_id")
+
+              receipt["dispatch_status"] = "dispatched"
+              receipt["http_status"] = status
+              receipt["workflow_run_id"] = workflow_run_id
+              receipt["run_url"] = run_url
+              receipt["html_url"] = html_url
+          except error.HTTPError as exc:
+              receipt["http_status"] = exc.code
+              receipt["error_code"] = "GITHUB_API_HTTP_ERROR"
+              receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+              raise
+          except Exception as exc:
+              receipt["error_code"] = type(exc).__name__
+              receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+              raise
+
+          receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Preserve C04 dispatch receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisco-acceptance-dispatch-receipt-${{ github.sha }}
+          path: evidence/cisco/acceptance-dispatch-receipt.json
+          if-no-files-found: warn
+          retention-days: 30

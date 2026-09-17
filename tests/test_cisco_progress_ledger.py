@@ -1,0 +1,139 @@
+import json
+from pathlib import Path
+import unittest
+
+from router_configuration.vendors.cisco.progress_ledger import (
+    CiscoProgressLedgerError,
+    load_and_validate,
+    validate_progress_ledger,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+PATH = ROOT / "CISCO_PROGRESS.json"
+
+
+def ledger():
+    return json.loads(PATH.read_text(encoding="utf-8"))
+
+
+class CiscoProgressLedgerTests(unittest.TestCase):
+    def test_canonical_baseline(self):
+        result = load_and_validate(PATH, repo_root=ROOT)
+        self.assertEqual(result["completed"], 79)
+        self.assertEqual(result["remaining"], 21)
+        self.assertEqual(
+            result["weighted_work_completion"],
+            {"earned": 79, "total": 100, "percent": 79.0},
+        )
+        self.assertEqual(result["engineering"], {"earned": 79, "total": 79, "percent": 100.0})
+        self.assertEqual(
+            result["acceptance"],
+            {"earned": 0, "total": 21, "percent": 0.0, "open_gates": 12},
+        )
+        self.assertEqual(
+            result["delivery_readiness"],
+            {
+                "status": "blocked",
+                "ready": False,
+                "blocking_acceptance_points": 21,
+                "open_acceptance_gates": 12,
+                "physical_device_verified": False,
+                "production_write_authorized": False,
+            },
+        )
+
+    def test_work_completion_does_not_imply_delivery_readiness(self):
+        result = load_and_validate(PATH, repo_root=ROOT)
+        self.assertEqual(result["weighted_work_completion"]["percent"], 79.0)
+        self.assertEqual(result["engineering"]["percent"], 100.0)
+        self.assertEqual(result["acceptance"]["percent"], 0.0)
+        self.assertFalse(result["delivery_readiness"]["ready"])
+        self.assertEqual(result["delivery_readiness"]["status"], "blocked")
+
+    def test_reclassification_and_new_work_are_separate(self):
+        item = ledger()
+        rec = item["reconciliation"]
+        self.assertEqual(rec["previous_points"], 12)
+        self.assertEqual(rec["delta_points"], 62)
+        self.assertEqual(rec["reconciled_points"], 74)
+        self.assertEqual(rec["new_work_points"], 5)
+        self.assertEqual(rec["reconciled_points"] + rec["new_work_points"], item["completed_points"])
+
+    def test_c05_engineering_pipeline_is_complete_without_live_acceptance(self):
+        item = ledger()
+        stage = next(s for s in item["stages"] if s["id"] == "C05")
+        self.assertEqual(stage["earned"], 8)
+        self.assertEqual(stage["status"], "in_progress")
+        gates = {gate["id"]: gate for gate in stage["gates"]}
+        self.assertEqual(gates["schema_mapping"]["status"], "pass")
+        self.assertEqual(gates["normalizer_impl"]["status"], "pass")
+        self.assertEqual(gates["tests_ci"]["status"], "pass")
+        self.assertEqual(gates["evidence_pipeline"]["status"], "pass")
+        self.assertEqual(gates["live_acceptance"]["status"], "blocked")
+        self.assertEqual(gates["live_acceptance"]["earned"], 0)
+
+    def test_c07_renderer_engineering_stage_is_done_but_safety_remains_external(self):
+        item = ledger()
+        stage = next(s for s in item["stages"] if s["id"] == "C07")
+        self.assertEqual(stage["earned"], 15)
+        self.assertEqual(stage["status"], "done")
+        gate = next(g for g in stage["gates"] if g["id"] == "remaining_renderer_coverage")
+        self.assertEqual(gate["status"], "pass")
+        self.assertEqual(gate["earned"], 3)
+        self.assertFalse(item["production_write_authorized"])
+        self.assertFalse(item["physical_device_verified"])
+
+    def test_top_level_tamper_is_rejected(self):
+        item = ledger()
+        item["completed_points"] = 80
+        with self.assertRaisesRegex(CiscoProgressLedgerError, "completed_points mismatch"):
+            validate_progress_ledger(item, repo_root=ROOT)
+
+    def test_new_work_accounting_tamper_is_rejected(self):
+        item = ledger()
+        item["reconciliation"]["new_work_points"] = 4
+        with self.assertRaisesRegex(CiscoProgressLedgerError, "baseline plus new work"):
+            validate_progress_ledger(item, repo_root=ROOT)
+
+    def test_non_pass_gate_cannot_earn_points(self):
+        item = ledger()
+        gate = next(s for s in item["stages"] if s["id"] == "C03")["gates"][-1]
+        gate["earned"] = gate["weight"]
+        with self.assertRaisesRegex(CiscoProgressLedgerError, "earned must be 0"):
+            validate_progress_ledger(item, repo_root=ROOT)
+
+    def test_acceptance_gate_rejects_ci_only_pass(self):
+        item = ledger()
+        stage = next(s for s in item["stages"] if s["id"] == "C03")
+        gate = stage["gates"][-1]
+        gate["status"] = "pass"
+        gate["earned"] = gate["weight"]
+        gate["evidence"] = ["run:34990233893"]
+        stage["earned"] += gate["weight"]
+        stage["status"] = "done"
+        item["completed_points"] += gate["weight"]
+        item["remaining_points"] -= gate["weight"]
+        item["overall_percent"] += gate["weight"]
+        item["budgets"]["acceptance"]["earned"] += gate["weight"]
+        item["budgets"]["acceptance"]["percent"] = round(
+            item["budgets"]["acceptance"]["earned"] * 100 / item["budgets"]["acceptance"]["total"], 1
+        )
+        item["reconciliation"]["new_work_points"] += gate["weight"]
+        with self.assertRaisesRegex(CiscoProgressLedgerError, "acceptance PASS requires"):
+            validate_progress_ledger(item, repo_root=ROOT)
+
+    def test_missing_repository_evidence_is_rejected(self):
+        item = ledger()
+        item["stages"][0]["gates"][0]["evidence"] = ["path:not/a/real/file"]
+        with self.assertRaisesRegex(CiscoProgressLedgerError, "missing repository evidence"):
+            validate_progress_ledger(item, repo_root=ROOT)
+
+    def test_pass_requires_evidence(self):
+        item = ledger()
+        item["stages"][0]["gates"][0]["evidence"] = []
+        with self.assertRaisesRegex(CiscoProgressLedgerError, "PASS requires evidence"):
+            validate_progress_ledger(item, repo_root=ROOT)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,113 @@
+{
+  "schema_version": "cisco-iosxe-switch-state-catalog/2",
+  "vendor": "Cisco",
+  "os_family": "IOS XE",
+  "role": "switch",
+  "write_authorized": false,
+  "physical_device_verified": false,
+  "synthetic_fixture_can_complete_c06": false,
+  "live_state_evidence_required_for_c06": true,
+  "trunk_state_verified": true,
+  "schema_provenance": {
+    "yangmodels_repository": "YangModels/yang",
+    "yangmodels_commit": "a4ea86b06aa63512e280f1665db6eaf8116bf059",
+    "cisco_devnet_repository": "CiscoDevNet/cisco-ios-xe-openapi-swagger",
+    "cisco_devnet_commit": "a4a7b5bc090ab178b5fe75c6a6473ca57cbf5891",
+    "cisco_reference": "CiscoDevNet release YANG trees for IOS XE 17.18.1 and 26.1.1 prove openconfig-vlan switched-vlan operational state. Runtime device YANG advertisement remains authoritative for admission."
+  },
+  "documentation_trains": {
+    "17.18": {
+      "interface_schema": "vendor/cisco/xe/17181/Cisco-IOS-XE-interfaces-oper.yang",
+      "vlan_schema": "vendor/cisco/xe/17181/Cisco-IOS-XE-vlan-oper.yang",
+      "vlan_schema_blob": "c111e3e4d1f8805f858e7efebd5c0a39a640e248",
+      "matm_schema": "vendor/cisco/xe/17181/Cisco-IOS-XE-matm-oper.yang",
+      "matm_schema_blob": "4ee624379695334b5258882a93e2b7a93d4d627b",
+      "stp_schema": "vendor/cisco/xe/17181/Cisco-IOS-XE-spanning-tree-oper.yang",
+      "stp_schema_blob": "3b0dee2c49bc4146c7c44c082d894e551e3785b2",
+      "openconfig_vlan_tree": "releases/17.18.1/yang-trees/openconfig-vlan.html",
+      "openconfig_vlan_tree_blob": "324775059607a2eccd1fcd38d7893ddc79643a29",
+      "openconfig_vlan_reference": "references/17181-YANG-modules/openconfig-vlan.yang",
+      "openconfig_vlan_reference_blob": "03090e7d6caf14c6614479b36cdd0311f33fe9fe",
+      "openconfig_vlan_types_reference": "references/17181-YANG-modules/openconfig-vlan-types.yang",
+      "openconfig_vlan_types_reference_blob": "5c9f0f13eb99a8b156bd79e8b7fd48d020bea367"
+    },
+    "26": {
+      "interface_schema": "vendor/cisco/xe/2611/Cisco-IOS-XE-interfaces-oper.yang",
+      "vlan_schema": "vendor/cisco/xe/2611/Cisco-IOS-XE-vlan-oper.yang",
+      "vlan_schema_blob": "c111e3e4d1f8805f858e7efebd5c0a39a640e248",
+      "matm_schema": "vendor/cisco/xe/2611/Cisco-IOS-XE-matm-oper.yang",
+      "matm_schema_blob": "4ee624379695334b5258882a93e2b7a93d4d627b",
+      "stp_schema": "vendor/cisco/xe/2611/Cisco-IOS-XE-spanning-tree-oper.yang",
+      "stp_schema_blob": "01fa428a7a9ebad7cb885cc930ab0f0bc62b3b70",
+      "openconfig_vlan_tree": "releases/26.1.1/yang-trees/openconfig-vlan.html",
+      "openconfig_vlan_tree_blob": "defa48042f0e5643d269167023990875a280c34e"
+    }
+  },
+  "observations": [
+    {
+      "id": "switch-interface-operational-state",
+      "module": "Cisco-IOS-XE-interfaces-oper",
+      "xpath": "/interfaces-ios-xe-oper:interfaces/interface",
+      "required_module_advertisement": true,
+      "required_fields": ["name", "admin-status", "oper-status"],
+      "source": "https://www.cisco.com/c/en/us/products/collateral/switches/catalyst-9300-series-switches/model-driven-telemetry-wp.html"
+    },
+    {
+      "id": "switch-vlan-operational-state",
+      "module": "Cisco-IOS-XE-vlan-oper",
+      "xpath": "/vlan-ios-xe-oper:vlans/vlan",
+      "required_module_advertisement": true,
+      "required_fields": ["id", "status"],
+      "normalized_optional_fields": ["name", "ports", "vlan-interfaces"]
+    },
+    {
+      "id": "switch-mac-operational-state",
+      "module": "Cisco-IOS-XE-matm-oper",
+      "xpath": "/matm-ios-xe-oper:matm-oper-data",
+      "required_module_advertisement": true,
+      "bounded_table_type": "mat-vlan",
+      "required_fields": ["table-type", "vlan-id-number", "mac", "mat-addr-type"],
+      "normalized_optional_fields": ["port", "vlan-all"],
+      "source": "https://www.cisco.com/c/en/us/products/collateral/switches/catalyst-9300-series-switches/model-driven-telemetry-wp.html"
+    },
+    {
+      "id": "switch-stp-operational-state",
+      "module": "Cisco-IOS-XE-spanning-tree-oper",
+      "xpath": "/stp-ios-xe-oper:stp-details/stp-detail",
+      "required_module_advertisement": true,
+      "required_fields": ["instance"],
+      "normalized_optional_fields": ["bridge-priority", "bridge-address", "designated-root-priority", "designated-root-address", "root-port", "root-cost", "topology-changes", "interfaces"]
+    },
+    {
+      "id": "switch-trunk-operational-state",
+      "module": "openconfig-vlan",
+      "schema_path": "/oc-if:interfaces/oc-if:interface/oc-eth:ethernet/oc-vlan:switched-vlan/oc-vlan:state",
+      "list_key": "oc-if:name",
+      "required_module_advertisement": true,
+      "required_modules": [
+        "openconfig-interfaces",
+        "openconfig-if-ethernet",
+        "openconfig-vlan",
+        "openconfig-vlan-types"
+      ],
+      "required_fields": ["interface", "interface-mode"],
+      "normalized_optional_fields": ["native-vlan", "access-vlan", "trunk-vlans"],
+      "interface_mode_enum": ["ACCESS", "TRUNK"],
+      "vlan_id_range": "1..4094",
+      "trunk_vlan_range_syntax": "x..y inclusive, with x < y",
+      "absence_semantics": "When trunk-vlans is absent on a TRUNK interface, the OpenConfig model states that all VLANs are allowed.",
+      "sources": {
+        "17.18.1_tree": "https://github.com/CiscoDevNet/cisco-ios-xe-openapi-swagger/blob/a4a7b5bc090ab178b5fe75c6a6473ca57cbf5891/releases/17.18.1/yang-trees/openconfig-vlan.html",
+        "26.1.1_tree": "https://github.com/CiscoDevNet/cisco-ios-xe-openapi-swagger/blob/a4a7b5bc090ab178b5fe75c6a6473ca57cbf5891/releases/26.1.1/yang-trees/openconfig-vlan.html",
+        "17.18.1_yang": "https://github.com/CiscoDevNet/cisco-ios-xe-openapi-swagger/blob/a4a7b5bc090ab178b5fe75c6a6473ca57cbf5891/references/17181-YANG-modules/openconfig-vlan.yang",
+        "17.18.1_types": "https://github.com/CiscoDevNet/cisco-ios-xe-openapi-swagger/blob/a4a7b5bc090ab178b5fe75c6a6473ca57cbf5891/references/17181-YANG-modules/openconfig-vlan-types.yang"
+      }
+    }
+  ],
+  "unverified_observations": [],
+  "known_limits": [
+    "The admitted switched-VLAN normalizer covers the physical Ethernet augment. LAG switched-VLAN normalization is not included in this C06 implementation.",
+    "Source binding and synthetic contract tests do not satisfy the live-state C06 acceptance gate.",
+    "Production write authorization and physical-device verification remain false."
+  ]
+}
