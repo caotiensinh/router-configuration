@@ -1,0 +1,29 @@
+{
+  "schema_version": "yamaha-rtx-platform-matrix/1",
+  "vendor": "Yamaha",
+  "product_family": "RTX",
+  "admission_mode": "documentation_scoped_read_only_first",
+  "models": [
+    {
+      "model": "RTX3510",
+      "role": "router",
+      "admitted_firmware": ["23.01.03"],
+      "documentation_scope": [
+        "YAMAHA-RTX3510-TECHDOCS",
+        "YAMAHA-RTX3510-SPEC",
+        "YAMAHA-RTX3510-SUPPORT",
+        "YAMAHA-RTX3510-FIRMWARE",
+        "YAMAHA-RTX3510-RELNOTE-23.01.03",
+        "YAMAHA-RTX-MANUAL-INDEX",
+        "YAMAHA-RTX-CMDREF",
+        "YAMAHA-RTX3510-USERGUIDE"
+      ]
+    }
+  ],
+  "boundaries": {
+    "other_rtx_models_in_scope": false,
+    "production_write_authorized": false,
+    "physical_device_verified": false,
+    "automatic_feature_support_inference": false
+  }
+}
