@@ -2,7 +2,8 @@
 
 The Yamaha domain is isolated from other vendors and starts with exact
 model/firmware, authoritative-source, read-only admission, conservative state
-normalization, and bounded dry-run rendering. It does not authorize writes.
+normalization, bounded dry-run rendering, and fail-closed diff planning. It
+does not authorize writes.
 """
 
 from .knowledge import YamahaKnowledgeError, YamahaOfflineKnowledge, YamahaSourceRecord
@@ -13,6 +14,12 @@ from .normalized import (
     build_normalized_state,
     parse_ipv4_routes,
     validate_normalized_state,
+)
+from .planner import (
+    YAMAHA_CHANGE_PLAN_SCHEMA,
+    YamahaChangePlanError,
+    build_change_plan,
+    validate_change_plan,
 )
 from .platforms import (
     YamahaPlatformDecision,
@@ -39,8 +46,10 @@ from .renderer import (
 )
 
 __all__ = [
+    "YAMAHA_CHANGE_PLAN_SCHEMA",
     "YAMAHA_NORMALIZED_STATE_SCHEMA",
     "YAMAHA_RENDER_PLAN_SCHEMA",
+    "YamahaChangePlanError",
     "YamahaEnvironmentIdentity",
     "YamahaIPv4Route",
     "YamahaKnowledgeError",
@@ -53,6 +62,7 @@ __all__ = [
     "YamahaSourceRecord",
     "YamahaStaticRouteIntent",
     "assess_read_only_candidate",
+    "build_change_plan",
     "build_normalized_state",
     "build_readonly_evidence",
     "normalize_firmware",
@@ -62,6 +72,7 @@ __all__ = [
     "parse_ipv4_routes",
     "render_candidate_plan",
     "validate_candidate_plan",
+    "validate_change_plan",
     "validate_normalized_state",
     "validate_read_only_command",
     "validate_readonly_evidence",
