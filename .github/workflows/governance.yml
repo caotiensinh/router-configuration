@@ -22,6 +22,7 @@ jobs:
           python tools/governance/check_governance.py \
             --root . \
             --vendor mikrotik \
+            --vendor yamaha \
             --json-output evidence/project-governance.json
       - name: Preserve governance evidence
         if: always()

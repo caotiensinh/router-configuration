@@ -1,0 +1,65 @@
+{
+  "schema_version": "yamaha-official-source-manifest/1",
+  "vendor": "Yamaha",
+  "product_family": "RTX",
+  "runtime_internet_dependency": false,
+  "retrieved_on": "2026-09-17",
+  "sources": [
+    {
+      "id": "YAMAHA-RTX3510-TECHDOCS",
+      "title": "RTX3510 技術資料",
+      "url": "https://network.yamaha.com/products/routers/rtx3510/techdocs",
+      "authority": "official_yamaha",
+      "scope": "RTX3510 technical documentation index including user guide and command reference entry points"
+    },
+    {
+      "id": "YAMAHA-RTX3510-SPEC",
+      "title": "RTX3510 仕様",
+      "url": "https://network.yamaha.com/products/routers/rtx3510/spec",
+      "authority": "official_yamaha",
+      "scope": "Exact RTX3510 product specifications; specification target firmware Rev.23.01.03"
+    },
+    {
+      "id": "YAMAHA-RTX3510-SUPPORT",
+      "title": "RTX3510 サポート",
+      "url": "https://network.yamaha.com/products/routers/rtx3510/support",
+      "authority": "official_yamaha",
+      "scope": "Official RTX3510 firmware, release-note, utility, and support entry points"
+    },
+    {
+      "id": "YAMAHA-RTX3510-FIRMWARE",
+      "title": "Yamaha Network Products Firmware",
+      "url": "https://www.rtpro.yamaha.co.jp/RT/firmware/",
+      "authority": "official_yamaha",
+      "scope": "Official firmware table identifying RTX3510 latest revision as 23.01.03"
+    },
+    {
+      "id": "YAMAHA-RTX3510-RELNOTE-23.01.03",
+      "title": "RTX3510 Rev.23.01.03 リリースノート",
+      "url": "https://www.rtpro.yamaha.co.jp/RT/docs/relnote/Rev.23.01/relnote_23_01_03.html",
+      "authority": "official_yamaha",
+      "scope": "Exact RTX3510 Rev.23.01.03 release note"
+    },
+    {
+      "id": "YAMAHA-RTX-MANUAL-INDEX",
+      "title": "RTシリーズのマニュアル配布",
+      "url": "https://www.rtpro.yamaha.co.jp/RT/manual.html",
+      "authority": "official_yamaha",
+      "scope": "Official RT-series manual index binding RTX3510 to Rev.23.01.03 command-reference coverage"
+    },
+    {
+      "id": "YAMAHA-RTX-CMDREF",
+      "title": "Yamaha Router Series Command Reference",
+      "url": "https://www.rtpro.yamaha.co.jp/RT/manual/rt-common/defaultpage.html",
+      "authority": "official_yamaha",
+      "scope": "Current common command-reference index listing RTX3510 and Rev.23.01.03"
+    },
+    {
+      "id": "YAMAHA-RTX3510-USERGUIDE",
+      "title": "RTX3510 ユーザーガイド",
+      "url": "https://www.rtpro.yamaha.co.jp/RT/manual/rtx3510/userguide/index.html",
+      "authority": "official_yamaha",
+      "scope": "Official model-specific RTX3510 user guide"
+    }
+  ]
+}

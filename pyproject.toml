@@ -19,4 +19,5 @@ where = ["src"]
 router_configuration = [
   "vendors/mikrotik/data/*.json",
   "vendors/cisco/data/*.json",
+  "vendors/yamaha/data/*.json",
 ]
