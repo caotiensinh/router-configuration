@@ -12,12 +12,24 @@ from router_configuration.vendors.cisco.simulation_evidence import (
 
 SOURCE_SHA = "1" * 40
 SIMULATOR_SHA = "2" * 40
+SCENARIO_DIGEST = "3" * 64
+INPUT_DIGEST = "4" * 64
+PRE_STATE_DIGEST = "5" * 64
+POST_STATE_DIGEST = "6" * 64
+SIMULATION_PROFILE = "iosxe-config-rollback-v1"
+ENVIRONMENT_KIND = "qualified_simulation"
 
 
 def fixture() -> dict:
     return build_simulation_evidence(
         source_sha=SOURCE_SHA,
         simulator_sha=SIMULATOR_SHA,
+        simulation_profile=SIMULATION_PROFILE,
+        scenario_digest=SCENARIO_DIGEST,
+        input_digest=INPUT_DIGEST,
+        pre_state_digest=PRE_STATE_DIGEST,
+        post_state_digest=POST_STATE_DIGEST,
+        environment_kind=ENVIRONMENT_KIND,
         tested_logic=[
             "candidate/running configuration logic",
             "commit and rollback logic",
@@ -42,6 +54,17 @@ class CiscoSimulationEvidenceTests(unittest.TestCase):
         self.assertFalse(evidence["production_write_authorized"])
         self.assertFalse(evidence["canonical_acceptance_promoted"])
         self.assertEqual(evidence["claimed_acceptance_gates"], [])
+
+    def test_cross_repository_provenance_is_explicit_and_pinned(self) -> None:
+        evidence = fixture()
+        self.assertEqual(evidence["router_configuration_sha"], SOURCE_SHA)
+        self.assertEqual(evidence["network_sandbox_sha"], SIMULATOR_SHA)
+        self.assertEqual(evidence["simulation_profile"], SIMULATION_PROFILE)
+        self.assertEqual(evidence["scenario_digest"], SCENARIO_DIGEST)
+        self.assertEqual(evidence["input_digest"], INPUT_DIGEST)
+        self.assertEqual(evidence["pre_state_digest"], PRE_STATE_DIGEST)
+        self.assertEqual(evidence["post_state_digest"], POST_STATE_DIGEST)
+        self.assertEqual(evidence["environment_kind"], ENVIRONMENT_KIND)
 
     def test_scope_status_says_logic_only_and_not_real_hardware(self) -> None:
         status = simulation_scope_status()
@@ -106,6 +129,51 @@ class CiscoSimulationEvidenceTests(unittest.TestCase):
             "cannot promote canonical acceptance gates",
         ):
             validate_simulation_evidence(evidence)
+
+    def test_missing_provenance_field_is_rejected(self) -> None:
+        evidence = fixture()
+        evidence.pop("simulation_profile")
+        with self.assertRaisesRegex(
+            CiscoSimulationEvidenceError,
+            "simulation_profile must be non-empty",
+        ):
+            validate_simulation_evidence(evidence)
+
+    def test_router_configuration_sha_must_match_legacy_source_binding(self) -> None:
+        evidence = fixture()
+        evidence["router_configuration_sha"] = "7" * 40
+        with self.assertRaisesRegex(
+            CiscoSimulationEvidenceError,
+            "router_configuration_sha must match source_sha",
+        ):
+            validate_simulation_evidence(evidence)
+
+    def test_network_sandbox_sha_must_match_simulator_binding(self) -> None:
+        evidence = fixture()
+        evidence["network_sandbox_sha"] = "8" * 40
+        with self.assertRaisesRegex(
+            CiscoSimulationEvidenceError,
+            "network_sandbox_sha must match simulator.source_sha",
+        ):
+            validate_simulation_evidence(evidence)
+
+    def test_physical_environment_kind_is_rejected(self) -> None:
+        with self.assertRaisesRegex(
+            CiscoSimulationEvidenceError,
+            "environment_kind must identify a simulation/emulation environment",
+        ):
+            build_simulation_evidence(
+                source_sha=SOURCE_SHA,
+                simulator_sha=SIMULATOR_SHA,
+                simulation_profile=SIMULATION_PROFILE,
+                scenario_digest=SCENARIO_DIGEST,
+                input_digest=INPUT_DIGEST,
+                pre_state_digest=PRE_STATE_DIGEST,
+                post_state_digest=POST_STATE_DIGEST,
+                environment_kind="physical_hardware",
+                tested_logic=["candidate/running configuration logic"],
+                evidence_refs=["artifact:network-sandbox:logic-run-001"],
+            )
 
     def test_missing_physical_limitation_disclosure_is_rejected(self) -> None:
         evidence = fixture()
