@@ -35,6 +35,29 @@ Simulation evidence produced through `simulation_evidence.py` must contain all o
 
 The validator fails closed if a simulation record attempts to elevate itself into canonical acceptance evidence.
 
+## Reproducible cross-repository provenance
+
+When evidence is produced with `caotiensinh/Network_Sandbox_Runtime`, a successful simulation result is not sufficient by itself. The evidence record must bind the exact inputs and state transition that produced the result.
+
+The fail-closed minimum provenance is:
+
+```text
+router_configuration_sha
+network_sandbox_sha
+simulation_profile
+scenario_digest
+input_digest
+pre_state_digest
+post_state_digest
+environment_kind
+```
+
+Both Git revisions must be full 40-character source SHAs. The scenario, input, pre-state and post-state values must be 64-character SHA-256 digests. `router_configuration_sha` must match the legacy `source_sha` binding and `network_sandbox_sha` must match `simulator.source_sha`; contradictory provenance is rejected.
+
+`environment_kind` is restricted to simulation/emulation classes accepted by the simulation evidence validator. A simulation record cannot relabel itself as physical hardware or production evidence.
+
+The complete record is itself protected by `record_sha256`, so changing any provenance field after generation invalidates the evidence.
+
 ## Canonical acceptance boundary
 
 Simulation evidence does **not** satisfy canonical live, human, physical, or production acceptance gates merely because the simulated logic passes. In particular it cannot satisfy:
@@ -48,7 +71,7 @@ The current physical verifier remains a separate boundary and requires real phys
 
 ## Network Sandbox Runtime
 
-When `caotiensinh/Network_Sandbox_Runtime` is used as the lab backend, its evidence must retain the exact simulator source revision and the router-configuration source revision. Tests should report only the fidelity actually exercised by that runtime. Logical, packet/event, or realistic open-backend success is valuable test evidence; it is not a statement that a physical Cisco product was tested.
+When `caotiensinh/Network_Sandbox_Runtime` is used as the lab backend, its evidence must retain the exact simulator source revision, the router-configuration source revision, the selected simulation profile, scenario/input digests, and pre/post-state digests. Tests should report only the fidelity actually exercised by that runtime. Logical, packet/event, or realistic open-backend success is valuable test evidence; it is not a statement that a physical Cisco product was tested.
 
 ## Required test wording
 
