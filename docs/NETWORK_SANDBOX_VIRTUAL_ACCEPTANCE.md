@@ -192,3 +192,11 @@ HARDWARE ACCEPTANCE — DEFERRED UNTIL AVAILABLE
 ```
 
 Simulation success remains evidence, not production authorization.
+
+## Repository governance for sandbox-integration changes
+
+Changes that alter this acceptance boundary must go through the repository PR
+governance gate. The pull request must include the exact mandatory governance
+declarations required by the current project checker, and CI must validate the
+exact proposed head before merge. A semantically similar paraphrase is not
+sufficient when the checker intentionally requires explicit attestation text.
