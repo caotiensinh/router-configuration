@@ -1,0 +1,28 @@
+schema_version: 1.0.0
+schema_id: omada.eap_rf_optimization_draft
+status: RESEARCH_DRAFT
+observed_at: '2026-09-15'
+authority: TP-Link / Omada official documentation only
+state_planes:
+  - radio_band_enable
+  - channel
+  - channel_width
+  - transmit_power
+  - interference_scan
+  - controller_optimization_state
+  - client_quality_and_load
+applicability:
+  controller: Omada Network Application v6.2.10+ in cited 2026 guide
+  product: Omada EAP
+  gates: [exact_model, hardware_revision, region, firmware, regulatory_domain, dfs_support, radio_band]
+safety:
+  - Maximum transmit power is not automatically optimal.
+  - 2.4 GHz and 5/6 GHz optimization are separate.
+  - Channel and width writes require regulatory/model capability checks.
+  - Stale scan/interference data cannot justify VERIFIED optimization.
+verification:
+  require_readback: true
+  operational_evidence: [channel_utilization, interference, client_quality, throughput_or_stability_where_observable]
+  apply_only_result: EXECUTED_UNVERIFIED
+sources:
+  - https://support.omadanetworks.com/us/document/13001/
